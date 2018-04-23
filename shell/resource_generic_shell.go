@@ -12,6 +12,8 @@ import (
 
 	"github.com/armon/circbuf"
 	"github.com/hashicorp/terraform/helper/schema"
+	"text/template"
+	"bytes"
 )
 
 func resourceGenericShell() *schema.Resource {
@@ -44,7 +46,7 @@ func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error 
 	config := meta.(*Config)
 
 	wd := config.WorkingDirectory
-	command, err := interpolateCommand(config.CreateCommand, config.CreateParameters, argumentsAsStrings(d))
+	command, err := interpolateCommand(config.CreateCommand, argumentsAsStrings(d))
 	if err != nil {
 		return err
 	}
@@ -64,7 +66,7 @@ func resourceGenericShellRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	wd := config.WorkingDirectory
-	command, err := interpolateCommand(config.ReadCommand, config.ReadParameters, argumentsAsStrings(d))
+	command, err := interpolateCommand(config.ReadCommand, argumentsAsStrings(d))
 	if err != nil {
 		return err
 	}
@@ -105,7 +107,7 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 	config := meta.(*Config)
 
 	wd := config.WorkingDirectory
-	command, err := interpolateCommand(config.DeleteCommand, config.DeleteParameters, argumentsAsStrings(d))
+	command, err := interpolateCommand(config.DeleteCommand, argumentsAsStrings(d))
 	if err != nil {
 		return err
 	}
@@ -127,28 +129,11 @@ func argumentsAsStrings(d *schema.ResourceData) map[string]string {
 	return args
 }
 
-func interpolateCommand(command string, parameters []interface{}, arguments map[string]string) (string, error) {
-	if len(parameters) == 0 {
-		return command, nil
-	}
-
-	inputArgs := make([]interface{}, len(parameters))
-	for i, p := range parameters {
-		if v, ok := arguments[p.(string)]; ok {
-			inputArgs[i] = v
-		} else {
-			return "", fmt.Errorf("Error interpolating command '%s', parameter '%s' missing.", command, p)
-		}
-	}
-	log.Printf("[DEBUG] Interpolating, command '%s' and args: '%v'", command, inputArgs)
-	newCommand := fmt.Sprintf(command, inputArgs...)
-
-	pos := strings.Index(newCommand, "%!")
-	if pos != -1 {
-		return "", fmt.Errorf("Error interpolating command '%s' using args '%v'", newCommand, inputArgs)
-	}
-
-	return newCommand, nil
+func interpolateCommand(command string, arguments map[string]string) (string, error) {
+	t := template.Must(template.New("command").Parse(command))
+	var buf bytes.Buffer
+	err := t.Execute(&buf, arguments)
+	return buf.String(), err
 }
 
 const (

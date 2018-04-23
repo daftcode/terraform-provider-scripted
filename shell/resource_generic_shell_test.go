@@ -64,12 +64,9 @@ func TestAccGenericShellProvider_WeirdOutput(t *testing.T) {
 func TestAccGenericShellProvider_Parameters(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
-		create_command = "echo \"%s\" > %s"
-		create_parameters = [ "output", "file" ]
-		read_command = "awk '{print \"out=\" $0}' %s"
-		read_parameters = [ "file" ]
-		delete_command = "rm %s"
-		delete_parameters = [ "file" ]
+		create_command = "echo \"{{.output}}\" > {{.file}}"
+		read_command = "awk '{print \"out=\" $0}' {{.file}}"
+		delete_command = "rm {{.file}}"
 	}
 	resource "shell_resource" "test" {
 		arguments {
@@ -96,12 +93,9 @@ func TestAccGenericShellProvider_Parameters(t *testing.T) {
 func TestAccGenericShellProvider_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "shell" {
-		create_command = "echo \"%s\" > %s"
-		create_parameters = [ "output", "file" ]
-		read_command = "awk '{print \"out=\" $0}' %s"
-		read_parameters = [ "file" ]
-		delete_command = "rm %s"
-		delete_parameters = [ "file" ]
+		create_command = "echo \"{{.output}}\" > {{.file}}"
+		read_command = "awk '{print \"out=\" $0}' {{.file}}"
+		delete_command = "rm {{.file}}"
 	}
 	resource "shell_resource" "test" {
 		arguments {
@@ -112,12 +106,9 @@ func TestAccGenericShellProvider_Update(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "shell" {
-		create_command = "echo \"%s\" > %s"
-		create_parameters = [ "output", "file" ]
-		read_command = "awk '{print \"out=\" $0}' %s"
-		read_parameters = [ "file" ]
-		delete_command = "rm %s"
-		delete_parameters = [ "file" ]
+		create_command = "echo \"{{.output}}\" > {{.file}}"
+		read_command = "awk '{print \"out=\" $0}' {{.file}}"
+		delete_command = "rm {{.file}}"
 	}
 	resource "shell_resource" "test" {
 		arguments {

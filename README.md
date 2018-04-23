@@ -41,12 +41,9 @@ To create a more complete example add this to the sample example file
 ```hcl
 provider "shell" {
    alias = "write_to_file"
-   create_command = "echo \"%s\" > %s"
-   create_parameters = [ "input", "file" ]
-   read_command = "awk '{print \"out=\" $0}' %s"
-   read_parameters = [ "file" ]
-   delete_command = "rm %s"
-   delete_parameters = [ "file" ]
+   create_command = "echo \"{{.output}}\" > {{.file}}"
+   read_command = "awk '{print \"out=\" $0}' {{.file}}"
+   delete_command = "rm {{.file}}"
 }
 
 resource "shell_resource" "filetest" {
