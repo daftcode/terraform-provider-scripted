@@ -11,15 +11,11 @@ func resourceGenericShellCRUD() *schema.Resource {
 		Update: resourceGenericShellUpdate,
 		Delete: resourceGenericShellDelete,
 
-		// desc: will always recreate the resource if something is changed
-		// will output variables but we don't define them here
-		// eg. if contains access_ipv4
-
 		Schema: map[string]*schema.Schema{
-			"data": {
+			"context": {
 				Type:        schema.TypeMap,
 				Optional:    true,
-				Description: "The input data for commands",
+				Description: "Template context for rendering commands",
 			},
 			"output": {
 				Type:        schema.TypeMap,

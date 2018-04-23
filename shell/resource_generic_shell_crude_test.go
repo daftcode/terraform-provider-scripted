@@ -16,7 +16,7 @@ func TestAccGenericShellProviderCRUDE_Exists(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crude" "test" {
-		data {
+		context {
 			output = "hi"
 			file = "testfileU1"
 		}
@@ -31,13 +31,13 @@ func TestAccGenericShellProviderCRUDE_Exists(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crude" "test" {
-		data {
+		context {
 			output = "hi all"
 			file = "testfileU2"
 		}
 
 		provisioner "local-exec" {
-			command = "rm ${self.data.file}"
+			command = "rm ${self.context.file}"
 		}
 	}
 `

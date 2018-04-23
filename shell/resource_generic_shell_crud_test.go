@@ -16,7 +16,7 @@ func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crud" "test" {
-		data {
+		context {
 			output = "hi"
 			file = "testfileU1"
 		}
@@ -30,7 +30,7 @@ func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crud" "test" {
-		data {
+		context {
 			output = "hi all"
 			file = "testfileU2"
 		}
@@ -65,7 +65,7 @@ func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crud" "test" {
-		data {
+		context {
 			output = "hi"
 			file = "testfileU1"
 		}
@@ -81,7 +81,7 @@ func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
 		test = "hi all"
 	}
 	resource "shell_crud" "test" {
-		data {
+		context {
 			output = "${local.test}"
 			file = "testfileU2"
 		}

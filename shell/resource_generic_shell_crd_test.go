@@ -123,7 +123,7 @@ func TestAccGenericShellProviderCRD_Parameters(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crd" "test" {
-		data {
+		context {
 			output = "param value"
 			file = "file4"
 		}
@@ -152,7 +152,7 @@ func TestAccGenericShellProviderCRD_Update(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crd" "test" {
-		data {
+		context {
 			output = "hi"
 			file = "testfileU1"
 		}
@@ -165,7 +165,7 @@ func TestAccGenericShellProviderCRD_Update(t *testing.T) {
 		delete_command = "rm {{.file}}"
 	}
 	resource "shell_crd" "test" {
-		data {
+		context {
 			output = "hi all"
 			file = "testfileU2"
 		}

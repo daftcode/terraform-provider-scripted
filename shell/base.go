@@ -70,13 +70,13 @@ func getOutputsText(output string, prefix string) map[string]string {
 func getOutputsBase64(output, prefix string) map[string]string {
 	outputs := make(map[string]string)
 	for key, value := range getOutputsText(output, prefix) {
-		data, err := base64.StdEncoding.DecodeString(value)
+		decoded, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
 			writeLog("WARN", "error decoding %s", err)
 			continue
 		}
-		writeLog("DEBUG", "read output entry (decoded): \"%s\" = \"%s\" (%s)", key, data, value)
-		outputs[key] = string(data[:])
+		writeLog("DEBUG", "read output entry (decoded): \"%s\" = \"%s\" (%s)", key, decoded, value)
+		outputs[key] = string(decoded[:])
 	}
 	return outputs
 }
@@ -113,7 +113,7 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	o, n := d.GetChange("data")
+	o, n := d.GetChange("context")
 	deleteCommand, _ := interpolateCommand(config.DeleteCommand, o.(map[string]interface{}))
 	createCommand, _ := interpolateCommand(config.CreateCommand, n.(map[string]interface{}))
 	command, err := interpolateCommand(config.UpdateCommand, map[string]interface{}{
@@ -169,13 +169,13 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 }
 
 func getArguments(d *schema.ResourceData) map[string]interface{} {
-	return d.Get("data").(map[string]interface{})
+	return d.Get("context").(map[string]interface{})
 }
 
-func interpolateCommand(command string, data map[string]interface{}) (string, error) {
+func interpolateCommand(command string, context map[string]interface{}) (string, error) {
 	t := template.Must(template.New("command").Parse(command))
 	var buf bytes.Buffer
-	err := t.Execute(&buf, data)
+	err := t.Execute(&buf, context)
 	return buf.String(), err
 }
 

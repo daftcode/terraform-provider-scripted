@@ -48,7 +48,7 @@ provider "shell" {
 
 resource "shell_crd" "filetest" {
   provider = "shell.write_to_file"
-  data {
+  context {
     input = "this to the file"
     file = "test_file2"
   }

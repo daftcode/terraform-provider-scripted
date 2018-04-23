@@ -15,10 +15,10 @@ func resourceGenericShellCRD() *schema.Resource {
 		// eg. if contains access_ipv4
 
 		Schema: map[string]*schema.Schema{
-			"data": {
+			"context": {
 				Type:        schema.TypeMap,
 				Optional:    true,
-				Description: "The input data for commands",
+				Description: "Template context for rendering commands",
 				ForceNew:    true,
 			},
 			"output": {
