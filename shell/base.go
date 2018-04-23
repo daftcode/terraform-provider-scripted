@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/armon/circbuf"
@@ -20,13 +19,12 @@ import (
 func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	wd := config.WorkingDirectory
 	command, err := interpolateCommand(config.CreateCommand, getArguments(d))
 	if err != nil {
 		return err
 	}
 	writeLog("DEBUG", "creating generic resource: %s", command)
-	_, _, err = runCommand(command, wd, config.BufferSize)
+	_, _, err = runCommand(command, config)
 	if err != nil {
 		return err
 	}
@@ -92,7 +90,7 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	writeLog("DEBUG", "reading resource: %s", command)
-	output, stderr, err := runCommand(command, wd, config.BufferSize)
+	output, stderr, err := runCommand(command, config)
 	if err != nil {
 		writeLog("INFO", "command returned error (%s), marking resource deleted: %s, stderr: %s", err, output, stderr)
 		d.SetId("")
@@ -116,7 +114,6 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	wd := config.WorkingDirectory
 	o, n := d.GetChange("data")
 	deleteCommand, _ := interpolateCommand(config.DeleteCommand, o.(map[string]interface{}))
 	createCommand, _ := interpolateCommand(config.CreateCommand, n.(map[string]interface{}))
@@ -130,7 +127,7 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 		return err
 	}
 	writeLog("DEBUG", "updating generic resource: %s", command)
-	stdout, stderr, err := runCommand(command, wd, config.BufferSize)
+	stdout, stderr, err := runCommand(command, config)
 	if err != nil {
 		writeLog("WARN", "update command returned error: %s, stderr: %s", stdout, stderr)
 		return nil
@@ -142,13 +139,12 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool, error) {
 	config := meta.(*Config)
 
-	wd := config.WorkingDirectory
 	command, err := interpolateCommand(config.ExistsCommand, getArguments(d))
 	if err != nil {
 		return false, err
 	}
 	writeLog("DEBUG", "resource exists: %s", command)
-	stdout, stderr, err := runCommand(command, wd, 1024)
+	stdout, stderr, err := runCommand(command, config)
 	if err != nil {
 		writeLog("WARN", "command returned error: %s, stderr: %s", stdout, stderr)
 	}
@@ -159,13 +155,12 @@ func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool,
 func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	wd := config.WorkingDirectory
 	command, err := interpolateCommand(config.DeleteCommand, getArguments(d))
 	if err != nil {
 		return err
 	}
 	writeLog("DEBUG", "deleting generic resource: %s", command)
-	_, _, err = runCommand(command, wd, config.BufferSize)
+	_, _, err = runCommand(command, config)
 	if err != nil {
 		return err
 	}
@@ -185,27 +180,22 @@ func interpolateCommand(command string, data map[string]interface{}) (string, er
 	return buf.String(), err
 }
 
-func runCommand(command string, workingDir string, maxBufSize int64) (string, string, error) {
-	// Execute the command using a shell
-	var shell, flag string
-	if runtime.GOOS == "windows" {
-		shell = "cmd"
-		flag = "/C"
-	} else {
-		shell = "/bin/sh"
-		flag = "-c"
-	}
-
+func runCommand(command string, config *Config) (string, string, error) {
 	// Setup the command
-	command = fmt.Sprintf("cd %s\n%s", workingDir, command)
-	cmd := exec.Command(shell, flag, command)
-	stdout, _ := circbuf.NewBuffer(maxBufSize)
+	interpreter := config.Interpreter[0]
+	args := append(config.Interpreter[1:], mergeCommands(
+		fmt.Sprintf("cd %s", config.WorkingDirectory),
+		config.CommandPrefix,
+		command,
+	))
+	cmd := exec.Command(interpreter, args...)
+	stdout, _ := circbuf.NewBuffer(config.BufferSize)
 	cmd.Stdout = io.Writer(stdout)
-	stderr, _ := circbuf.NewBuffer(maxBufSize)
+	stderr, _ := circbuf.NewBuffer(config.BufferSize)
 	cmd.Stderr = io.Writer(stderr)
 
 	// Output what we're about to run
-	writeLog("going to execute: %s %s \"%s\"", shell, flag, command)
+	writeLog("going to execute: %s %s", interpreter, strings.Join(args, " "))
 
 	// Run the command to completion
 	err := cmd.Run()
@@ -215,10 +205,14 @@ func runCommand(command string, workingDir string, maxBufSize int64) (string, st
 			command, err, stdout.Bytes(), stderr.Bytes())
 	}
 
-	writeLog("DEBUG", "command stdout was: \"%s\"", stdout)
-	writeLog("DEBUG", "command stderr was: \"%s\"", stderr)
+	writeLog("DEBUG", "stdout was: \"%s\"", stdout)
+	writeLog("DEBUG", "stderr was: \"%s\"", stderr)
 
 	return stdout.String(), stderr.String(), nil
+}
+
+func mergeCommands(commands... string) string {
+	return strings.Join(commands, "\n")
 }
 
 func hash(s string) string {

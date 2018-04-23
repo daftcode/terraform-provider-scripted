@@ -3,6 +3,7 @@ package shell
 import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
+	"runtime"
 )
 
 func Provider() terraform.ResourceProvider {
@@ -13,6 +14,32 @@ func Provider() terraform.ResourceProvider {
 				Optional:    true,
 				Default:     1 * 1024 * 1024,
 				Description: "stdout and stderr buffer sizes",
+			},
+			"command_prefix": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Command prefix shared between all commands",
+			},
+			"interpreter": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Default: []string{
+					"/bin/sh",
+					"-c",
+				},
+				DefaultFunc: func() (interface{}, error) {
+					if runtime.GOOS == "windows" {
+						return []string{"cmd", "/C"}, nil
+					}
+					return []string{"/bin/sh", "-c"}, nil
+				},
+				Description: "Interpreter to use for the commands",
+			},
+			"command_separator": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "\n",
+				Description: "Commands separator used in specified interpreter",
 			},
 			"working_directory": {
 				Type:        schema.TypeString,
@@ -73,6 +100,9 @@ func Provider() terraform.ResourceProvider {
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	config := Config{
+		CommandPrefix:    d.Get("command_prefix").(string),
+		Interpreter:      d.Get("interpreter").([]string),
+		CommandSeparator: d.Get("command_separator").(string),
 		WorkingDirectory: d.Get("working_directory").(string),
 		BufferSize:       int64(d.Get("buffer_size").(int)),
 		CreateCommand:    d.Get("create_command").(string),
