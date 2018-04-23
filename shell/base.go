@@ -84,7 +84,6 @@ func getOutputsBase64(output, prefix string) map[string]string {
 func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	wd := config.WorkingDirectory
 	command, err := interpolateCommand(config.ReadCommand, getArguments(d))
 	if err != nil {
 		return err
