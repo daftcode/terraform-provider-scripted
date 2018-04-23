@@ -5,7 +5,6 @@ type Config struct {
 	Interpreter      []string
 	CommandPrefix    string
 	CommandSeparator string
-	WorkingDirectory string
 	CreateCommand    string
 	ReadCommand      string
 	ReadFormat       string

@@ -15,37 +15,23 @@ func Provider() terraform.ResourceProvider {
 				Default:     1 * 1024 * 1024,
 				Description: "stdout and stderr buffer sizes",
 			},
+			"interpreter": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "Interpreter to use for the commands",
+			},
 			"command_prefix": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
+				Default:     "",
 				Description: "Command prefix shared between all commands",
-			},
-			"interpreter": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Default: []string{
-					"/bin/sh",
-					"-c",
-				},
-				DefaultFunc: func() (interface{}, error) {
-					if runtime.GOOS == "windows" {
-						return []string{"cmd", "/C"}, nil
-					}
-					return []string{"/bin/sh", "-c"}, nil
-				},
-				Description: "Interpreter to use for the commands",
 			},
 			"command_separator": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "\n",
 				Description: "Commands separator used in specified interpreter",
-			},
-			"working_directory": {
-				Type:        schema.TypeString,
-				Required:    true,
-				DefaultFunc: schema.EnvDefaultFunc("PWD", nil),
-				Description: "The working directory where to run.",
 			},
 			"create_command": {
 				Type:        schema.TypeString,
@@ -99,11 +85,23 @@ func Provider() terraform.ResourceProvider {
 }
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
+	// For some reason setting this via DefaultFunc results in an error
+	interpreterI := d.Get("interpreter").([]interface{})
+	if len(interpreterI) == 0 {
+		if runtime.GOOS == "windows" {
+			interpreterI = []interface{}{"cmd", "/C"}
+		}
+		interpreterI = []interface{}{"/bin/sh", "-c"}
+	}
+	interpreter := make([]string, len(interpreterI))
+	for i, vI := range interpreterI {
+		interpreter[i] = vI.(string)
+	}
+
 	config := Config{
 		CommandPrefix:    d.Get("command_prefix").(string),
-		Interpreter:      d.Get("interpreter").([]string),
+		Interpreter:      interpreter,
 		CommandSeparator: d.Get("command_separator").(string),
-		WorkingDirectory: d.Get("working_directory").(string),
 		BufferSize:       int64(d.Get("buffer_size").(int)),
 		CreateCommand:    d.Get("create_command").(string),
 		ReadCommand:      d.Get("read_command").(string),

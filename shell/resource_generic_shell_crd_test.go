@@ -13,7 +13,6 @@ import (
 func TestAccGenericShellProviderCRD_Basic(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
-		working_directory = "."
 		create_command = "echo -n \"hi\" > test_file"
 		read_command = "awk '{print \"out=\" $0}' test_file"
 		delete_command = "rm test_file"
@@ -39,7 +38,6 @@ func TestAccGenericShellProviderCRD_Basic(t *testing.T) {
 func TestAccGenericShellProviderCRD_Base64(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
-		working_directory = "."
 		create_command = "echo -n \"hi\" > test_file"
 		read_command = "base64 test_file | awk '{print \"out=\" $0}'"
 		read_format = "base64"
@@ -66,7 +64,6 @@ func TestAccGenericShellProviderCRD_Base64(t *testing.T) {
 func TestAccGenericShellProviderCRD_Prefixed(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
-		working_directory = "."
 		create_command = "echo -n \"hi\" > test_file"
 		read_command = "awk '{print \"PREFIX_out=\" $0}' test_file"
 		read_line_prefix =  "PREFIX_"

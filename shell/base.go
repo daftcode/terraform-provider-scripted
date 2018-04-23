@@ -19,12 +19,14 @@ import (
 func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	command, err := interpolateCommand(config.CreateCommand, getArguments(d))
+	command, err := interpolateCommand(
+		mergeCommands(config, config.CommandPrefix, config.CreateCommand),
+		getArguments(d))
 	if err != nil {
 		return err
 	}
-	writeLog("DEBUG", "creating generic resource: %s", command)
-	_, _, err = runCommand(command, config)
+	writeLog("DEBUG", "creating resource")
+	_, _, err = runCommand(config, command)
 	if err != nil {
 		return err
 	}
@@ -84,12 +86,14 @@ func getOutputsBase64(output, prefix string) map[string]string {
 func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	command, err := interpolateCommand(config.ReadCommand, getArguments(d))
+	command, err := interpolateCommand(
+		mergeCommands(config, config.CommandPrefix, config.ReadCommand),
+		getArguments(d))
 	if err != nil {
 		return err
 	}
-	writeLog("DEBUG", "reading resource: %s", command)
-	output, stderr, err := runCommand(command, config)
+	writeLog("DEBUG", "reading resource")
+	output, stderr, err := runCommand(config, command)
 	if err != nil {
 		writeLog("INFO", "command returned error (%s), marking resource deleted: %s, stderr: %s", err, output, stderr)
 		d.SetId("")
@@ -116,17 +120,19 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 	o, n := d.GetChange("context")
 	deleteCommand, _ := interpolateCommand(config.DeleteCommand, o.(map[string]interface{}))
 	createCommand, _ := interpolateCommand(config.CreateCommand, n.(map[string]interface{}))
-	command, err := interpolateCommand(config.UpdateCommand, map[string]interface{}{
-		"old":            o,
-		"new":            n,
-		"delete_command": deleteCommand,
-		"create_command": createCommand,
-	})
+	command, err := interpolateCommand(
+		mergeCommands(config, config.CommandPrefix, config.UpdateCommand),
+		map[string]interface{}{
+			"old":            o,
+			"new":            n,
+			"delete_command": deleteCommand,
+			"create_command": createCommand,
+		})
 	if err != nil {
 		return err
 	}
-	writeLog("DEBUG", "updating generic resource: %s", command)
-	stdout, stderr, err := runCommand(command, config)
+	writeLog("DEBUG", "updating resource: %s", command)
+	stdout, stderr, err := runCommand(config, command)
 	if err != nil {
 		writeLog("WARN", "update command returned error: %s, stderr: %s", stdout, stderr)
 		return nil
@@ -138,12 +144,14 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool, error) {
 	config := meta.(*Config)
 
-	command, err := interpolateCommand(config.ExistsCommand, getArguments(d))
+	command, err := interpolateCommand(
+		mergeCommands(config, config.CommandPrefix, config.ExistsCommand),
+		getArguments(d))
 	if err != nil {
 		return false, err
 	}
-	writeLog("DEBUG", "resource exists: %s", command)
-	stdout, stderr, err := runCommand(command, config)
+	writeLog("DEBUG", "resource exists")
+	stdout, stderr, err := runCommand(config, command)
 	if err != nil {
 		writeLog("WARN", "command returned error: %s, stderr: %s", stdout, stderr)
 	}
@@ -154,12 +162,14 @@ func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool,
 func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	command, err := interpolateCommand(config.DeleteCommand, getArguments(d))
+	command, err := interpolateCommand(
+		mergeCommands(config, config.CommandPrefix, config.DeleteCommand),
+		getArguments(d))
 	if err != nil {
 		return err
 	}
-	writeLog("DEBUG", "deleting generic resource: %s", command)
-	_, _, err = runCommand(command, config)
+	writeLog("DEBUG", "reading resource")
+	_, _, err = runCommand(config, command)
 	if err != nil {
 		return err
 	}
@@ -179,14 +189,12 @@ func interpolateCommand(command string, context map[string]interface{}) (string,
 	return buf.String(), err
 }
 
-func runCommand(command string, config *Config) (string, string, error) {
+func runCommand(config *Config, commands ... string) (string, string, error) {
 	// Setup the command
+	writeLog("DEBUG", "%s", config.Interpreter)
 	interpreter := config.Interpreter[0]
-	args := append(config.Interpreter[1:], mergeCommands(
-		fmt.Sprintf("cd %s", config.WorkingDirectory),
-		config.CommandPrefix,
-		command,
-	))
+	command := mergeCommands(config, commands...)
+	args := append(config.Interpreter[1:], command)
 	cmd := exec.Command(interpreter, args...)
 	stdout, _ := circbuf.NewBuffer(config.BufferSize)
 	cmd.Stdout = io.Writer(stdout)
@@ -210,8 +218,8 @@ func runCommand(command string, config *Config) (string, string, error) {
 	return stdout.String(), stderr.String(), nil
 }
 
-func mergeCommands(commands... string) string {
-	return strings.Join(commands, "\n")
+func mergeCommands(config *Config, commands ... string) string {
+	return strings.Join(commands, config.CommandSeparator)
 }
 
 func hash(s string) string {
