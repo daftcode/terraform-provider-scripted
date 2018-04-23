@@ -26,7 +26,7 @@ provider "shell" {
   delete_command = "rm test_file"
 }
 
-resource "shell_resource" "test" {
+resource "shell_crd" "test" {
 }
 ```
 
@@ -46,9 +46,9 @@ provider "shell" {
    delete_command = "rm {{.file}}"
 }
 
-resource "shell_resource" "filetest" {
+resource "shell_crd" "filetest" {
   provider = "shell.write_to_file"
-  arguments {
+  data {
     input = "this to the file"
     file = "test_file2"
   }
@@ -74,7 +74,6 @@ make test
 
 ## Known Problems
 
-* The provider won't support `Update` CRUD operation.
 * The provider won't print output of the commands.
 * The provider will error instead of removing the resource if the delete command fails. However, this is a safe default.
 * Changes in provider do not issue resource rebuilds. Please parametrize all parameters that will change.

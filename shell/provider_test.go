@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform/terraform"
 )
 
-// Tests for this provider doesn't need any resouces, but a Linux host to run
+// Tests for this provider doesn't need any resources, but a Linux host to run
 
 var testAccProviders map[string]terraform.ResourceProvider
 var testAccProvider *schema.Provider
@@ -26,5 +26,5 @@ func TestProvider(t *testing.T) {
 }
 
 func TestProviderImpl(t *testing.T) {
-	var _ terraform.ResourceProvider = Provider()
+	var _ = Provider()
 }
