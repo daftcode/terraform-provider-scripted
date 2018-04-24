@@ -43,6 +43,12 @@ func Provider() terraform.ResourceProvider {
 				Required:    true,
 				Description: "Read command",
 			},
+			"read_delete_on_failure": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Read command",
+			},
 			"read_format": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -99,17 +105,18 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	}
 
 	config := Config{
-		CommandPrefix:    d.Get("command_prefix").(string),
-		Interpreter:      interpreter,
-		CommandSeparator: d.Get("command_separator").(string),
-		BufferSize:       int64(d.Get("buffer_size").(int)),
-		CreateCommand:    d.Get("create_command").(string),
-		ReadCommand:      d.Get("read_command").(string),
-		ReadFormat:       d.Get("read_format").(string),
-		ReadLinePrefix:   d.Get("read_line_prefix").(string),
-		UpdateCommand:    d.Get("update_command").(string),
-		DeleteCommand:    d.Get("delete_command").(string),
-		ExistsCommand:    d.Get("exists_command").(string),
+		CommandPrefix:       d.Get("command_prefix").(string),
+		Interpreter:         interpreter,
+		CommandSeparator:    d.Get("command_separator").(string),
+		BufferSize:          int64(d.Get("buffer_size").(int)),
+		CreateCommand:       d.Get("create_command").(string),
+		ReadCommand:         d.Get("read_command").(string),
+		ReadDeleteOnFailure: d.Get("read_delete_on_failure").(bool),
+		ReadFormat:          d.Get("read_format").(string),
+		ReadLinePrefix:      d.Get("read_line_prefix").(string),
+		UpdateCommand:       d.Get("update_command").(string),
+		DeleteCommand:       d.Get("delete_command").(string),
+		ExistsCommand:       d.Get("exists_command").(string),
 	}
 
 	return &config, nil

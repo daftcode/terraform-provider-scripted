@@ -9,11 +9,11 @@ import (
 	"os/exec"
 	"strings"
 
+	"bytes"
+	"encoding/base64"
 	"github.com/armon/circbuf"
 	"github.com/hashicorp/terraform/helper/schema"
 	"text/template"
-	"bytes"
-	"encoding/base64"
 )
 
 func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error {
@@ -21,7 +21,7 @@ func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error 
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.CreateCommand),
-		getContext(d))
+		getContext(d, "create"))
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func getOutputsText(output string, prefix string) map[string]string {
 		}
 
 		if prefix != "" {
-			if ! strings.HasPrefix(varline, prefix) {
+			if !strings.HasPrefix(varline, prefix) {
 				writeLog("INFO", "ignoring line without prefix `%s`: \"%s\"", prefix, varline)
 				continue
 			}
@@ -88,7 +88,7 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.ReadCommand),
-		getContext(d))
+		getContext(d, "read"))
 	if err != nil {
 		return err
 	}
@@ -96,8 +96,11 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 	output, stderr, err := runCommand(config, command)
 	if err != nil {
 		writeLog("INFO", "command returned error (%s), marking resource deleted: %s, stderr: %s", err, output, stderr)
-		d.SetId("")
-		return nil
+		if config.ReadDeleteOnFailure {
+			d.SetId("")
+			return nil
+		}
+		return err
 	}
 	var outputs map[string]string
 
@@ -117,8 +120,10 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	ctx := getContext(d)
-	deleteCommand, _ := interpolateCommand(mergeCommands(config, config.CommandPrefix, config.DeleteCommand), ctx)
+	ctx := getContext(d, "update")
+	deleteCommand, _ := interpolateCommand(
+		mergeCommands(config, config.CommandPrefix, config.DeleteCommand),
+		mergeMaps(ctx, map[string]interface{}{"cur": ctx["old"]}))
 	createCommand, _ := interpolateCommand(mergeCommands(config, config.CommandPrefix, config.CreateCommand), ctx)
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.UpdateCommand),
@@ -144,7 +149,7 @@ func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool,
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.ExistsCommand),
-		getContext(d))
+		getContext(d, "exists"))
 	if err != nil {
 		return false, err
 	}
@@ -162,7 +167,7 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.DeleteCommand),
-		getContext(d))
+		getContext(d, "delete"))
 	if err != nil {
 		return err
 	}
@@ -176,20 +181,24 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 	return nil
 }
 
-func getContext(d *schema.ResourceData) map[string]interface{} {
-	return getContextExtra(d, map[string]interface{}{})
+func getContext(d *schema.ResourceData, operation string) map[string]interface{} {
+	return getContextFull(d, operation, false)
 }
-
-func getContextExtra(d *schema.ResourceData, maps ... map[string]interface{}) map[string]interface{} {
+func getContextFull(d *schema.ResourceData, operation string, oldIsCurrent bool) map[string]interface{} {
 	o, n := d.GetChange("context")
-	maps = append(maps, map[string]interface{}{
-		"old": o,
-		"new": n,
-	})
-	return mergeMaps(maps...)
+	cur := n
+	if oldIsCurrent {
+		cur = o
+	}
+	return map[string]interface{}{
+		"operation": operation,
+		"old":       o,
+		"new":       n,
+		"cur":       cur,
+	}
 }
 
-func mergeMaps(maps ... map[string]interface{}) map[string]interface{} {
+func mergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 	ctx := map[string]interface{}{}
 	for _, m := range maps {
 		for k, v := range m {
@@ -206,7 +215,7 @@ func interpolateCommand(command string, context map[string]interface{}) (string,
 	return buf.String(), err
 }
 
-func runCommand(config *Config, commands ... string) (string, string, error) {
+func runCommand(config *Config, commands ...string) (string, string, error) {
 	// Setup the command
 	interpreter := config.Interpreter[0]
 	command := mergeCommands(config, commands...)
@@ -218,7 +227,7 @@ func runCommand(config *Config, commands ... string) (string, string, error) {
 	cmd.Stderr = io.Writer(stderr)
 
 	// Output what we're about to run
-	writeLog("DEBUG","executing: %s %s", interpreter, strings.Join(args, " "))
+	writeLog("DEBUG", "executing: %s %s", interpreter, strings.Join(args, " "))
 
 	// Run the command to completion
 	err := cmd.Run()
@@ -234,7 +243,7 @@ func runCommand(config *Config, commands ... string) (string, string, error) {
 	return stdout.String(), stderr.String(), nil
 }
 
-func mergeCommands(config *Config, commands ... string) string {
+func mergeCommands(config *Config, commands ...string) string {
 	return strings.Join(commands, config.CommandSeparator)
 }
 
@@ -243,7 +252,7 @@ func hash(s string) string {
 	return hex.EncodeToString(sha[:])
 }
 
-func writeLog(level, format string, v ... interface{}) {
+func writeLog(level, format string, v ...interface{}) {
 	log.Output(2, strings.Join([]string{
 		fmt.Sprintf("[%s] [terraform-provider-shell]", level),
 		fmt.Sprintf(format, v...),

@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform/helper/resource"
 )
 
-
 func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "shell" {
