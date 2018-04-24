@@ -22,7 +22,7 @@ First, an simple example that is used in tests too
 ```hcl
 provider "shell" {
   create_command = "echo \"hi\" > test_file"
-  read_command = "awk '{print \"out=\" $0}' test_file"
+  read_command = "echo -n \"out=$(cat test_file)\""
   delete_command = "rm test_file"
 }
 
@@ -40,10 +40,10 @@ To create a more complete example add this to the sample example file
 
 ```hcl
 provider "shell" {
-   alias = "write_to_file"
-   create_command = "echo \"{{.output}}\" > {{.file}}"
-   read_command = "awk '{print \"out=\" $0}' {{.file}}"
-   delete_command = "rm {{.file}}"
+  alias = "write_to_file"
+  create_command = "echo \"{{.new.output}}\" > {{.new.file}}"
+  read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
+  delete_command = "rm {{.old.file}}"
 }
 
 resource "shell_crd" "filetest" {

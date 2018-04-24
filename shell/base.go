@@ -21,7 +21,7 @@ func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error 
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.CreateCommand),
-		getArguments(d))
+		getContext(d))
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.ReadCommand),
-		getArguments(d))
+		getContext(d))
 	if err != nil {
 		return err
 	}
@@ -117,17 +117,15 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
-	o, n := d.GetChange("context")
-	deleteCommand, _ := interpolateCommand(config.DeleteCommand, o.(map[string]interface{}))
-	createCommand, _ := interpolateCommand(config.CreateCommand, n.(map[string]interface{}))
+	ctx := getContext(d)
+	deleteCommand, _ := interpolateCommand(mergeCommands(config, config.CommandPrefix, config.DeleteCommand), ctx)
+	createCommand, _ := interpolateCommand(mergeCommands(config, config.CommandPrefix, config.CreateCommand), ctx)
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.UpdateCommand),
-		map[string]interface{}{
-			"old":            o,
-			"new":            n,
+		mergeMaps(ctx, map[string]interface{}{
 			"delete_command": deleteCommand,
 			"create_command": createCommand,
-		})
+		}))
 	if err != nil {
 		return err
 	}
@@ -146,7 +144,7 @@ func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool,
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.ExistsCommand),
-		getArguments(d))
+		getContext(d))
 	if err != nil {
 		return false, err
 	}
@@ -164,7 +162,7 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 
 	command, err := interpolateCommand(
 		mergeCommands(config, config.CommandPrefix, config.DeleteCommand),
-		getArguments(d))
+		getContext(d))
 	if err != nil {
 		return err
 	}
@@ -178,8 +176,27 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 	return nil
 }
 
-func getArguments(d *schema.ResourceData) map[string]interface{} {
-	return d.Get("context").(map[string]interface{})
+func getContext(d *schema.ResourceData) map[string]interface{} {
+	return getContextExtra(d, map[string]interface{}{})
+}
+
+func getContextExtra(d *schema.ResourceData, maps ... map[string]interface{}) map[string]interface{} {
+	o, n := d.GetChange("context")
+	maps = append(maps, map[string]interface{}{
+		"old": o,
+		"new": n,
+	})
+	return mergeMaps(maps...)
+}
+
+func mergeMaps(maps ... map[string]interface{}) map[string]interface{} {
+	ctx := map[string]interface{}{}
+	for _, m := range maps {
+		for k, v := range m {
+			ctx[k] = v
+		}
+	}
+	return ctx
 }
 
 func interpolateCommand(command string, context map[string]interface{}) (string, error) {
@@ -191,7 +208,6 @@ func interpolateCommand(command string, context map[string]interface{}) (string,
 
 func runCommand(config *Config, commands ... string) (string, string, error) {
 	// Setup the command
-	writeLog("DEBUG", "%s", config.Interpreter)
 	interpreter := config.Interpreter[0]
 	command := mergeCommands(config, commands...)
 	args := append(config.Interpreter[1:], command)
@@ -202,7 +218,7 @@ func runCommand(config *Config, commands ... string) (string, string, error) {
 	cmd.Stderr = io.Writer(stderr)
 
 	// Output what we're about to run
-	writeLog("going to execute: %s %s", interpreter, strings.Join(args, " "))
+	writeLog("DEBUG","executing: %s %s", interpreter, strings.Join(args, " "))
 
 	// Run the command to completion
 	err := cmd.Run()
@@ -212,8 +228,8 @@ func runCommand(config *Config, commands ... string) (string, string, error) {
 			command, err, stdout.Bytes(), stderr.Bytes())
 	}
 
-	writeLog("DEBUG", "stdout was: \"%s\"", stdout)
-	writeLog("DEBUG", "stderr was: \"%s\"", stderr)
+	writeLog("DEBUG", "STDOUT: \"%s\"", stdout)
+	writeLog("DEBUG", "STDERR: \"%s\"", stderr)
 
 	return stdout.String(), stderr.String(), nil
 }

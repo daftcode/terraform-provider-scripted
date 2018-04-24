@@ -58,8 +58,8 @@ func Provider() terraform.ResourceProvider {
 			"update_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     "{{.delete_command}}\n{{.create_command}}",
-				Description: "Update command",
+				Default:     "({{.delete_command}})\n({{.create_command}})",
+				Description: "Update command, default is: ({{.delete_command}})\\n({{.create_command}})",
 			},
 			"exists_command": {
 				Type:        schema.TypeString,

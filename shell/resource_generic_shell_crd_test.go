@@ -39,7 +39,7 @@ func TestAccGenericShellProviderCRD_Base64(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
 		create_command = "echo -n \"hi\" > test_file"
-		read_command = "base64 test_file | awk '{print \"out=\" $0}'"
+  		read_command = "echo -n \"out=$(base64 'test_file')\""
 		read_format = "base64"
 		delete_command = "rm test_file"
 	}
@@ -65,7 +65,7 @@ func TestAccGenericShellProviderCRD_Prefixed(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
 		create_command = "echo -n \"hi\" > test_file"
-		read_command = "awk '{print \"PREFIX_out=\" $0}' test_file"
+  		read_command = "echo -n \"PREFIX_out=$(cat 'test_file')\""
 		read_line_prefix =  "PREFIX_"
 		delete_command = "rm test_file"
 	}
@@ -91,7 +91,7 @@ func TestAccGenericShellProviderCRD_WeirdOutput(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
 		create_command = "echo -n \" can you = read this\" > test_file3"
-		read_command = "awk '{print \"out=\" $0}' test_file3"
+  		read_command = "echo -n \"out=$(cat 'test_file3')\""
 		delete_command = "rm test_file3"
 	}
 	resource "shell_crd" "test" {
@@ -115,9 +115,9 @@ func TestAccGenericShellProviderCRD_WeirdOutput(t *testing.T) {
 func TestAccGenericShellProviderCRD_Parameters(t *testing.T) {
 	const testConfig = `
 	provider "shell" {
-		create_command = "echo -n \"{{.output}}\" > {{.file}}"
-		read_command = "awk '{print \"out=\" $0}' {{.file}}"
-		delete_command = "rm {{.file}}"
+		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
+  		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
+		delete_command = "rm {{.old.file}}"
 	}
 	resource "shell_crd" "test" {
 		context {
@@ -144,9 +144,9 @@ func TestAccGenericShellProviderCRD_Parameters(t *testing.T) {
 func TestAccGenericShellProviderCRD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "shell" {
-		create_command = "echo -n \"{{.output}}\" > {{.file}}"
-		read_command = "awk '{print \"out=\" $0}' {{.file}}"
-		delete_command = "rm {{.file}}"
+		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
+		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
+		delete_command = "rm {{.old.file}}"
 	}
 	resource "shell_crd" "test" {
 		context {
@@ -157,9 +157,9 @@ func TestAccGenericShellProviderCRD_Update(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "shell" {
-		create_command = "echo -n \"{{.output}}\" > {{.file}}"
-		read_command = "awk '{print \"out=\" $0}' {{.file}}"
-		delete_command = "rm {{.file}}"
+		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
+		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
+		delete_command = "rm {{.old.file}}"
 	}
 	resource "shell_crd" "test" {
 		context {

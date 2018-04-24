@@ -10,10 +10,10 @@ import (
 func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "shell" {
-		create_command = "echo -n \"{{.output}}\" > {{.file}}"
-		read_command = "awk '{print \"out=\" $0}' {{.file}}"
+		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
+		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
-		delete_command = "rm {{.file}}"
+		delete_command = "rm {{.old.file}}"
 	}
 	resource "shell_crud" "test" {
 		context {
@@ -24,10 +24,10 @@ func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "shell" {
-		create_command = "echo -n \"{{.output}}\" > {{.file}}"
-		read_command = "awk '{print \"out=\" $0}' {{.file}}"
+		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
+		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
-		delete_command = "rm {{.file}}"
+		delete_command = "rm {{.old.file}}"
 	}
 	resource "shell_crud" "test" {
 		context {
@@ -60,9 +60,9 @@ func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
 	const testConfig1 = `
 	provider "shell" {
-		create_command = "echo -n \"{{.output}}\" > {{.file}}"
-		read_command = "awk '{print \"out=\" $0}' {{.file}}"
-		delete_command = "rm {{.file}}"
+		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
+		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
+		delete_command = "rm {{.old.file}}"
 	}
 	resource "shell_crud" "test" {
 		context {
@@ -73,9 +73,9 @@ func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "shell" {
-		create_command = "echo -n \"{{.output}}\" > {{.file}}"
-		read_command = "awk '{print \"out=\" $0}' {{.file}}"
-		delete_command = "rm {{.file}}"
+		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
+		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
+		delete_command = "rm {{.old.file}}"
 	}
 	locals {
 		test = "hi all"
