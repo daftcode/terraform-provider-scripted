@@ -1,10 +1,18 @@
 package shell
 
 import (
+	"fmt"
+	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/hashicorp/terraform/terraform"
+	"log"
+	"os"
 	"runtime"
+	"strings"
 )
+
+var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "OUTPUT", "ERROR"}
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
@@ -14,6 +22,19 @@ func Provider() terraform.ResourceProvider {
 				Optional:    true,
 				Default:     1 * 1024 * 1024,
 				Description: "stdout and stderr buffer sizes",
+			},
+			"log_level": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "WARN",
+				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
+				Description:  fmt.Sprintf("Logging level: %s", strings.Join(ValidLevelsStrings, ", ")),
+			},
+			"log_output": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Should we log command outputs?",
 			},
 			"interpreter": {
 				Type:        schema.TypeList,
@@ -47,7 +68,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeBool,
 				Optional:    true,
 				Default:     false,
-				Description: "Read command",
+				Description: "Delete resource when read fails",
 			},
 			"read_format": {
 				Type:        schema.TypeString,
@@ -90,6 +111,10 @@ func Provider() terraform.ResourceProvider {
 	}
 }
 
+func stringToLogLevel(level string) logutils.LogLevel {
+	return logutils.LogLevel(level)
+}
+
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	// For some reason setting this via DefaultFunc results in an error
 	interpreterI := d.Get("interpreter").([]interface{})
@@ -104,7 +129,23 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		interpreter[i] = vI.(string)
 	}
 
+	//noinspection GoPreferNilSlice
+	logLevels := []logutils.LogLevel{}
+	for _, level := range ValidLevelsStrings {
+		logLevels = append(logLevels, stringToLogLevel(level))
+	}
+
+	filter := &logutils.LevelFilter{
+		Levels:   logLevels,
+		MinLevel: stringToLogLevel(d.Get("log_level").(string)),
+		Writer:   os.Stderr,
+	}
+	logger := log.New(filter, "terraform-provider-shell: ", log.LstdFlags)
+
 	config := Config{
+		Logger:              logger,
+		LogLevelFilter:      filter,
+		LogOutput:           d.Get("log_output").(bool),
 		CommandPrefix:       d.Get("command_prefix").(string),
 		Interpreter:         interpreter,
 		CommandSeparator:    d.Get("command_separator").(string),

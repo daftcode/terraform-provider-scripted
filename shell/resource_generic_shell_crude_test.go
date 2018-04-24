@@ -24,6 +24,7 @@ func TestAccGenericShellProviderCRUDE_Exists(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "shell" {
+		log_level = "OUTPUT"
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		exists_command = "[ -f '{{.new.file}}' ] && echo -n true || echo -n false"
