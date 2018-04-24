@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "OUTPUT", "ERROR"}
+var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
