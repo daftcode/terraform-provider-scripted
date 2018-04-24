@@ -1,9 +1,6 @@
 package shell
 
-import (
-	"log"
-	"github.com/hashicorp/logutils"
-)
+import "github.com/hashicorp/go-hclog"
 
 type Config struct {
 	BufferSize          int64
@@ -18,7 +15,6 @@ type Config struct {
 	UpdateCommand       string
 	DeleteCommand       string
 	ExistsCommand       string
-	Logger              *log.Logger
 	LogOutput           bool
-	LogLevelFilter      *logutils.LevelFilter
+	Logger              hclog.Logger
 }

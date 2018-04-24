@@ -2,12 +2,11 @@ package shell
 
 import (
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/hashicorp/terraform/terraform"
-	"log"
-	"os"
 	"runtime"
 	"strings"
 )
@@ -135,16 +134,13 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		logLevels = append(logLevels, stringToLogLevel(level))
 	}
 
-	filter := &logutils.LevelFilter{
-		Levels:   logLevels,
-		MinLevel: stringToLogLevel(d.Get("log_level").(string)),
-		Writer:   os.Stderr,
-	}
-	logger := log.New(filter, "terraform-provider-shell: ", log.LstdFlags)
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "terraform-plugin-shell",
+		Level: hclog.LevelFromString(d.Get("log_level").(string)),
+	})
 
 	config := Config{
 		Logger:              logger,
-		LogLevelFilter:      filter,
 		LogOutput:           d.Get("log_output").(bool),
 		CommandPrefix:       d.Get("command_prefix").(string),
 		Interpreter:         interpreter,
