@@ -142,6 +142,7 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 		writeLog(config, hclog.Warn, "update command returned error", "error", err)
 		return nil
 	}
+	d.SetId(hash(createCommand))
 
 	return resourceShellRead(d, meta)
 }
