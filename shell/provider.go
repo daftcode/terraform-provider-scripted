@@ -6,9 +6,9 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/hashicorp/terraform/terraform"
+	"os"
 	"runtime"
 	"strings"
-	"os"
 )
 
 // Store original os.Stderr and os.Stdout, because it gets overwritten by go-plugin/server:Serve()
@@ -38,6 +38,12 @@ func Provider() terraform.ResourceProvider {
 				Default:      "INFO",
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
 				Description:  fmt.Sprintf("Command outputs log level: %s", strings.Join(ValidLevelsStrings, ", ")),
+			},
+			"command_log_width": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     1,
+				Description: "Width of command's line to use during formatting.",
 			},
 			"interpreter": {
 				Type:        schema.TypeList,
@@ -128,7 +134,6 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		interpreter[i] = vI.(string)
 	}
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:       "terraform-plugin-shell",
 		JSONFormat: true,
 		Output:     Stderr,
 		Level:      hclog.LevelFromString(d.Get("log_level").(string)),
@@ -137,6 +142,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	config := Config{
 		Logger:              logger,
 		CommandLogLevel:     hclog.LevelFromString(d.Get("command_log_level").(string)),
+		CommandLogWidth:     d.Get("command_log_width").(int),
 		CommandPrefix:       d.Get("command_prefix").(string),
 		Interpreter:         interpreter,
 		CommandSeparator:    d.Get("command_separator").(string),

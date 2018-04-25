@@ -17,4 +17,5 @@ type Config struct {
 	ExistsCommand       string
 	Logger              hclog.Logger
 	CommandLogLevel     hclog.Level
+	CommandLogWidth     int
 }

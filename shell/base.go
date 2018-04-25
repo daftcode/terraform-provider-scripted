@@ -11,11 +11,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"github.com/armon/circbuf"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/mitchellh/go-linereader"
 	"os"
 	"text/template"
-	"github.com/hashicorp/go-hclog"
 )
 
 func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error {
@@ -282,7 +282,7 @@ func copyOutput(config *Config, r io.Reader, doneCh chan<- struct{}) {
 	defer close(doneCh)
 	lr := linereader.New(r)
 	for line := range lr.Ch {
-		writeLog(config, config.CommandLogLevel, fmt.Sprintf("<LINE>%s</LINE>", line))
+		writeLog(config, config.CommandLogLevel, fmt.Sprintf("<LINE>%"+string(config.CommandLogWidth)+"s</LINE>", line))
 	}
 }
 
