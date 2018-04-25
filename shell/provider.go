@@ -3,14 +3,17 @@ package shell
 import (
 	"fmt"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/hashicorp/terraform/terraform"
 	"runtime"
 	"strings"
+	"os"
 )
 
+// Store original os.Stderr and os.Stdout, because it gets overwritten by go-plugin/server:Serve()
+var Stderr = os.Stderr
+var Stdout = os.Stdout
 var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
 func Provider() terraform.ResourceProvider {
@@ -110,10 +113,6 @@ func Provider() terraform.ResourceProvider {
 	}
 }
 
-func stringToLogLevel(level string) logutils.LogLevel {
-	return logutils.LogLevel(level)
-}
-
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	// For some reason setting this via DefaultFunc results in an error
 	interpreterI := d.Get("interpreter").([]interface{})
@@ -127,16 +126,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	for i, vI := range interpreterI {
 		interpreter[i] = vI.(string)
 	}
-
-	//noinspection GoPreferNilSlice
-	logLevels := []logutils.LogLevel{}
-	for _, level := range ValidLevelsStrings {
-		logLevels = append(logLevels, stringToLogLevel(level))
-	}
-
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "terraform-plugin-shell",
-		Level: hclog.LevelFromString(d.Get("log_level").(string)),
+		Name:       "terraform-plugin-shell",
+		JSONFormat: true,
+		Output:     Stderr,
+		Level:      hclog.LevelFromString(d.Get("log_level").(string)),
 	})
 
 	config := Config{
