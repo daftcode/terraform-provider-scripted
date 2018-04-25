@@ -282,7 +282,8 @@ func copyOutput(config *Config, r io.Reader, doneCh chan<- struct{}) {
 	defer close(doneCh)
 	lr := linereader.New(r)
 	for line := range lr.Ch {
-		writeLog(config, config.CommandLogLevel, fmt.Sprintf("<LINE>%"+string(config.CommandLogWidth)+"s</LINE>", line))
+		format := fmt.Sprintf("<LINE>%%-%ds</LINE>", config.CommandLogWidth)
+		writeLog(config, config.CommandLogLevel, fmt.Sprintf(format, line))
 	}
 }
 
