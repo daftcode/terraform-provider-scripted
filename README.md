@@ -74,7 +74,6 @@ make test
 
 ## Known Problems
 
-* The provider won't print output of the commands.
 * The provider will error instead of removing the resource if the delete command fails. However, this is a safe default.
 * Changes in provider do not issue resource rebuilds. Please parametrize all parameters that will change.
 
