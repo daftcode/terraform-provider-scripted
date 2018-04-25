@@ -41,7 +41,7 @@ To create a more complete example add this to the sample example file
 ```hcl
 provider "shell" {
   alias = "write_to_file"
-  create_command = "echo \"{{.new.output}}\" > {{.new.file}}"
+  create_command = "echo \"{{.new.input}}\" > {{.new.file}}"
   read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
   delete_command = "rm {{.old.file}}"
 }
