@@ -27,14 +27,14 @@ func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error 
 	if err != nil {
 		return err
 	}
-	writeLog(config, "debug", "creating resource")
+	writeLog(config, hclog.Debug, "creating resource")
 	_, err = runCommand(config, command)
 	if err != nil {
 		return err
 	}
 
 	d.SetId(hash(command))
-	writeLog(config, "debug", "created generic resource", "id", d.Id())
+	writeLog(config, hclog.Debug, "created generic resource", "id", d.Id())
 
 	return resourceShellRead(d, meta)
 }
@@ -43,7 +43,7 @@ func getOutputsText(config *Config, output string, prefix string) map[string]str
 	outputs := make(map[string]string)
 	split := strings.Split(output, "\n")
 	for _, varline := range split {
-		writeLog(config, "debug", "reading output", "line", varline)
+		writeLog(config, hclog.Debug, "reading output", "line", varline)
 
 		if varline == "" {
 			continue
@@ -51,7 +51,7 @@ func getOutputsText(config *Config, output string, prefix string) map[string]str
 
 		if prefix != "" {
 			if !strings.HasPrefix(varline, prefix) {
-				writeLog(config, "info", "ignoring line without prefix", "prefix", prefix, "line", varline)
+				writeLog(config, hclog.Info, "ignoring line without prefix", "prefix", prefix, "line", varline)
 				continue
 			}
 			varline = strings.TrimPrefix(varline, prefix)
@@ -59,13 +59,13 @@ func getOutputsText(config *Config, output string, prefix string) map[string]str
 
 		pos := strings.Index(varline, "=")
 		if pos == -1 {
-			writeLog(config, "info", "ignoring line without equal sign", varline)
+			writeLog(config, hclog.Info, "ignoring line without equal sign", varline)
 			continue
 		}
 
 		key := varline[:pos]
 		value := varline[pos+1:]
-		writeLog(config, "debug", "read output entry (raw)", key, value)
+		writeLog(config, hclog.Debug, "read output entry (raw)", key, value)
 		outputs[key] = value
 	}
 	return outputs
@@ -76,10 +76,10 @@ func getOutputsBase64(config *Config, output, prefix string) map[string]string {
 	for key, value := range getOutputsText(config, output, prefix) {
 		decoded, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
-			writeLog(config, "warn", "error decoding base64", err)
+			writeLog(config, hclog.Warn, "error decoding base64", err)
 			continue
 		}
-		writeLog(config, "debug", "read output entry (decoded)", key, decoded, "base64", value)
+		writeLog(config, hclog.Debug, "read output entry (decoded)", key, decoded, "base64", value)
 		outputs[key] = string(decoded[:])
 	}
 	return outputs
@@ -94,10 +94,10 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	writeLog(config, "debug", "reading resource")
+	writeLog(config, hclog.Debug, "reading resource")
 	stdout, err := runCommand(config, command)
 	if err != nil {
-		writeLog(config, "info", "command returned error, marking resource deleted", "error", err, "stdout", stdout)
+		writeLog(config, hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
 		if config.ReadDeleteOnFailure {
 			d.SetId("")
 			return nil
@@ -136,10 +136,10 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 	if err != nil {
 		return err
 	}
-	writeLog(config, "debug", "updating resource", "command", command)
+	writeLog(config, hclog.Debug, "updating resource", "command", command)
 	_, err = runCommand(config, command)
 	if err != nil {
-		writeLog(config, "warn", "update command returned error", "error", err)
+		writeLog(config, hclog.Warn, "update command returned error", "error", err)
 		return nil
 	}
 
@@ -155,10 +155,10 @@ func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool,
 	if err != nil {
 		return false, err
 	}
-	writeLog(config, "debug", "resource exists")
+	writeLog(config, hclog.Debug, "resource exists")
 	stdout, err := runCommand(config, command)
 	if err != nil {
-		writeLog(config, "warn", "command returned error", "error", err)
+		writeLog(config, hclog.Warn, "command returned error", "error", err)
 	}
 	return stdout == "true", err
 }
@@ -172,7 +172,7 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 	if err != nil {
 		return err
 	}
-	writeLog(config, "debug", "reading resource")
+	writeLog(config, hclog.Debug, "reading resource")
 	_, err = runCommand(config, command)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func runCommand(config *Config, commands ...string) (string, error) {
 	go copyOutput(config, tee, copyDoneCh)
 
 	// Output what we're about to run
-	writeLog(config, "debug", "executing", "interpreter", interpreter, "arguments", strings.Join(args, " "))
+	writeLog(config, hclog.Debug, "executing", "interpreter", interpreter, "arguments", strings.Join(args, " "))
 
 	// Start the command
 	err = cmd.Start()
@@ -282,16 +282,14 @@ func copyOutput(config *Config, r io.Reader, doneCh chan<- struct{}) {
 	defer close(doneCh)
 	lr := linereader.New(r)
 	for line := range lr.Ch {
-		if config.LogOutput {
-			writeLog(config, "error", "out:", "line", line)
-		}
+		writeLog(config, config.CommandLogLevel, "out:", "line", line)
 	}
 }
 
-func writeLog(config *Config, level, msg string, args ...interface{}) {
+func writeLog(config *Config, level hclog.Level, msg string, args ...interface{}) {
 	logger := config.Logger
 	var fn func(msg string, args ...interface{})
-	switch hclog.LevelFromString(level) {
+	switch level {
 	case hclog.Trace:
 		fn = logger.Trace
 	case hclog.Debug:
@@ -305,6 +303,5 @@ func writeLog(config *Config, level, msg string, args ...interface{}) {
 	default:
 		fn = logger.Info
 	}
-	fn = logger.Error
 	fn(msg, args...)
 }

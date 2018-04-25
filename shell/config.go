@@ -15,6 +15,6 @@ type Config struct {
 	UpdateCommand       string
 	DeleteCommand       string
 	ExistsCommand       string
-	LogOutput           bool
 	Logger              hclog.Logger
+	CommandLogLevel     hclog.Level
 }

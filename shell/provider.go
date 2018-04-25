@@ -32,11 +32,12 @@ func Provider() terraform.ResourceProvider {
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
 				Description:  fmt.Sprintf("Logging level: %s", strings.Join(ValidLevelsStrings, ", ")),
 			},
-			"log_output": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Default:     false,
-				Description: "Should we log command outputs?",
+			"command_log_level": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "INFO",
+				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
+				Description:  fmt.Sprintf("Command outputs log level: %s", strings.Join(ValidLevelsStrings, ", ")),
 			},
 			"interpreter": {
 				Type:        schema.TypeList,
@@ -135,7 +136,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 
 	config := Config{
 		Logger:              logger,
-		LogOutput:           d.Get("log_output").(bool),
+		CommandLogLevel:     hclog.LevelFromString(d.Get("command_log_level").(string)),
 		CommandPrefix:       d.Get("command_prefix").(string),
 		Interpreter:         interpreter,
 		CommandSeparator:    d.Get("command_separator").(string),
