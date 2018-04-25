@@ -282,7 +282,7 @@ func copyOutput(config *Config, r io.Reader, doneCh chan<- struct{}) {
 	defer close(doneCh)
 	lr := linereader.New(r)
 	for line := range lr.Ch {
-		writeLog(config, config.CommandLogLevel, "out:", "line", line)
+		writeLog(config, config.CommandLogLevel, "command output", "line", line)
 	}
 }
 
