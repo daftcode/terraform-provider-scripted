@@ -51,6 +51,18 @@ func Provider() terraform.ResourceProvider {
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				Description: "Interpreter to use for the commands",
 			},
+			"working_directory": {
+				Type:        schema.TypeString,
+				Required:    true,
+				DefaultFunc: schema.EnvDefaultFunc("PWD", nil),
+				Description: "The working directory where to run.",
+			},
+			"include_parent_environment": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     true,
+				Description: "Include parent environment in the command?",
+			},
 			"command_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -73,17 +85,18 @@ func Provider() terraform.ResourceProvider {
 				Required:    true,
 				Description: "Read command",
 			},
-			"delete_read_on_failure": {
+			"delete_on_read_failure": {
 				Type:        schema.TypeBool,
 				Optional:    true,
 				Default:     true,
 				Description: "Delete resource when read fails",
 			},
 			"read_format": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "raw",
-				Description: "Read command output type: raw or base64",
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "raw",
+				ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
+				Description:  "Read command output type: raw or base64",
 			},
 			"read_line_prefix": {
 				Type:        schema.TypeString,
@@ -141,21 +154,23 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	})
 
 	config := Config{
-		Logger:              logger,
-		CommandLogLevel:     hclog.LevelFromString(d.Get("command_log_level").(string)),
-		CommandLogWidth:     d.Get("command_log_width").(int),
-		CommandPrefix:       d.Get("command_prefix").(string),
-		Interpreter:         interpreter,
-		CommandSeparator:    d.Get("command_separator").(string),
-		BufferSize:          int64(d.Get("buffer_size").(int)),
-		CreateCommand:       d.Get("create_command").(string),
-		ReadCommand:         d.Get("read_command").(string),
-		DeleteOnReadFailure: d.Get("delete_read_on_failure").(bool),
-		ReadFormat:          d.Get("read_format").(string),
-		ReadLinePrefix:      d.Get("read_line_prefix").(string),
-		UpdateCommand:       d.Get("update_command").(string),
-		DeleteCommand:       d.Get("delete_command").(string),
-		ExistsCommand:       d.Get("exists_command").(string),
+		Logger:                   logger,
+		CommandLogLevel:          hclog.LevelFromString(d.Get("command_log_level").(string)),
+		CommandLogWidth:          d.Get("command_log_width").(int),
+		CommandPrefix:            d.Get("command_prefix").(string),
+		Interpreter:              interpreter,
+		WorkingDirectory:         d.Get("working_directory").(string),
+		IncludeParentEnvironment: d.Get("include_parent_environment").(bool),
+		CommandSeparator:         d.Get("command_separator").(string),
+		BufferSize:               int64(d.Get("buffer_size").(int)),
+		CreateCommand:            d.Get("create_command").(string),
+		ReadCommand:              d.Get("read_command").(string),
+		DeleteOnReadFailure:      d.Get("delete_on_read_failure").(bool),
+		ReadFormat:               d.Get("read_format").(string),
+		ReadLinePrefix:           d.Get("read_line_prefix").(string),
+		UpdateCommand:            d.Get("update_command").(string),
+		DeleteCommand:            d.Get("delete_command").(string),
+		ExistsCommand:            d.Get("exists_command").(string),
 	}
 
 	return &config, nil

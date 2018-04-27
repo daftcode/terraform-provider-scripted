@@ -19,6 +19,42 @@ import (
 	"text/template"
 )
 
+func getResource(update bool, exists bool) *schema.Resource {
+	ret := &schema.Resource{
+		Create: resourceGenericShellCreate,
+		Read:   resourceShellRead,
+		Delete: resourceGenericShellDelete,
+
+		Schema: map[string]*schema.Schema{
+			"context": {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Description: "Template context for rendering commands",
+				ForceNew:    !update,
+			},
+			"environment": {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Default:     []string{},
+				Description: "Environment to run commands in",
+				ForceNew:    !update,
+			},
+			"output": {
+				Type:        schema.TypeMap,
+				Computed:    true,
+				Description: "Output from the read command",
+			},
+		},
+	}
+	if update {
+		ret.Update = resourceGenericShellUpdate
+	}
+	if exists {
+		ret.Exists = resourceGenericShellExists
+	}
+	return ret
+}
+
 func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
@@ -29,15 +65,16 @@ func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error 
 		return err
 	}
 	writeLog(config, hclog.Debug, "creating resource")
-	_, err = runCommand(config, command)
+	env := makeEnvironment(d, config)
+	_, err = runCommand(config, env, command)
 	if err != nil {
 		return err
 	}
 
-	d.SetId(makeId(d))
+	d.SetId(makeId(d, env))
 	writeLog(config, hclog.Debug, "created generic resource", "id", d.Id())
 
-	return resourceShellRead(d, meta)
+	return resourceShellReadBase(d, meta, env)
 }
 
 func getOutputsText(config *Config, output string, prefix string) map[string]string {
@@ -87,6 +124,10 @@ func getOutputsBase64(config *Config, output, prefix string) map[string]string {
 }
 
 func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
+	return resourceShellReadBase(d, meta, nil)
+}
+
+func resourceShellReadBase(d *schema.ResourceData, meta interface{}, env []string) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
@@ -96,7 +137,10 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	writeLog(config, hclog.Debug, "reading resource")
-	stdout, err := runCommand(config, command)
+	if env == nil {
+		env = makeEnvironment(d, config)
+	}
+	stdout, err := runCommand(config, env, command)
 	if err != nil {
 		writeLog(config, hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
 		if config.DeleteOnReadFailure {
@@ -138,14 +182,15 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 		return err
 	}
 	writeLog(config, hclog.Debug, "updating resource", "command", command)
-	_, err = runCommand(config, command)
+	env := makeEnvironment(d, config)
+	_, err = runCommand(config, env, command)
 	if err != nil {
 		writeLog(config, hclog.Warn, "update command returned error", "error", err)
 		return nil
 	}
-	d.SetId(makeId(d))
+	d.SetId(makeId(d, env))
 
-	return resourceShellRead(d, meta)
+	return resourceShellReadBase(d, meta, env)
 }
 
 func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool, error) {
@@ -158,7 +203,8 @@ func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool,
 		return false, err
 	}
 	writeLog(config, hclog.Debug, "resource exists")
-	stdout, err := runCommand(config, command)
+	env := makeEnvironment(d, config)
+	stdout, err := runCommand(config, env, command)
 	if err != nil {
 		writeLog(config, hclog.Warn, "command returned error", "error", err)
 	}
@@ -175,7 +221,8 @@ func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error 
 		return err
 	}
 	writeLog(config, hclog.Debug, "reading resource")
-	_, err = runCommand(config, command)
+	env := makeEnvironment(d, config)
+	_, err = runCommand(config, env, command)
 	if err != nil {
 		return err
 	}
@@ -219,12 +266,27 @@ func interpolateCommand(command string, context map[string]interface{}) (string,
 	return buf.String(), err
 }
 
-func runCommand(config *Config, commands ...string) (string, error) {
+func makeEnvironment(d *schema.ResourceData, config *Config) []string {
+	var env []string
+
+	if config.IncludeParentEnvironment {
+		env = os.Environ()
+	}
+
+	for key, value := range d.Get("environment").(map[string]interface{}) {
+		env = append(env, key+"="+value.(string))
+	}
+	return env
+}
+
+func runCommand(config *Config, environment []string, commands ...string) (string, error) {
 	// Setup the command
 	interpreter := config.Interpreter[0]
 	command := mergeCommands(config, commands...)
 	args := append(config.Interpreter[1:], command)
 	cmd := exec.Command(interpreter, args...)
+	cmd.Dir = config.WorkingDirectory
+	cmd.Env = environment
 
 	// Setup the reader that will read the output from the command.
 	// We use an os.Pipe so that the *os.File can be passed directly to the
@@ -276,7 +338,7 @@ func mergeCommands(config *Config, commands ...string) string {
 }
 
 // Retrieve Id from
-func makeId(d *schema.ResourceData) string {
+func makeId(d *schema.ResourceData, env []string) string {
 	var keys []string
 	ctx := d.Get("context").(map[string]interface{})
 	for k := range ctx {
@@ -287,6 +349,9 @@ func makeId(d *schema.ResourceData) string {
 	var entries []string
 	for _, k := range keys {
 		entries = append(entries, hash(hash(k)+hash(ctx[k].(string))))
+	}
+	for _, entry := range env {
+		entries = append(entries, hash(entry))
 	}
 	return hash(strings.Join(entries, ""))
 }
