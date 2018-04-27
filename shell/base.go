@@ -99,7 +99,7 @@ func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
 	stdout, err := runCommand(config, command)
 	if err != nil {
 		writeLog(config, hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
-		if config.ReadDeleteOnFailure {
+		if config.DeleteOnReadFailure {
 			d.SetId("")
 			return nil
 		}

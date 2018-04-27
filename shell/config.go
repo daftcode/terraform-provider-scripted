@@ -9,7 +9,7 @@ type Config struct {
 	CommandSeparator    string
 	CreateCommand       string
 	ReadCommand         string
-	ReadDeleteOnFailure bool
+	DeleteOnReadFailure bool
 	ReadFormat          string
 	ReadLinePrefix      string
 	UpdateCommand       string

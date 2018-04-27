@@ -73,10 +73,10 @@ func Provider() terraform.ResourceProvider {
 				Required:    true,
 				Description: "Read command",
 			},
-			"read_delete_on_failure": {
+			"delete_read_on_failure": {
 				Type:        schema.TypeBool,
 				Optional:    true,
-				Default:     false,
+				Default:     true,
 				Description: "Delete resource when read fails",
 			},
 			"read_format": {
@@ -149,7 +149,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		BufferSize:          int64(d.Get("buffer_size").(int)),
 		CreateCommand:       d.Get("create_command").(string),
 		ReadCommand:         d.Get("read_command").(string),
-		ReadDeleteOnFailure: d.Get("read_delete_on_failure").(bool),
+		DeleteOnReadFailure: d.Get("delete_read_on_failure").(bool),
 		ReadFormat:          d.Get("read_format").(string),
 		ReadLinePrefix:      d.Get("read_line_prefix").(string),
 		UpdateCommand:       d.Get("update_command").(string),
