@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/mitchellh/go-linereader"
 	"os"
+	"sort"
 	"text/template"
 )
 
@@ -33,7 +34,7 @@ func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error 
 		return err
 	}
 
-	d.SetId(hash(command))
+	d.SetId(makeId(d))
 	writeLog(config, hclog.Debug, "created generic resource", "id", d.Id())
 
 	return resourceShellRead(d, meta)
@@ -142,7 +143,7 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 		writeLog(config, hclog.Warn, "update command returned error", "error", err)
 		return nil
 	}
-	d.SetId(hash(createCommand))
+	d.SetId(makeId(d))
 
 	return resourceShellRead(d, meta)
 }
@@ -272,6 +273,22 @@ func runCommand(config *Config, commands ...string) (string, error) {
 
 func mergeCommands(config *Config, commands ...string) string {
 	return strings.Join(commands, config.CommandSeparator)
+}
+
+// Retrieve Id from
+func makeId(d *schema.ResourceData) string {
+	var keys []string
+	ctx := d.Get("context").(map[string]string)
+	for k := range ctx {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var entries []string
+	for _, k := range keys {
+		entries = append(entries, hash(hash(k)+hash(ctx[k])))
+	}
+	return hash(strings.Join(entries, ""))
 }
 
 func hash(s string) string {
