@@ -112,6 +112,7 @@ func Provider() terraform.ResourceProvider {
 
 		ResourcesMap: map[string]*schema.Resource{
 			"shell_crd":   resourceGenericShellCRD(),
+			"shell_crde":  resourceGenericShellCRDE(),
 			"shell_crud":  resourceGenericShellCRUD(),
 			"shell_crude": resourceGenericShellCRUDE(),
 		},
