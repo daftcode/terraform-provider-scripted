@@ -278,7 +278,7 @@ func mergeCommands(config *Config, commands ...string) string {
 // Retrieve Id from
 func makeId(d *schema.ResourceData) string {
 	var keys []string
-	ctx := d.Get("context").(map[string]string)
+	ctx := d.Get("context").(map[string]interface{})
 	for k := range ctx {
 		keys = append(keys, k)
 	}
@@ -286,7 +286,7 @@ func makeId(d *schema.ResourceData) string {
 
 	var entries []string
 	for _, k := range keys {
-		entries = append(entries, hash(hash(k)+hash(ctx[k])))
+		entries = append(entries, hash(hash(k)+hash(ctx[k].(string))))
 	}
 	return hash(strings.Join(entries, ""))
 }
