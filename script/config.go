@@ -21,4 +21,9 @@ type Config struct {
 	CommandLogLevel          hclog.Level
 	CommandLogWidth          int
 	IncludeParentEnvironment bool
+	ExistsExpectedStatus     int
+	LogProviderName          string
+	DeleteBeforeUpdate       bool
+	CreateAfterUpdate        bool
+	CreateBeforeUpdate       bool
 }

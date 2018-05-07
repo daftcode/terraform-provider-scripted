@@ -16,8 +16,17 @@ import (
 	"github.com/mitchellh/go-linereader"
 	"os"
 	"sort"
+	"syscall"
 	"text/template"
 )
+
+type State struct {
+	c   *Config
+	d   *schema.ResourceData
+	ctx map[string]interface{}
+	env []string
+	op  string
+}
 
 func getResource(update bool, exists bool) *schema.Resource {
 	ret := &schema.Resource{
@@ -26,6 +35,17 @@ func getResource(update bool, exists bool) *schema.Resource {
 		Delete: resourceScriptDelete,
 
 		Schema: map[string]*schema.Schema{
+			"log_name": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "",
+				Description: "Resource name to display in log messages",
+				// Hack so it doesn't ever change
+				ForceNew: true,
+				StateFunc: func(v interface{}) string {
+					return ""
+				},
+			},
 			"context": {
 				Type:        schema.TypeMap,
 				Optional:    true,
@@ -55,33 +75,194 @@ func getResource(update bool, exists bool) *schema.Resource {
 	return ret
 }
 
-func resourceScriptCreate(d *schema.ResourceData, meta interface{}) error {
-	config := meta.(*Config)
-
-	command, err := interpolateCommand(
-		prepareCommands(config, config.CommandPrefix, config.CreateCommand),
-		getContext(d, "create"))
-	if err != nil {
-		return err
+func makeState(d *schema.ResourceData, meta interface{}, operation string, old bool) *State {
+	s := &State{
+		c:  meta.(*Config),
+		d:  d,
+		op: operation,
 	}
-	writeLog(config, hclog.Debug, "creating resource")
-	env := makeEnvironment(d, config)
-	_, err = runCommand(config, env, command)
-	if err != nil {
-		return err
+	s.ctx = getContext(s, operation)
+	if old {
+		s.ctx["cur"] = s.ctx["old"]
 	}
-
-	d.SetId(makeId(d, env))
-	writeLog(config, hclog.Debug, "created generic resource", "id", d.Id())
-
-	return resourceScriptReadBase(d, meta, env)
+	s.env = getEnv(s, old)
+	return s
 }
 
-func getOutputsText(config *Config, output string, prefix string) map[string]string {
+func copyState(s *State) *State {
+	return &State{
+		c:   s.c,
+		d:   s.d,
+		op:  s.op,
+		ctx: s.ctx,
+		env: s.env,
+	}
+}
+
+func resourceScriptCreate(d *schema.ResourceData, meta interface{}) error {
+	return resourceScriptCreateBase(makeState(d, meta, "create", false))
+}
+
+func resourceScriptCreateBase(s *State) error {
+	command, err := interpolateCommand(
+		prepareCommands(s, s.c.CommandPrefix, s.c.CreateCommand),
+		s.ctx)
+	if err != nil {
+		return err
+	}
+	writeLog(s, hclog.Debug, "creating resource")
+	_, err = runCommand(s, command)
+	if err != nil {
+		return err
+	}
+
+	s.d.SetId(makeId(s.d, s.env))
+	writeLog(s, hclog.Debug, "created generic resource", "id", s.d.Id())
+
+	return resourceScriptReadBase(s)
+}
+
+func resourceScriptRead(d *schema.ResourceData, meta interface{}) error {
+	return resourceScriptReadBase(makeState(d, meta, "read", false))
+}
+
+func resourceScriptReadBase(s *State) error {
+	command, err := interpolateCommand(
+		prepareCommands(s, s.c.CommandPrefix, s.c.ReadCommand),
+		s.ctx)
+	if err != nil {
+		return err
+	}
+	writeLog(s, hclog.Debug, "reading resource")
+	stdout, err := runCommand(s, command)
+	if err != nil {
+		writeLog(s, hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
+		if s.c.DeleteOnReadFailure {
+			s.d.SetId("")
+			return nil
+		}
+		return err
+	}
+	var outputs map[string]string
+
+	switch s.c.ReadFormat {
+	case "base64":
+		outputs = getOutputsBase64(s, stdout, s.c.ReadLinePrefix)
+	default:
+		fallthrough
+	case "raw":
+		outputs = getOutputsText(s, stdout, s.c.ReadLinePrefix)
+	}
+	s.d.Set("output", outputs)
+
+	return nil
+}
+
+func resourceScriptUpdate(d *schema.ResourceData, meta interface{}) error {
+	s := makeState(d, meta, "update", false)
+	if s.c.DeleteBeforeUpdate {
+		if err := resourceScriptDeleteBase(s); err != nil {
+			return err
+		}
+	}
+
+	if s.c.CreateBeforeUpdate {
+		if err := resourceScriptCreateBase(s); err != nil {
+			return err
+		}
+	}
+
+	if s.c.UpdateCommand != "" {
+		deleteCommand, _ := interpolateCommand(
+			wrapCommands(s, s.c.CommandPrefix, s.c.DeleteCommand),
+			mergeMaps(s.ctx, map[string]interface{}{"cur": s.ctx["old"]}))
+		createCommand, _ := interpolateCommand(wrapCommands(s, s.c.CommandPrefix, s.c.CreateCommand), s.ctx)
+		command, err := interpolateCommand(
+			prepareCommands(s, s.c.CommandPrefix, s.c.UpdateCommand),
+			mergeMaps(s.ctx, map[string]interface{}{
+				"delete_command": deleteCommand,
+				"create_command": createCommand,
+			}))
+		if err != nil {
+			return err
+		}
+		writeLog(s, hclog.Debug, "updating resource", "command", command)
+		_, err = runCommand(s, command)
+		if err != nil {
+			writeLog(s, hclog.Warn, "update command returned error", "error", err)
+			return nil
+		}
+		d.SetId(makeId(d, s.env))
+	}
+
+	if s.c.CreateAfterUpdate {
+		if err := resourceScriptCreateBase(s); err != nil {
+			return err
+		}
+	}
+
+	return resourceScriptReadBase(s)
+}
+
+func resourceScriptExists(d *schema.ResourceData, meta interface{}) (bool, error) {
+	s := makeState(d, meta, "exists", false)
+	command, err := interpolateCommand(
+		prepareCommands(s, s.c.CommandPrefix, s.c.ExistsCommand),
+		s.ctx)
+	if err != nil {
+		return false, err
+	}
+	writeLog(s, hclog.Debug, "resource exists")
+	_, err = runCommand(s, command)
+	if err != nil {
+		writeLog(s, hclog.Warn, "command returned error", "error", err)
+	}
+	if s.c.ExistsExpectedStatus == 0 {
+		return err == nil, err
+	}
+	return getExitStatus(err) == s.c.ExistsExpectedStatus, err
+}
+
+func resourceScriptDelete(d *schema.ResourceData, meta interface{}) error {
+	return resourceScriptDeleteBase(makeState(d, meta, "delete", true))
+}
+
+func resourceScriptDeleteBase(s *State) error {
+	s = copyState(s)
+	if s.op != "delete" {
+		s.ctx = mergeMaps(s.ctx, map[string]interface{}{"cur": s.ctx["old"]})
+		s.env = getEnv(s, true)
+	}
+	command, err := interpolateCommand(
+		prepareCommands(s, s.c.CommandPrefix, s.c.DeleteCommand),
+		s.ctx)
+	if err != nil {
+		return err
+	}
+	writeLog(s, hclog.Debug, "reading resource")
+	_, err = runCommand(s, command)
+	if err != nil {
+		return err
+	}
+
+	s.d.SetId("")
+	return nil
+}
+
+func getExitStatus(err error) int {
+	if exiterr, ok := err.(*exec.ExitError); ok {
+		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+			return status.ExitStatus()
+		}
+	}
+	return -1
+}
+
+func getOutputsText(s *State, output string, prefix string) map[string]string {
 	outputs := make(map[string]string)
 	split := strings.Split(output, "\n")
 	for _, varline := range split {
-		writeLog(config, hclog.Debug, "reading output", "line", varline)
+		writeLog(s, hclog.Debug, "reading output", "line", varline)
 
 		if varline == "" {
 			continue
@@ -89,7 +270,7 @@ func getOutputsText(config *Config, output string, prefix string) map[string]str
 
 		if prefix != "" {
 			if !strings.HasPrefix(varline, prefix) {
-				writeLog(config, hclog.Info, "ignoring line without prefix", "prefix", prefix, "line", varline)
+				writeLog(s, hclog.Info, "ignoring line without prefix", "prefix", prefix, "line", varline)
 				continue
 			}
 			varline = strings.TrimPrefix(varline, prefix)
@@ -97,155 +278,39 @@ func getOutputsText(config *Config, output string, prefix string) map[string]str
 
 		pos := strings.Index(varline, "=")
 		if pos == -1 {
-			writeLog(config, hclog.Info, "ignoring line without equal sign", varline)
+			writeLog(s, hclog.Info, "ignoring line without equal sign", varline)
 			continue
 		}
 
 		key := varline[:pos]
 		value := varline[pos+1:]
-		writeLog(config, hclog.Debug, "read output entry (raw)", key, value)
+		writeLog(s, hclog.Debug, "read output entry (raw)", key, value)
 		outputs[key] = value
 	}
 	return outputs
 }
 
-func getOutputsBase64(config *Config, output, prefix string) map[string]string {
+func getOutputsBase64(s *State, output, prefix string) map[string]string {
 	outputs := make(map[string]string)
-	for key, value := range getOutputsText(config, output, prefix) {
+	for key, value := range getOutputsText(s, output, prefix) {
 		decoded, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
-			writeLog(config, hclog.Warn, "error decoding base64", err)
+			writeLog(s, hclog.Warn, "error decoding base64", err)
 			continue
 		}
-		writeLog(config, hclog.Debug, "read output entry (decoded)", key, decoded, "base64", value)
+		writeLog(s, hclog.Debug, "read output entry (decoded)", key, decoded, "base64", value)
 		outputs[key] = string(decoded[:])
 	}
 	return outputs
 }
 
-func resourceScriptRead(d *schema.ResourceData, meta interface{}) error {
-	return resourceScriptReadBase(d, meta, nil)
-}
-
-func resourceScriptReadBase(d *schema.ResourceData, meta interface{}, env []string) error {
-	config := meta.(*Config)
-
-	command, err := interpolateCommand(
-		prepareCommands(config, config.CommandPrefix, config.ReadCommand),
-		getContext(d, "read"))
-	if err != nil {
-		return err
-	}
-	writeLog(config, hclog.Debug, "reading resource")
-	if env == nil {
-		env = makeEnvironment(d, config)
-	}
-	stdout, err := runCommand(config, env, command)
-	if err != nil {
-		writeLog(config, hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
-		if config.DeleteOnReadFailure {
-			d.SetId("")
-			return nil
-		}
-		return err
-	}
-	var outputs map[string]string
-
-	switch config.ReadFormat {
-	case "base64":
-		outputs = getOutputsBase64(config, stdout, config.ReadLinePrefix)
-	default:
-		fallthrough
-	case "raw":
-		outputs = getOutputsText(config, stdout, config.ReadLinePrefix)
-	}
-	d.Set("output", outputs)
-
-	return nil
-}
-
-func resourceScriptUpdate(d *schema.ResourceData, meta interface{}) error {
-	config := meta.(*Config)
-
-	ctx := getContext(d, "update")
-	deleteCommand, _ := interpolateCommand(
-		wrapCommands(config, config.CommandPrefix, config.DeleteCommand),
-		mergeMaps(ctx, map[string]interface{}{"cur": ctx["old"]}))
-	createCommand, _ := interpolateCommand(wrapCommands(config, config.CommandPrefix, config.CreateCommand), ctx)
-	command, err := interpolateCommand(
-		prepareCommands(config, config.CommandPrefix, config.UpdateCommand),
-		mergeMaps(ctx, map[string]interface{}{
-			"delete_command": deleteCommand,
-			"create_command": createCommand,
-		}))
-	if err != nil {
-		return err
-	}
-	writeLog(config, hclog.Debug, "updating resource", "command", command)
-	env := makeEnvironment(d, config)
-	_, err = runCommand(config, env, command)
-	if err != nil {
-		writeLog(config, hclog.Warn, "update command returned error", "error", err)
-		return nil
-	}
-	d.SetId(makeId(d, env))
-
-	return resourceScriptReadBase(d, meta, env)
-}
-
-func resourceScriptExists(d *schema.ResourceData, meta interface{}) (bool, error) {
-	config := meta.(*Config)
-
-	command, err := interpolateCommand(
-		prepareCommands(config, config.CommandPrefix, config.ExistsCommand),
-		getContext(d, "exists"))
-	if err != nil {
-		return false, err
-	}
-	writeLog(config, hclog.Debug, "resource exists")
-	env := makeEnvironment(d, config)
-	_, err = runCommand(config, env, command)
-	if err != nil {
-		writeLog(config, hclog.Warn, "command returned error", "error", err)
-	}
-	return err == nil, err
-}
-
-func resourceScriptDelete(d *schema.ResourceData, meta interface{}) error {
-	config := meta.(*Config)
-
-	command, err := interpolateCommand(
-		prepareCommands(config, config.CommandPrefix, config.DeleteCommand),
-		getContext(d, "delete"))
-	if err != nil {
-		return err
-	}
-	writeLog(config, hclog.Debug, "reading resource")
-	env := makeEnvironment(d, config)
-	_, err = runCommand(config, env, command)
-	if err != nil {
-		return err
-	}
-
-	d.SetId("")
-	return nil
-}
-
-func getContext(d *schema.ResourceData, operation string) map[string]interface{} {
-	return getContextFull(d, operation, false)
-}
-
-func getContextFull(d *schema.ResourceData, operation string, oldIsCurrent bool) map[string]interface{} {
-	o, n := d.GetChange("context")
-	cur := n
-	if oldIsCurrent {
-		cur = o
-	}
+func getContext(s *State, operation string) map[string]interface{} {
+	o, n := s.d.GetChange("context")
 	return map[string]interface{}{
 		"operation": operation,
 		"old":       o,
 		"new":       n,
-		"cur":       cur,
+		"cur":       n,
 	}
 }
 
@@ -266,27 +331,30 @@ func interpolateCommand(command string, context map[string]interface{}) (string,
 	return buf.String(), err
 }
 
-func makeEnvironment(d *schema.ResourceData, config *Config) []string {
+func getEnv(s *State, old bool) []string {
 	var env []string
 
-	if config.IncludeParentEnvironment {
+	if s.c.IncludeParentEnvironment {
 		env = os.Environ()
 	}
-
-	for key, value := range d.Get("environment").(map[string]interface{}) {
+	o, n := s.d.GetChange("environment")
+	cur := n.(map[string]interface{})
+	if old {
+		cur = o.(map[string]interface{})
+	}
+	for key, value := range cur {
 		env = append(env, key+"="+value.(string))
 	}
 	return env
 }
 
-func runCommand(config *Config, environment []string, commands ...string) (string, error) {
-	// Setup the command
-	interpreter := config.Interpreter[0]
-	command := prepareCommands(config, commands...)
-	args := append(config.Interpreter[1:], command)
+func runCommand(s *State, commands ...string) (string, error) {
+	interpreter := s.c.Interpreter[0]
+	command := prepareCommands(s, commands...)
+	args := append(s.c.Interpreter[1:], command)
 	cmd := exec.Command(interpreter, args...)
-	cmd.Dir = config.WorkingDirectory
-	cmd.Env = environment
+	cmd.Dir = s.c.WorkingDirectory
+	cmd.Env = s.env
 
 	// Setup the reader that will read the output from the command.
 	// We use an os.Pipe so that the *os.File can be passed directly to the
@@ -297,7 +365,7 @@ func runCommand(config *Config, environment []string, commands ...string) (strin
 		return "", fmt.Errorf("failed to initialize pipe for output: %s", err)
 	}
 
-	stdout, _ := circbuf.NewBuffer(config.BufferSize)
+	stdout, _ := circbuf.NewBuffer(s.c.BufferSize)
 	output, _ := circbuf.NewBuffer(8 * 1024)
 
 	cmd.Stdout = io.MultiWriter(pw, stdout)
@@ -308,10 +376,10 @@ func runCommand(config *Config, environment []string, commands ...string) (strin
 
 	// copy the teed output to the logger
 	copyDoneCh := make(chan struct{})
-	go copyOutput(config, tee, copyDoneCh)
+	go copyOutput(s, tee, copyDoneCh)
 
 	// Output what we're about to run
-	writeLog(config, hclog.Debug, "executing", "interpreter", interpreter, "arguments", strings.Join(args, " "))
+	writeLog(s, hclog.Debug, "executing", "interpreter", interpreter, "arguments", strings.Join(args, " "))
 
 	// Start the command
 	err = cmd.Start()
@@ -333,16 +401,16 @@ func runCommand(config *Config, environment []string, commands ...string) (strin
 	return stdout.String(), nil
 }
 
-func prepareCommands(config *Config, commands ...string) string {
+func prepareCommands(s *State, commands ...string) string {
 	out := ""
 	for _, cmd := range commands {
-		out = fmt.Sprintf(config.CommandJoiner, out, cmd)
+		out = fmt.Sprintf(s.c.CommandJoiner, out, cmd)
 	}
 	return out
 }
 
-func wrapCommands(config *Config, commands ...string) string {
-	return fmt.Sprintf(config.CommandIsolator, prepareCommands(config, commands...))
+func wrapCommands(s *State, commands ...string) string {
+	return fmt.Sprintf(s.c.CommandIsolator, prepareCommands(s, commands...))
 }
 
 // Retrieve Id from
@@ -369,17 +437,17 @@ func hash(s string) string {
 	return hex.EncodeToString(sha[:])
 }
 
-func copyOutput(config *Config, r io.Reader, doneCh chan<- struct{}) {
+func copyOutput(s *State, r io.Reader, doneCh chan<- struct{}) {
 	defer close(doneCh)
 	lr := linereader.New(r)
 	for line := range lr.Ch {
-		format := fmt.Sprintf("<LINE>%%-%ds</LINE>", config.CommandLogWidth)
-		writeLog(config, config.CommandLogLevel, fmt.Sprintf(format, line))
+		format := fmt.Sprintf("<LINE>%%-%ds</LINE>", s.c.CommandLogWidth)
+		writeLog(s, s.c.CommandLogLevel, fmt.Sprintf(format, line))
 	}
 }
 
-func writeLog(config *Config, level hclog.Level, msg string, args ...interface{}) {
-	logger := config.Logger
+func writeLog(s *State, level hclog.Level, msg string, args ...interface{}) {
+	logger := s.c.Logger
 	var fn func(msg string, args ...interface{})
 	switch level {
 	case hclog.Trace:
@@ -394,6 +462,13 @@ func writeLog(config *Config, level hclog.Level, msg string, args ...interface{}
 		fn = logger.Error
 	default:
 		fn = logger.Info
+	}
+	if s.c.LogProviderName != "" {
+		args = append(args, "provider", s.c.LogProviderName)
+	}
+	resourceName := s.d.Get("log_name").(string)
+	if resourceName != "" {
+		args = append(args, "resource", resourceName)
 	}
 	fn(msg, args...)
 }

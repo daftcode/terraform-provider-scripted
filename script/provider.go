@@ -25,6 +25,12 @@ func Provider() terraform.ResourceProvider {
 				Default:     1 * 1024 * 1024,
 				Description: "stdout and stderr buffer sizes",
 			},
+			"log_provider_name": {
+				Type:        schema.TypeString,
+				Default:     "",
+				Optional:    true,
+				Description: "Name to display in log entries for this provider",
+			},
 			"log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -113,14 +119,44 @@ func Provider() terraform.ResourceProvider {
 			"update_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     "{{.delete_command}}\n{{.create_command}}",
-				Description: "Update command, default is: ({{.delete_command}})\\n({{.create_command}})",
+				Default:     "",
+				Description: "Update command. Runs destroy then create by default.",
+			},
+			"delete_before_update": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Should we run delete before updating?",
+			},
+			"create_before_update": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Should we run create before updating?",
+				ConflictsWith: []string{
+					"create_after_update",
+				},
+			},
+			"create_after_update": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Should we run create after updating?",
+				ConflictsWith: []string{
+					"create_before_update",
+				},
 			},
 			"exists_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "",
 				Description: "Exists command",
+			},
+			"exists_expected_status": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     0,
+				Description: "Exists command return status",
 			},
 			"delete_command": {
 				Type:        schema.TypeString,
@@ -159,6 +195,16 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		Level:      hclog.LevelFromString(d.Get("log_level").(string)),
 	})
 
+	dbu := d.Get("delete_before_update").(bool)
+	cau := d.Get("create_after_update").(bool)
+	cbu := d.Get("create_before_update").(bool)
+
+	update := d.Get("update_command").(string)
+	if update == "" {
+		dbu = true
+		cau = true
+		cbu = false
+	}
 	config := Config{
 		Logger:                   logger,
 		CommandLogLevel:          hclog.LevelFromString(d.Get("command_log_level").(string)),
@@ -175,9 +221,14 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		DeleteOnReadFailure:      d.Get("delete_on_read_failure").(bool),
 		ReadFormat:               d.Get("read_format").(string),
 		ReadLinePrefix:           d.Get("read_line_prefix").(string),
-		UpdateCommand:            d.Get("update_command").(string),
+		UpdateCommand:            update,
+		DeleteBeforeUpdate:       dbu,
+		CreateAfterUpdate:        cau,
+		CreateBeforeUpdate:       cbu,
 		DeleteCommand:            d.Get("delete_command").(string),
 		ExistsCommand:            d.Get("exists_command").(string),
+		ExistsExpectedStatus:     d.Get("exists_expected_status").(int),
+		LogProviderName:          d.Get("log_provider_name").(string),
 	}
 
 	return &config, nil
