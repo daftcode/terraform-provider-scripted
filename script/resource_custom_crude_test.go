@@ -11,7 +11,7 @@ func TestAccScriptProviderCRUDE_Exists(t *testing.T) {
 	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
-		exists_command = "[ -f '{{.new.file}}' ] && echo -n true || echo -n false"
+		exists_command = "[ -f '{{.new.file}}' ] && exit 0 || exit 1"
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
 		delete_command = "rm {{.old.file}}"
 	}
@@ -26,7 +26,7 @@ func TestAccScriptProviderCRUDE_Exists(t *testing.T) {
 	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
-		exists_command = "[ -f '{{.new.file}}' ] && echo -n true || echo -n false"
+		exists_command = "[ -f '{{.new.file}}' ] && exit 0 || exit 1"
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
 		delete_command = "rm {{.old.file}}"
 	}
