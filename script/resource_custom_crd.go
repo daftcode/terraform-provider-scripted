@@ -1,9 +1,9 @@
-package custom
+package script
 
 import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
-func resourceCustomCRD() *schema.Resource {
+func resourceScriptCRD() *schema.Resource {
 	return getResource(false, false)
 }

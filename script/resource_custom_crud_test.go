@@ -1,4 +1,4 @@
-package custom
+package script
 
 import (
 	"testing"
@@ -6,15 +6,15 @@ import (
 	"github.com/hashicorp/terraform/helper/resource"
 )
 
-func TestAccCustomProviderCRUD_Update(t *testing.T) {
+func TestAccScriptProviderCRUD_Update(t *testing.T) {
 	const testConfig1 = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "custom_crud" "test" {
+	resource "script_crud" "test" {
 		context {
 			output = "hi"
 			file = "testfileU1"
@@ -22,13 +22,13 @@ func TestAccCustomProviderCRUD_Update(t *testing.T) {
 	}
 `
 	const testConfig2 = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "custom_crud" "test" {
+	resource "script_crud" "test" {
 		context {
 			output = "hi all"
 			file = "testfileU2"
@@ -38,32 +38,33 @@ func TestAccCustomProviderCRUD_Update(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crud.test", "out", "hi"),
+					testAccCheckResource("script_crud.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crud.test", "out", "hi all"),
+					testAccCheckResource("script_crud.test", "out", "hi all"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCustomProviderCRUD_DefaultUpdate(t *testing.T) {
+func TestAccScriptProviderCRUD_DefaultUpdate(t *testing.T) {
 	const testConfig1 = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		delete_command = "rm {{.old.file}}"
+		log_level = "INFO"
 	}
-	resource "custom_crud" "test" {
+	resource "script_crud" "test" {
 		context {
 			output = "hi"
 			file = "testfileU1"
@@ -71,15 +72,16 @@ func TestAccCustomProviderCRUD_DefaultUpdate(t *testing.T) {
 	}
 `
 	const testConfig2 = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		delete_command = "rm {{.old.file}}"
+		log_level = "INFO"
 	}
 	locals {
 		test = "hi all"
 	}
-	resource "custom_crud" "test" {
+	resource "script_crud" "test" {
 		context {
 			output = "${local.test}"
 			file = "testfileU2"
@@ -89,18 +91,18 @@ func TestAccCustomProviderCRUD_DefaultUpdate(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crud.test", "out", "hi"),
+					testAccCheckResource("script_crud.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crud.test", "out", "hi all"),
+					testAccCheckResource("script_crud.test", "out", "hi all"),
 				),
 			},
 		},

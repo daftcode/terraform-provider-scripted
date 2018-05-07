@@ -1,4 +1,4 @@
-package custom
+package script
 
 import (
 	"testing"
@@ -15,7 +15,7 @@ var testAccProvider *schema.Provider
 func init() {
 	testAccProvider = Provider().(*schema.Provider)
 	testAccProviders = map[string]terraform.ResourceProvider{
-		"custom": testAccProvider,
+		"script": testAccProvider,
 	}
 }
 

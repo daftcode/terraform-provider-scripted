@@ -1,4 +1,4 @@
-package custom
+package script
 
 import (
 	"fmt"
@@ -78,8 +78,8 @@ func Provider() terraform.ResourceProvider {
 			"command_isolator": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     "(%s)",
-				Description: "Wrapper for isolating joined commands, (%s) by default",
+				Default:     "(\n%s\n)",
+				Description: "Wrapper for isolating joined commands, (\n%s\n) by default",
 			},
 			"create_command": {
 				Type:        schema.TypeString,
@@ -113,7 +113,7 @@ func Provider() terraform.ResourceProvider {
 			"update_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     "({{.delete_command}})\n({{.create_command}})",
+				Default:     "{{.delete_command}}\n{{.create_command}}",
 				Description: "Update command, default is: ({{.delete_command}})\\n({{.create_command}})",
 			},
 			"exists_command": {
@@ -130,10 +130,10 @@ func Provider() terraform.ResourceProvider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"custom_crd":   resourceCustomCRD(),
-			"custom_crde":  resourceCustomCRDE(),
-			"custom_crud":  resourceCustomCRUD(),
-			"custom_crude": resourceCustomCRUDE(),
+			"script_crd":   resourceScriptCRD(),
+			"script_crde":  resourceScriptCRDE(),
+			"script_crud":  resourceScriptCRUD(),
+			"script_crude": resourceScriptCRUDE(),
 		},
 
 		ConfigureFunc: providerConfigure,
@@ -154,7 +154,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		interpreter[i] = vI.(string)
 	}
 	logger := hclog.New(&hclog.LoggerOptions{
-		JSONFormat: true,
+		JSONFormat: os.Getenv("TF_ACC") == "",
 		Output:     Stderr,
 		Level:      hclog.LevelFromString(d.Get("log_level").(string)),
 	})
@@ -163,12 +163,12 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		Logger:                   logger,
 		CommandLogLevel:          hclog.LevelFromString(d.Get("command_log_level").(string)),
 		CommandLogWidth:          d.Get("command_log_width").(int),
+		CommandIsolator:          d.Get("command_isolator").(string),
+		CommandJoiner:            d.Get("command_joiner").(string),
 		CommandPrefix:            d.Get("command_prefix").(string),
 		Interpreter:              interpreter,
 		WorkingDirectory:         d.Get("working_directory").(string),
 		IncludeParentEnvironment: d.Get("include_parent_environment").(bool),
-		CommandIsolator:          d.Get("command_isolator").(string),
-		CommandJoiner:            d.Get("command_joiner").(string),
 		BufferSize:               int64(d.Get("buffer_size").(int)),
 		CreateCommand:            d.Get("create_command").(string),
 		ReadCommand:              d.Get("read_command").(string),

@@ -1,4 +1,4 @@
-package custom
+package script
 
 import "github.com/hashicorp/go-hclog"
 

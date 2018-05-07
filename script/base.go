@@ -1,4 +1,4 @@
-package custom
+package script
 
 import (
 	"crypto/sha256"
@@ -21,9 +21,9 @@ import (
 
 func getResource(update bool, exists bool) *schema.Resource {
 	ret := &schema.Resource{
-		Create: resourceCustomCreate,
-		Read:   resourceShellRead,
-		Delete: resourceCustomDelete,
+		Create: resourceScriptCreate,
+		Read:   resourceScriptRead,
+		Delete: resourceScriptDelete,
 
 		Schema: map[string]*schema.Schema{
 			"context": {
@@ -47,15 +47,15 @@ func getResource(update bool, exists bool) *schema.Resource {
 		},
 	}
 	if update {
-		ret.Update = resourceCustomUpdate
+		ret.Update = resourceScriptUpdate
 	}
 	if exists {
-		ret.Exists = resourceCustomExists
+		ret.Exists = resourceScriptExists
 	}
 	return ret
 }
 
-func resourceCustomCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceScriptCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
@@ -74,7 +74,7 @@ func resourceCustomCreate(d *schema.ResourceData, meta interface{}) error {
 	d.SetId(makeId(d, env))
 	writeLog(config, hclog.Debug, "created generic resource", "id", d.Id())
 
-	return resourceShellReadBase(d, meta, env)
+	return resourceScriptReadBase(d, meta, env)
 }
 
 func getOutputsText(config *Config, output string, prefix string) map[string]string {
@@ -123,11 +123,11 @@ func getOutputsBase64(config *Config, output, prefix string) map[string]string {
 	return outputs
 }
 
-func resourceShellRead(d *schema.ResourceData, meta interface{}) error {
-	return resourceShellReadBase(d, meta, nil)
+func resourceScriptRead(d *schema.ResourceData, meta interface{}) error {
+	return resourceScriptReadBase(d, meta, nil)
 }
 
-func resourceShellReadBase(d *schema.ResourceData, meta interface{}, env []string) error {
+func resourceScriptReadBase(d *schema.ResourceData, meta interface{}, env []string) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
@@ -164,14 +164,14 @@ func resourceShellReadBase(d *schema.ResourceData, meta interface{}, env []strin
 	return nil
 }
 
-func resourceCustomUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceScriptUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	ctx := getContext(d, "update")
 	deleteCommand, _ := interpolateCommand(
-		prepareCommands(config, config.CommandPrefix, config.DeleteCommand),
+		wrapCommands(config, config.CommandPrefix, config.DeleteCommand),
 		mergeMaps(ctx, map[string]interface{}{"cur": ctx["old"]}))
-	createCommand, _ := interpolateCommand(prepareCommands(config, config.CommandPrefix, config.CreateCommand), ctx)
+	createCommand, _ := interpolateCommand(wrapCommands(config, config.CommandPrefix, config.CreateCommand), ctx)
 	command, err := interpolateCommand(
 		prepareCommands(config, config.CommandPrefix, config.UpdateCommand),
 		mergeMaps(ctx, map[string]interface{}{
@@ -190,10 +190,10 @@ func resourceCustomUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 	d.SetId(makeId(d, env))
 
-	return resourceShellReadBase(d, meta, env)
+	return resourceScriptReadBase(d, meta, env)
 }
 
-func resourceCustomExists(d *schema.ResourceData, meta interface{}) (bool, error) {
+func resourceScriptExists(d *schema.ResourceData, meta interface{}) (bool, error) {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
@@ -211,7 +211,7 @@ func resourceCustomExists(d *schema.ResourceData, meta interface{}) (bool, error
 	return stdout == "true", err
 }
 
-func resourceCustomDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceScriptDelete(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
@@ -338,7 +338,11 @@ func prepareCommands(config *Config, commands ...string) string {
 	for _, cmd := range commands {
 		out = fmt.Sprintf(config.CommandJoiner, out, cmd)
 	}
-	return fmt.Sprintf(config.CommandIsolator, out)
+	return out
+}
+
+func wrapCommands(config *Config, commands ...string) string {
+	return fmt.Sprintf(config.CommandIsolator, prepareCommands(config, commands...))
 }
 
 // Retrieve Id from

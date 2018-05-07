@@ -1,4 +1,4 @@
-package custom
+package script
 
 import (
 	"fmt"
@@ -10,116 +10,116 @@ import (
 	"github.com/hashicorp/terraform/terraform"
 )
 
-func TestAccCustomProviderCRD_Basic(t *testing.T) {
+func TestAccScriptProviderCRD_Basic(t *testing.T) {
 	const testConfig = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"hi\" > test_file"
 		read_command = "awk '{print \"out=\" $0}' test_file"
 		delete_command = "rm test_file"
 	}
-	resource "custom_crd" "test" {
+	resource "script_crd" "test" {
 	}
 `
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crd.test", "out", "hi"),
+					testAccCheckResource("script_crd.test", "out", "hi"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCustomProviderCRD_Base64(t *testing.T) {
+func TestAccScriptProviderCRD_Base64(t *testing.T) {
 	const testConfig = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"hi\" > test_file"
   		read_command = "echo -n \"out=$(base64 'test_file')\""
 		read_format = "base64"
 		delete_command = "rm test_file"
 	}
-	resource "custom_crd" "test" {
+	resource "script_crd" "test" {
 	}
 `
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crd.test", "out", "hi"),
+					testAccCheckResource("script_crd.test", "out", "hi"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCustomProviderCRD_Prefixed(t *testing.T) {
+func TestAccScriptProviderCRD_Prefixed(t *testing.T) {
 	const testConfig = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"hi\" > test_file"
   		read_command = "echo -n \"PREFIX_out=$(cat 'test_file')\""
 		read_line_prefix =  "PREFIX_"
 		delete_command = "rm test_file"
 	}
-	resource "custom_crd" "test" {
+	resource "script_crd" "test" {
 	}
 `
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crd.test", "out", "hi"),
+					testAccCheckResource("script_crd.test", "out", "hi"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCustomProviderCRD_WeirdOutput(t *testing.T) {
+func TestAccScriptProviderCRD_WeirdOutput(t *testing.T) {
 	const testConfig = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \" can you = read this\" > test_file3"
   		read_command = "echo -n \"out=$(cat 'test_file3')\""
 		delete_command = "rm test_file3"
 	}
-	resource "custom_crd" "test" {
+	resource "script_crd" "test" {
 	}
 `
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crd.test", "out", " can you = read this"),
+					testAccCheckResource("script_crd.test", "out", " can you = read this"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCustomProviderCRD_Parameters(t *testing.T) {
+func TestAccScriptProviderCRD_Parameters(t *testing.T) {
 	const testConfig = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
   		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "custom_crd" "test" {
+	resource "script_crd" "test" {
 		context {
 			output = "param value"
 			file = "file4"
@@ -129,26 +129,26 @@ func TestAccCustomProviderCRD_Parameters(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crd.test", "out", "param value"),
+					testAccCheckResource("script_crd.test", "out", "param value"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCustomProviderCRD_Update(t *testing.T) {
+func TestAccScriptProviderCRD_Update(t *testing.T) {
 	const testConfig1 = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "custom_crd" "test" {
+	resource "script_crd" "test" {
 		context {
 			output = "hi"
 			file = "testfileU1"
@@ -156,12 +156,12 @@ func TestAccCustomProviderCRD_Update(t *testing.T) {
 	}
 `
 	const testConfig2 = `
-	provider "custom" {
+	provider "script" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "custom_crd" "test" {
+	resource "script_crd" "test" {
 		context {
 			output = "hi all"
 			file = "testfileU2"
@@ -171,18 +171,18 @@ func TestAccCustomProviderCRD_Update(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckCustomDestroy,
+		CheckDestroy: testAccCheckScriptDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crd.test", "out", "hi"),
+					testAccCheckResource("script_crd.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("custom_crd.test", "out", "hi all"),
+					testAccCheckResource("script_crd.test", "out", "hi all"),
 				),
 			},
 		},
@@ -206,9 +206,9 @@ func testAccCheckResource(name string, outparam string, value string) resource.T
 	}
 }
 
-func testAccCheckCustomDestroy(s *terraform.State) error {
+func testAccCheckScriptDestroy(s *terraform.State) error {
 	for _, rs := range s.RootModule().Resources {
-		if rs.Type != "custom_crd" {
+		if rs.Type != "script_crd" {
 			continue
 		}
 
