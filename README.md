@@ -1,32 +1,30 @@
-# Terraform shell provider
+# Terraform custom provider
 
-This is a terraform provider that lets you wrap shell based tools to [Terraform](https://terraform.io/) resources in a simple way.
-
-There is also [exec](https://github.com/gosuri/terraform-exec-provider) provider, but it only implements `Create` CRUD operation.
+This is a terraform provider that lets you wrap shell/interpreter based tools to [Terraform](https://terraform.io/) resources in a simple way.
 
 ## Naming
 
-The naming of this provider has been hard. The provider is about wrapping functionality by running shell scripts. Originally the name was `generic_shell_wrapper`, but currently the name is just `shell`. The naming in code is still inconsistent.
+The naming of this provider has been hard. The provider is about wrapping functionality by running shell scripts. Originally the name was `generic_shell_wrapper` then `shell`, but currently the name is just `custom`.
 
 ## Installing
 
 [Copied from the Terraform documentation](https://www.terraform.io/docs/plugins/basics.html):
 > To install a plugin, put the binary somewhere on your filesystem, then configure Terraform to be able to find it. The configuration where plugins are defined is ~/.terraformrc for Unix-like systems and %APPDATA%/terraform.rc for Windows.
 
-Build it from source (instructions below) and move the binary `terraform-provider-shell` to `bin/` and it should work.
+Build it from source (instructions below) and move the binary `terraform-provider-custom` to `bin/` and it should work.
 
 ## Using the provider
 
 First, an simple example that is used in tests too
 
 ```hcl
-provider "shell" {
+provider "custom" {
   create_command = "echo \"hi\" > test_file"
   read_command = "echo -n \"out=$(cat test_file)\""
   delete_command = "rm test_file"
 }
 
-resource "shell_crd" "test" {
+resource "custom_crd" "test" {
 }
 ```
 
@@ -39,15 +37,15 @@ $ terraform destroy
 To create a more complete example add this to the sample example file
 
 ```hcl
-provider "shell" {
+provider "custom" {
   alias = "write_to_file"
   create_command = "echo \"{{.new.input}}\" > {{.new.file}}"
   read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
   delete_command = "rm {{.old.file}}"
 }
 
-resource "shell_crd" "filetest" {
-  provider = "shell.write_to_file"
+resource "custom_crd" "filetest" {
+  provider = "custom.write_to_file"
   context {
     input = "this to the file"
     file = "test_file2"
@@ -61,10 +59,10 @@ Parameters can by used to change the resources.
 
 1.  [Install Go](https://golang.org/doc/install) on your machine
 2.  [Set up Gopath](https://golang.org/doc/code.html)
-3.  `git clone` this repository into `$GOPATH/src/github.com/toddnni/terraform-provider-shell`
+3.  `git clone` this repository into `$GOPATH/src/github.com/nazarewk/terraform-provider-custom`
 4.  Get the dependencies. Run `go get`
 6.  `make install`. You will now find the
-    binary at `$GOPATH/bin/terraform-provider-shell`.
+    binary at `$GOPATH/bin/terraform-provider-custom`.
 
 ## Running acceptance tests
 
@@ -77,8 +75,9 @@ make test
 * The provider will error instead of removing the resource if the delete command fails. However, this is a safe default.
 * Changes in provider do not issue resource rebuilds. Please parametrize all parameters that will change.
 
-## Author
+## Authors
 
+* Krzysztof Nazarewski
 * Toni Ylenius
 
 The structure is inspired from the [Softlayer](https://github.com/finn-no/terraform-provider-softlayer) and [libvirt](https://github.com/dmacvicar/terraform-provider-libvirt) Terraform provider sources.

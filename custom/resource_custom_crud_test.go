@@ -1,4 +1,4 @@
-package shell
+package custom
 
 import (
 	"testing"
@@ -6,15 +6,15 @@ import (
 	"github.com/hashicorp/terraform/helper/resource"
 )
 
-func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
+func TestAccCustomProviderCRUD_Update(t *testing.T) {
 	const testConfig1 = `
-	provider "shell" {
+	provider "custom" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "shell_crud" "test" {
+	resource "custom_crud" "test" {
 		context {
 			output = "hi"
 			file = "testfileU1"
@@ -22,13 +22,13 @@ func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 	}
 `
 	const testConfig2 = `
-	provider "shell" {
+	provider "custom" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		update_command = "rm {{.old.file}}; echo -n \"{{.new.output}}\" > {{.new.file}}"
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "shell_crud" "test" {
+	resource "custom_crud" "test" {
 		context {
 			output = "hi all"
 			file = "testfileU2"
@@ -38,32 +38,32 @@ func TestAccGenericShellProviderCRUD_Update(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckGenericShellDestroy,
+		CheckDestroy: testAccCheckCustomDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("shell_crud.test", "out", "hi"),
+					testAccCheckResource("custom_crud.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("shell_crud.test", "out", "hi all"),
+					testAccCheckResource("custom_crud.test", "out", "hi all"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
+func TestAccCustomProviderCRUD_DefaultUpdate(t *testing.T) {
 	const testConfig1 = `
-	provider "shell" {
+	provider "custom" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		delete_command = "rm {{.old.file}}"
 	}
-	resource "shell_crud" "test" {
+	resource "custom_crud" "test" {
 		context {
 			output = "hi"
 			file = "testfileU1"
@@ -71,7 +71,7 @@ func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
 	}
 `
 	const testConfig2 = `
-	provider "shell" {
+	provider "custom" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
 		read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
 		delete_command = "rm {{.old.file}}"
@@ -79,7 +79,7 @@ func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
 	locals {
 		test = "hi all"
 	}
-	resource "shell_crud" "test" {
+	resource "custom_crud" "test" {
 		context {
 			output = "${local.test}"
 			file = "testfileU2"
@@ -89,18 +89,18 @@ func TestAccGenericShellProviderCRUD_DefaultUpdate(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckGenericShellDestroy,
+		CheckDestroy: testAccCheckCustomDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("shell_crud.test", "out", "hi"),
+					testAccCheckResource("custom_crud.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("shell_crud.test", "out", "hi all"),
+					testAccCheckResource("custom_crud.test", "out", "hi all"),
 				),
 			},
 		},

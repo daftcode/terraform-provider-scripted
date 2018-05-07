@@ -1,9 +1,9 @@
-package shell
+package custom
 
 import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
-func resourceGenericShellCRUD() *schema.Resource {
+func resourceCustomCRUD() *schema.Resource {
 	return getResource(true, false)
 }

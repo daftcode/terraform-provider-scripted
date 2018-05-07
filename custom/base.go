@@ -1,4 +1,4 @@
-package shell
+package custom
 
 import (
 	"crypto/sha256"
@@ -21,9 +21,9 @@ import (
 
 func getResource(update bool, exists bool) *schema.Resource {
 	ret := &schema.Resource{
-		Create: resourceGenericShellCreate,
+		Create: resourceCustomCreate,
 		Read:   resourceShellRead,
-		Delete: resourceGenericShellDelete,
+		Delete: resourceCustomDelete,
 
 		Schema: map[string]*schema.Schema{
 			"context": {
@@ -47,15 +47,15 @@ func getResource(update bool, exists bool) *schema.Resource {
 		},
 	}
 	if update {
-		ret.Update = resourceGenericShellUpdate
+		ret.Update = resourceCustomUpdate
 	}
 	if exists {
-		ret.Exists = resourceGenericShellExists
+		ret.Exists = resourceCustomExists
 	}
 	return ret
 }
 
-func resourceGenericShellCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceCustomCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
@@ -164,7 +164,7 @@ func resourceShellReadBase(d *schema.ResourceData, meta interface{}, env []strin
 	return nil
 }
 
-func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceCustomUpdate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	ctx := getContext(d, "update")
@@ -193,7 +193,7 @@ func resourceGenericShellUpdate(d *schema.ResourceData, meta interface{}) error 
 	return resourceShellReadBase(d, meta, env)
 }
 
-func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool, error) {
+func resourceCustomExists(d *schema.ResourceData, meta interface{}) (bool, error) {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
@@ -211,7 +211,7 @@ func resourceGenericShellExists(d *schema.ResourceData, meta interface{}) (bool,
 	return stdout == "true", err
 }
 
-func resourceGenericShellDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceCustomDelete(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(

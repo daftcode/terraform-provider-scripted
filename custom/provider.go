@@ -1,4 +1,4 @@
-package shell
+package custom
 
 import (
 	"fmt"
@@ -124,10 +124,10 @@ func Provider() terraform.ResourceProvider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"shell_crd":   resourceGenericShellCRD(),
-			"shell_crde":  resourceGenericShellCRDE(),
-			"shell_crud":  resourceGenericShellCRUD(),
-			"shell_crude": resourceGenericShellCRUDE(),
+			"custom_crd":   resourceCustomCRD(),
+			"custom_crde":  resourceCustomCRDE(),
+			"custom_crud":  resourceCustomCRUD(),
+			"custom_crude": resourceCustomCRUDE(),
 		},
 
 		ConfigureFunc: providerConfigure,

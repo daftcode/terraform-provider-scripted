@@ -1,9 +1,9 @@
-package shell
+package custom
 
 import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
-func resourceGenericShellCRDE() *schema.Resource {
+func resourceCustomCRDE() *schema.Resource {
 	return getResource(false, true)
 }
