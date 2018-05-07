@@ -59,7 +59,7 @@ func resourceCustomCreate(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
-		mergeCommands(config, config.CommandPrefix, config.CreateCommand),
+		prepareCommands(config, config.CommandPrefix, config.CreateCommand),
 		getContext(d, "create"))
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func resourceShellReadBase(d *schema.ResourceData, meta interface{}, env []strin
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
-		mergeCommands(config, config.CommandPrefix, config.ReadCommand),
+		prepareCommands(config, config.CommandPrefix, config.ReadCommand),
 		getContext(d, "read"))
 	if err != nil {
 		return err
@@ -169,11 +169,11 @@ func resourceCustomUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	ctx := getContext(d, "update")
 	deleteCommand, _ := interpolateCommand(
-		mergeCommands(config, config.CommandPrefix, config.DeleteCommand),
+		prepareCommands(config, config.CommandPrefix, config.DeleteCommand),
 		mergeMaps(ctx, map[string]interface{}{"cur": ctx["old"]}))
-	createCommand, _ := interpolateCommand(mergeCommands(config, config.CommandPrefix, config.CreateCommand), ctx)
+	createCommand, _ := interpolateCommand(prepareCommands(config, config.CommandPrefix, config.CreateCommand), ctx)
 	command, err := interpolateCommand(
-		mergeCommands(config, config.CommandPrefix, config.UpdateCommand),
+		prepareCommands(config, config.CommandPrefix, config.UpdateCommand),
 		mergeMaps(ctx, map[string]interface{}{
 			"delete_command": deleteCommand,
 			"create_command": createCommand,
@@ -197,7 +197,7 @@ func resourceCustomExists(d *schema.ResourceData, meta interface{}) (bool, error
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
-		mergeCommands(config, config.CommandPrefix, config.ExistsCommand),
+		prepareCommands(config, config.CommandPrefix, config.ExistsCommand),
 		getContext(d, "exists"))
 	if err != nil {
 		return false, err
@@ -215,7 +215,7 @@ func resourceCustomDelete(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 
 	command, err := interpolateCommand(
-		mergeCommands(config, config.CommandPrefix, config.DeleteCommand),
+		prepareCommands(config, config.CommandPrefix, config.DeleteCommand),
 		getContext(d, "delete"))
 	if err != nil {
 		return err
@@ -282,7 +282,7 @@ func makeEnvironment(d *schema.ResourceData, config *Config) []string {
 func runCommand(config *Config, environment []string, commands ...string) (string, error) {
 	// Setup the command
 	interpreter := config.Interpreter[0]
-	command := mergeCommands(config, commands...)
+	command := prepareCommands(config, commands...)
 	args := append(config.Interpreter[1:], command)
 	cmd := exec.Command(interpreter, args...)
 	cmd.Dir = config.WorkingDirectory
@@ -333,8 +333,12 @@ func runCommand(config *Config, environment []string, commands ...string) (strin
 	return stdout.String(), nil
 }
 
-func mergeCommands(config *Config, commands ...string) string {
-	return strings.Join(commands, config.CommandSeparator)
+func prepareCommands(config *Config, commands ...string) string {
+	out := ""
+	for _, cmd := range commands {
+		out = fmt.Sprintf(config.CommandJoiner, out, cmd)
+	}
+	return fmt.Sprintf(config.CommandIsolator, out)
 }
 
 // Retrieve Id from

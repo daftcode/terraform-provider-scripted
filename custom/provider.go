@@ -69,11 +69,17 @@ func Provider() terraform.ResourceProvider {
 				Default:     "",
 				Description: "Command prefix shared between all commands",
 			},
-			"command_separator": {
+			"command_joiner": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     "\n",
-				Description: "Commands separator used in specified interpreter",
+				Default:     "%s\n%s",
+				Description: "Format for joining 2 commands together without isolating them, %s\n%s by default",
+			},
+			"command_isolator": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "(%s)",
+				Description: "Wrapper for isolating joined commands, (%s) by default",
 			},
 			"create_command": {
 				Type:        schema.TypeString,
@@ -161,7 +167,8 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		Interpreter:              interpreter,
 		WorkingDirectory:         d.Get("working_directory").(string),
 		IncludeParentEnvironment: d.Get("include_parent_environment").(bool),
-		CommandSeparator:         d.Get("command_separator").(string),
+		CommandIsolator:          d.Get("command_isolator").(string),
+		CommandJoiner:            d.Get("command_joiner").(string),
 		BufferSize:               int64(d.Get("buffer_size").(int)),
 		CreateCommand:            d.Get("create_command").(string),
 		ReadCommand:              d.Get("read_command").(string),

@@ -7,7 +7,8 @@ type Config struct {
 	Interpreter              []string
 	WorkingDirectory         string
 	CommandPrefix            string
-	CommandSeparator         string
+	CommandIsolator          string
+	CommandJoiner            string
 	CreateCommand            string
 	ReadCommand              string
 	DeleteOnReadFailure      bool
