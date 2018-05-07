@@ -204,11 +204,11 @@ func resourceScriptExists(d *schema.ResourceData, meta interface{}) (bool, error
 	}
 	writeLog(config, hclog.Debug, "resource exists")
 	env := makeEnvironment(d, config)
-	stdout, err := runCommand(config, env, command)
+	_, err = runCommand(config, env, command)
 	if err != nil {
 		writeLog(config, hclog.Warn, "command returned error", "error", err)
 	}
-	return stdout == "true", err
+	return err == nil, err
 }
 
 func resourceScriptDelete(d *schema.ResourceData, meta interface{}) error {
