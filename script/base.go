@@ -218,9 +218,9 @@ func resourceScriptExists(d *schema.ResourceData, meta interface{}) (bool, error
 		writeLog(s, hclog.Warn, "command returned error", "error", err)
 	}
 	if s.c.ExistsExpectedStatus == 0 {
-		return err == nil, err
+		return err == nil, nil
 	}
-	return getExitStatus(err) == s.c.ExistsExpectedStatus, err
+	return getExitStatus(err) == s.c.ExistsExpectedStatus, nil
 }
 
 func resourceScriptDelete(d *schema.ResourceData, meta interface{}) error {
