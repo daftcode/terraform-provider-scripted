@@ -304,6 +304,7 @@ func getContext(s *State, operation string) map[string]interface{} {
 	o, n := s.d.GetChange("context")
 	return map[string]interface{}{
 		"operation": operation,
+		"output":    s.d.Get("output"),
 		"old":       o,
 		"new":       n,
 		"cur":       n,
