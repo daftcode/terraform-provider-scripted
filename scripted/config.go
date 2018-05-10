@@ -1,4 +1,4 @@
-package script
+package scripted
 
 import "github.com/hashicorp/go-hclog"
 

@@ -1,4 +1,4 @@
-package script
+package scripted
 
 import (
 	"crypto/sha256"
@@ -28,53 +28,6 @@ type State struct {
 	op  string
 }
 
-func getResource(update bool, exists bool) *schema.Resource {
-	ret := &schema.Resource{
-		Create: resourceScriptCreate,
-		Read:   resourceScriptRead,
-		Delete: resourceScriptDelete,
-
-		Schema: map[string]*schema.Schema{
-			"log_name": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
-				Description: "Resource name to display in log messages",
-				// Hack so it doesn't ever change
-				ForceNew: true,
-				StateFunc: func(v interface{}) string {
-					return ""
-				},
-			},
-			"context": {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Description: "Template context for rendering commands",
-				ForceNew:    !update,
-			},
-			"environment": {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Default:     []string{},
-				Description: "Environment to run commands in",
-				ForceNew:    !update,
-			},
-			"output": {
-				Type:        schema.TypeMap,
-				Computed:    true,
-				Description: "Output from the read command",
-			},
-		},
-	}
-	if update {
-		ret.Update = resourceScriptUpdate
-	}
-	if exists {
-		ret.Exists = resourceScriptExists
-	}
-	return ret
-}
-
 func makeState(d *schema.ResourceData, meta interface{}, operation string, old bool) *State {
 	s := &State{
 		c:  meta.(*Config),
@@ -99,11 +52,11 @@ func copyState(s *State) *State {
 	}
 }
 
-func resourceScriptCreate(d *schema.ResourceData, meta interface{}) error {
-	return resourceScriptCreateBase(makeState(d, meta, "create", false))
+func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
+	return resourceScriptedCreateBase(makeState(d, meta, "create", false))
 }
 
-func resourceScriptCreateBase(s *State) error {
+func resourceScriptedCreateBase(s *State) error {
 	command, err := interpolateCommand(
 		prepareCommands(s, s.c.CommandPrefix, s.c.CreateCommand),
 		s.ctx)
@@ -119,14 +72,14 @@ func resourceScriptCreateBase(s *State) error {
 	s.d.SetId(makeId(s.d, s.env))
 	writeLog(s, hclog.Debug, "created generic resource", "id", s.d.Id())
 
-	return resourceScriptReadBase(s)
+	return resourceScriptedReadBase(s)
 }
 
-func resourceScriptRead(d *schema.ResourceData, meta interface{}) error {
-	return resourceScriptReadBase(makeState(d, meta, "read", false))
+func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
+	return resourceScriptedReadBase(makeState(d, meta, "read", false))
 }
 
-func resourceScriptReadBase(s *State) error {
+func resourceScriptedReadBase(s *State) error {
 	command, err := interpolateCommand(
 		prepareCommands(s, s.c.CommandPrefix, s.c.ReadCommand),
 		s.ctx)
@@ -158,16 +111,16 @@ func resourceScriptReadBase(s *State) error {
 	return nil
 }
 
-func resourceScriptUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	s := makeState(d, meta, "update", false)
 	if s.c.DeleteBeforeUpdate {
-		if err := resourceScriptDeleteBase(s); err != nil {
+		if err := resourceScriptedDeleteBase(s); err != nil {
 			return err
 		}
 	}
 
 	if s.c.CreateBeforeUpdate {
-		if err := resourceScriptCreateBase(s); err != nil {
+		if err := resourceScriptedCreateBase(s); err != nil {
 			return err
 		}
 	}
@@ -196,16 +149,19 @@ func resourceScriptUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	if s.c.CreateAfterUpdate {
-		if err := resourceScriptCreateBase(s); err != nil {
+		if err := resourceScriptedCreateBase(s); err != nil {
 			return err
 		}
 	}
 
-	return resourceScriptReadBase(s)
+	return resourceScriptedReadBase(s)
 }
 
-func resourceScriptExists(d *schema.ResourceData, meta interface{}) (bool, error) {
+func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
 	s := makeState(d, meta, "exists", false)
+	if s.c.ExistsCommand == "" {
+		return true, nil
+	}
 	command, err := interpolateCommand(
 		prepareCommands(s, s.c.CommandPrefix, s.c.ExistsCommand),
 		s.ctx)
@@ -223,11 +179,11 @@ func resourceScriptExists(d *schema.ResourceData, meta interface{}) (bool, error
 	return getExitStatus(err) == s.c.ExistsExpectedStatus, nil
 }
 
-func resourceScriptDelete(d *schema.ResourceData, meta interface{}) error {
-	return resourceScriptDeleteBase(makeState(d, meta, "delete", true))
+func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
+	return resourceScriptedDeleteBase(makeState(d, meta, "delete", true))
 }
 
-func resourceScriptDeleteBase(s *State) error {
+func resourceScriptedDeleteBase(s *State) error {
 	s = copyState(s)
 	if s.op != "delete" {
 		s.ctx = mergeMaps(s.ctx, map[string]interface{}{"cur": s.ctx["old"]})

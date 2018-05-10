@@ -1,4 +1,4 @@
-package script
+package scripted
 
 import (
 	"fmt"
@@ -166,10 +166,7 @@ func Provider() terraform.ResourceProvider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"script_crd":   resourceScriptCRD(),
-			"script_crde":  resourceScriptCRDE(),
-			"script_crud":  resourceScriptCRUD(),
-			"script_crude": resourceScriptCRUDE(),
+			"scripted_resource": getScriptedResource(),
 		},
 
 		ConfigureFunc: providerConfigure,

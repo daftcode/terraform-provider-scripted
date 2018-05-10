@@ -2,11 +2,11 @@ package main
 
 import (
 	"github.com/hashicorp/terraform/plugin"
-	"github.com/nazarewk/terraform-provider-script/script"
+	"github.com/nazarewk/terraform-provider-scripted/scripted"
 )
 
 func main() {
 	plugin.Serve(&plugin.ServeOpts{
-		ProviderFunc: script.Provider,
+		ProviderFunc: scripted.Provider,
 	})
 }
