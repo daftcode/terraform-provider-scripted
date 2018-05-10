@@ -18,6 +18,7 @@ type Config struct {
 	DeleteCommand            string
 	ExistsCommand            string
 	Logger                   hclog.Logger
+	FileLogger               hclog.Logger
 	CommandLogLevel          hclog.Level
 	CommandLogWidth          int
 	IncludeParentEnvironment bool

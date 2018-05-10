@@ -442,23 +442,41 @@ func copyOutput(s *State, r io.Reader, doneCh chan<- struct{}) {
 	}
 }
 
-func writeLog(s *State, level hclog.Level, msg string, args ...interface{}) {
-	logger := s.c.Logger
-	var fn func(msg string, args ...interface{})
+func selectLogFunction(logger hclog.Logger, level hclog.Level) func(msg string, args ...interface{}) {
 	switch level {
 	case hclog.Trace:
-		fn = logger.Trace
+		return logger.Trace
 	case hclog.Debug:
-		fn = logger.Debug
+		return logger.Debug
 	case hclog.Info:
-		fn = logger.Info
+		return logger.Info
 	case hclog.Warn:
-		fn = logger.Warn
+		return logger.Warn
 	case hclog.Error:
-		fn = logger.Error
+		return logger.Error
 	default:
-		fn = logger.Info
+		return logger.Info
 	}
+}
+
+func getLogFunction(s *State, level hclog.Level) func(msg string, args ...interface{}) {
+	fns := []func(msg string, args ...interface{}){
+		selectLogFunction(s.c.Logger, level),
+	}
+
+	if s.c.FileLogger != nil {
+		fns = append(fns, selectLogFunction(s.c.FileLogger, level))
+	}
+
+	return func(msg string, args ...interface{}) {
+		for _, v := range fns {
+			v(msg, args...)
+		}
+	}
+}
+
+func writeLog(s *State, level hclog.Level, msg string, args ...interface{}) {
+	fn := getLogFunction(s, level)
 	if s.c.LogProviderName != "" {
 		args = append(args, "provider", s.c.LogProviderName)
 	}

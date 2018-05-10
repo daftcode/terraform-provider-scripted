@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/hashicorp/terraform/terraform"
-	"io"
 	"os"
 	"runtime"
 	"strconv"
@@ -30,7 +29,7 @@ func Provider() terraform.ResourceProvider {
 			"log_jsonformat": {
 				Type: schema.TypeBool,
 				DefaultFunc: func() (interface{}, error) {
-					return os.Getenv("TF_PROVIDER_SCRIPTED_LOG_JSONFORMAT") != "", nil
+					return os.Getenv("TF_PROVIDER_SCRIPTED_LOG_JSONFORMAT") != "0", nil
 				},
 				Optional:    true,
 				Description: "Name to display in log entries for this provider",
@@ -206,22 +205,27 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	for i, vI := range interpreterI {
 		interpreter[i] = vI.(string)
 	}
-	logPath := d.Get("logPath").(string)
-	var output io.Writer = Stderr
 
+	logLevel := hclog.LevelFromString(d.Get("log_level").(string))
+	logger := hclog.New(&hclog.LoggerOptions{
+		JSONFormat: os.Getenv("TF_ACC") == "",
+		Output:     Stderr,
+		Level:      logLevel,
+	})
+
+	logPath := d.Get("log_path").(string)
+	var fileLogger hclog.Logger
 	if logPath != "" {
 		logFile, err := os.OpenFile(logPath, os.O_APPEND, 0644)
 		if err != nil {
 			return nil, err
 		}
-		output = io.MultiWriter(output, logFile)
+		fileLogger = hclog.New(&hclog.LoggerOptions{
+			JSONFormat: d.Get("log_jsonformat").(bool),
+			Output:     logFile,
+			Level:      logLevel,
+		})
 	}
-
-	logger := hclog.New(&hclog.LoggerOptions{
-		JSONFormat: d.Get("log_jsonformat").(bool),
-		Output:     output,
-		Level:      hclog.LevelFromString(d.Get("log_level").(string)),
-	})
 
 	dbu := d.Get("delete_before_update").(bool)
 	cau := d.Get("create_after_update").(bool)
@@ -235,6 +239,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	}
 	config := Config{
 		Logger:                   logger,
+		FileLogger:               fileLogger,
 		CommandLogLevel:          hclog.LevelFromString(d.Get("command_log_level").(string)),
 		CommandLogWidth:          d.Get("command_log_width").(int),
 		CommandIsolator:          d.Get("command_isolator").(string),
