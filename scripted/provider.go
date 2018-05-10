@@ -6,8 +6,10 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/hashicorp/terraform/terraform"
+	"io"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -25,6 +27,20 @@ func Provider() terraform.ResourceProvider {
 				Default:     1 * 1024 * 1024,
 				Description: "stdout and stderr buffer sizes",
 			},
+			"log_jsonformat": {
+				Type: schema.TypeBool,
+				DefaultFunc: func() (interface{}, error) {
+					return os.Getenv("TF_PROVIDER_SCRIPTED_LOG_JSONFORMAT") != "", nil
+				},
+				Optional:    true,
+				Description: "Name to display in log entries for this provider",
+			},
+			"log_path": {
+				Type:        schema.TypeString,
+				DefaultFunc: schema.EnvDefaultFunc("TF_PROVIDER_SCRIPTED_LOG_PATH", ""),
+				Optional:    true,
+				Description: "Name to display in log entries for this provider",
+			},
 			"log_provider_name": {
 				Type:        schema.TypeString,
 				Default:     "",
@@ -34,22 +50,26 @@ func Provider() terraform.ResourceProvider {
 			"log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				Default:      "WARN",
+				DefaultFunc:  schema.EnvDefaultFunc("TF_PROVIDER_SCRIPTED_LOG_LEVEL", "WARN"),
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
 				Description:  fmt.Sprintf("Logging level: %s", strings.Join(ValidLevelsStrings, ", ")),
 			},
 			"command_log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				Default:      "INFO",
+				DefaultFunc:  schema.EnvDefaultFunc("TF_PROVIDER_SCRIPTED_COMMAND_LOG_LEVEL", "INFO"),
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
 				Description:  fmt.Sprintf("Command outputs log level: %s", strings.Join(ValidLevelsStrings, ", ")),
 			},
 			"command_log_width": {
 				Type:        schema.TypeInt,
 				Optional:    true,
-				Default:     1,
 				Description: "Width of command's line to use during formatting.",
+				DefaultFunc: func() (interface{}, error) {
+					env, _ := schema.EnvDefaultFunc("TF_PROVIDER_SCRIPTED_COMMAND_LOG_WIDTH", "1")()
+					val, err := strconv.Atoi(env.(string))
+					return val, err
+				},
 			},
 			"interpreter": {
 				Type:        schema.TypeList,
@@ -186,9 +206,20 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	for i, vI := range interpreterI {
 		interpreter[i] = vI.(string)
 	}
+	logPath := d.Get("logPath").(string)
+	var output io.Writer = Stderr
+
+	if logPath != "" {
+		logFile, err := os.OpenFile(logPath, os.O_APPEND, 0644)
+		if err != nil {
+			return nil, err
+		}
+		output = io.MultiWriter(output, logFile)
+	}
+
 	logger := hclog.New(&hclog.LoggerOptions{
-		JSONFormat: os.Getenv("TF_ACC") == "",
-		Output:     Stderr,
+		JSONFormat: d.Get("log_jsonformat").(bool),
+		Output:     output,
 		Level:      hclog.LevelFromString(d.Get("log_level").(string)),
 	})
 
