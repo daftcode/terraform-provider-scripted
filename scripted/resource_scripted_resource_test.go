@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func TestAccScriptedProviderCRD_Basic(t *testing.T) {
+func TestAccScriptedResourceCRD_Basic(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \"hi\" > test_file"
@@ -35,7 +35,7 @@ func TestAccScriptedProviderCRD_Basic(t *testing.T) {
 	})
 }
 
-func TestAccScriptedProviderCRD_Base64(t *testing.T) {
+func TestAccScriptedResourceCRD_Base64(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \"hi\" > test_file"
@@ -61,7 +61,7 @@ func TestAccScriptedProviderCRD_Base64(t *testing.T) {
 	})
 }
 
-func TestAccScriptedProviderCRD_Prefixed(t *testing.T) {
+func TestAccScriptedResourceCRD_Prefixed(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \"hi\" > test_file"
@@ -87,7 +87,7 @@ func TestAccScriptedProviderCRD_Prefixed(t *testing.T) {
 	})
 }
 
-func TestAccScriptedProviderCRD_WeirdOutput(t *testing.T) {
+func TestAccScriptedResourceCRD_WeirdOutput(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \" can you = read this\" > test_file3"
@@ -112,7 +112,7 @@ func TestAccScriptedProviderCRD_WeirdOutput(t *testing.T) {
 	})
 }
 
-func TestAccScriptedProviderCRD_Parameters(t *testing.T) {
+func TestAccScriptedResourceCRD_Parameters(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
@@ -141,7 +141,7 @@ func TestAccScriptedProviderCRD_Parameters(t *testing.T) {
 	})
 }
 
-func TestAccScriptedProviderCRD_Update(t *testing.T) {
+func TestAccScriptedResourceCRD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
@@ -220,7 +220,7 @@ func testAccCheckScriptedDestroy(s *terraform.State) error {
 	}
 	return nil
 }
-func TestAccScriptedProviderCRUD_Update(t *testing.T) {
+func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
@@ -270,7 +270,7 @@ func TestAccScriptedProviderCRUD_Update(t *testing.T) {
 	})
 }
 
-func TestAccScriptedProviderCRUD_DefaultUpdate(t *testing.T) {
+func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
@@ -322,7 +322,7 @@ func TestAccScriptedProviderCRUD_DefaultUpdate(t *testing.T) {
 		},
 	})
 }
-func TestAccScriptedProviderCRUDE_Exists(t *testing.T) {
+func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"

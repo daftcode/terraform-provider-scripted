@@ -372,7 +372,7 @@
     "lex/httplex",
     "trace"
   ]
-  revision = "f2499483f923065a842d38eb4c7f1927e6fc6e6d"
+  revision = "a04bdaca5b32abe1c069418fb7088ae607de5bd0"
 
 [[projects]]
   branch = "master"
