@@ -29,7 +29,7 @@ func Provider() terraform.ResourceProvider {
 			"log_jsonformat": {
 				Type: schema.TypeBool,
 				DefaultFunc: func() (interface{}, error) {
-					return os.Getenv("TF_PROVIDER_SCRIPTED_LOG_JSONFORMAT") != "0", nil
+					return os.Getenv("TF_PROVIDER_SCRIPTED_LOG_JSONFORMAT") != "", nil
 				},
 				Optional:    true,
 				Description: "Name to display in log entries for this provider",
@@ -226,7 +226,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	logPath := d.Get("log_path").(string)
 	var fileLogger hclog.Logger
 	if logPath != "" {
-		logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE, 0644)
+		logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			return nil, err
 		}
