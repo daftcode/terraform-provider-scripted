@@ -262,9 +262,10 @@ func getOutputsText(s *State, output string, prefix string) map[string]string {
 	outputs := make(map[string]string)
 	split := strings.Split(output, "\n")
 	for _, varline := range split {
-		writeLog(s, hclog.Debug, "reading output", "line", varline)
+		writeLog(s, hclog.Debug, "reading output line", "line", varline)
 
 		if varline == "" {
+			writeLog(s, hclog.Debug, "skipping empty line")
 			continue
 		}
 
@@ -278,13 +279,13 @@ func getOutputsText(s *State, output string, prefix string) map[string]string {
 
 		pos := strings.Index(varline, "=")
 		if pos == -1 {
-			writeLog(s, hclog.Info, "ignoring line without equal sign", varline)
+			writeLog(s, hclog.Info, "ignoring line without equal sign", "line", varline)
 			continue
 		}
 
 		key := varline[:pos]
 		value := varline[pos+1:]
-		writeLog(s, hclog.Debug, "read output entry (raw)", key, value)
+		writeLog(s, hclog.Debug, "read output entry (raw)", "key", key, key, value)
 		outputs[key] = value
 	}
 	return outputs
@@ -295,10 +296,10 @@ func getOutputsBase64(s *State, output, prefix string) map[string]string {
 	for key, value := range getOutputsText(s, output, prefix) {
 		decoded, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
-			writeLog(s, hclog.Warn, "error decoding base64", err)
+			writeLog(s, hclog.Warn, "error decoding base64", "error", err)
 			continue
 		}
-		writeLog(s, hclog.Debug, "read output entry (decoded)", key, decoded, "base64", value)
+		writeLog(s, hclog.Debug, "read output entry (decoded)", "key", key, key, string(decoded[:]), "base64", value)
 		outputs[key] = string(decoded[:])
 	}
 	return outputs
