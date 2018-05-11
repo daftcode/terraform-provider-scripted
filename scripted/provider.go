@@ -226,7 +226,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	logPath := d.Get("log_path").(string)
 	var fileLogger hclog.Logger
 	if logPath != "" {
-		logFile, err := os.OpenFile(logPath, os.O_APPEND, 0644)
+		logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			return nil, err
 		}
