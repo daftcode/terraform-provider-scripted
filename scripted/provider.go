@@ -108,7 +108,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"create_command": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "Create command",
 			},
 			"read_command": {
@@ -185,13 +185,17 @@ func Provider() terraform.ResourceProvider {
 			},
 			"delete_command": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "Delete command",
 			},
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
 			"scripted_resource": getScriptedResource(),
+		},
+
+		DataSourcesMap: map[string]*schema.Resource{
+			"scripted_data": getScriptedDataSource(),
 		},
 
 		ConfigureFunc: providerConfigure,
