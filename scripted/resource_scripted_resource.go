@@ -213,10 +213,14 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	if err != nil {
 		writeLog(s, hclog.Warn, "command returned error", "error", err)
 	}
+	exists := getExitStatus(err) == s.c.ExistsExpectedStatus
 	if s.c.ExistsExpectedStatus == 0 {
-		return err == nil, nil
+		exists = err == nil
 	}
-	return getExitStatus(err) == s.c.ExistsExpectedStatus, nil
+	if !exists && s.c.DeleteOnNotExists {
+		s.d.SetId("")
+	}
+	return exists, nil
 }
 
 func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {

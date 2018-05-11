@@ -27,4 +27,5 @@ type Config struct {
 	DeleteBeforeUpdate       bool
 	CreateAfterUpdate        bool
 	CreateBeforeUpdate       bool
+	DeleteOnNotExists        bool
 }

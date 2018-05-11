@@ -122,6 +122,12 @@ func Provider() terraform.ResourceProvider {
 				Default:     true,
 				Description: "Delete resource when read fails",
 			},
+			"delete_on_not_exists": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     true,
+				Description: "Delete resource when exists fails",
+			},
 			"read_format": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -252,6 +258,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		CreateCommand:            d.Get("create_command").(string),
 		ReadCommand:              d.Get("read_command").(string),
 		DeleteOnReadFailure:      d.Get("delete_on_read_failure").(bool),
+		DeleteOnNotExists:        d.Get("delete_on_not_exists").(bool),
 		ReadFormat:               d.Get("read_format").(string),
 		ReadLinePrefix:           d.Get("read_line_prefix").(string),
 		UpdateCommand:            update,
