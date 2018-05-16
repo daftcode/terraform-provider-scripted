@@ -200,6 +200,76 @@ EOF
 	})
 }
 
+func TestAccScriptedResourceCRD_JSON(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+  		read_command = <<EOF
+echo -n 'out={{ toJson (fromJson .cur.val) }}'
+EOF
+	}
+	resource "scripted_resource" "test" {
+		context {
+			val = <<EOF
+{"a":[1,2],"b":"c","d":4}
+EOF
+		}
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "out", `{"a":[1,2],"b":"c","d":4}`),
+				),
+			},
+		},
+	})
+}
+
+func TestAccScriptedResourceCRD_YAML(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+		read_format = "base64"
+  		read_command = <<EOF
+echo -n 'out={{ toBase64 (toYaml (fromYaml .cur.val)) }}'
+EOF
+	}
+	resource "scripted_resource" "test" {
+		context {
+			val = <<EOF
+a:
+- 1
+- 2
+b: c
+d: 4
+EOF
+		}
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "out", `a:
+- 1
+- 2
+b: c
+d: 4
+`),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResourceCRD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
@@ -279,6 +349,7 @@ func testAccCheckScriptedDestroy(s *terraform.State) error {
 	}
 	return nil
 }
+
 func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {

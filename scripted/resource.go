@@ -400,6 +400,9 @@ func getContext(s *State, operation string) map[string]interface{} {
 		"old":       o,
 		"new":       n,
 		"cur":       n,
+		"fn": map[string]interface{}{
+			"split": strings.Split,
+		},
 	}
 }
 
@@ -414,7 +417,7 @@ func mergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 }
 
 func renderTemplate(tpl string, context map[string]interface{}) (string, error) {
-	t := template.Must(template.New("template").Parse(tpl))
+	t := template.Must(template.New("template").Funcs(TemplateFuncs).Parse(tpl))
 	var buf bytes.Buffer
 	err := t.Execute(&buf, context)
 	return buf.String(), err
