@@ -19,11 +19,16 @@ import (
 	"text/template"
 )
 
+type Environment struct {
+	old []string
+	new []string
+}
+
 type State struct {
 	c   *Config
 	d   *schema.ResourceData
 	ctx map[string]interface{}
-	env []string
+	env *Environment
 	op  string
 }
 
@@ -47,6 +52,12 @@ func getScriptedResource() *schema.Resource {
 					return ""
 				},
 			},
+			"environment_templates": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "Environment keys that are themselves templates to be rendered",
+			},
 			"context": {
 				Type:        schema.TypeMap,
 				Optional:    true,
@@ -68,7 +79,61 @@ func getScriptedResource() *schema.Resource {
 	return ret
 }
 
-func makeState(d *schema.ResourceData, meta interface{}, operation string, old bool) *State {
+func getEnv(s *State, environment map[string]interface{}, environmentTemplates []interface{}, old bool) ([]string, error) {
+	var env []string
+	if s.c.IncludeParentEnvironment {
+		env = os.Environ()
+	}
+	cur := s.ctx["cur"]
+
+	if old {
+		s.ctx["cur"] = s.ctx["old"]
+	} else {
+		s.ctx["cur"] = s.ctx["new"]
+	}
+	renderedEnv := map[string]string{}
+	for _, k := range environmentTemplates {
+		key := k.(string)
+		tpl := environment[key].(string)
+		rendered, err := renderTemplate(tpl, s.ctx)
+		if err != nil {
+			return nil, err
+		}
+		writeLog(s, hclog.Debug, "rendering envvar", "key", key, "template", tpl, "rendered", rendered)
+		renderedEnv[key] = rendered
+	}
+	s.ctx["cur"] = cur
+
+	for key, value := range environment {
+		rendered, ok := renderedEnv[key]
+		if ok {
+			value = rendered
+		}
+		env = append(env, key+"="+value.(string))
+	}
+
+	return env, nil
+}
+
+func makeEnv(s *State) (*Environment, error) {
+	o, n := s.d.GetChange("environment")
+	oKeys, nKeys := s.d.GetChange("environment_templates")
+
+	oldEnv, err := getEnv(s, o.(map[string]interface{}), oKeys.([]interface{}), true)
+	if err != nil {
+		return nil, err
+	}
+	newEnv, err := getEnv(s, n.(map[string]interface{}), nKeys.([]interface{}), false)
+	if err != nil {
+		return nil, err
+	}
+	return &Environment{
+		old: oldEnv,
+		new: newEnv,
+	}, nil
+}
+
+func makeState(d *schema.ResourceData, meta interface{}, operation string, old bool) (*State, error) {
 	s := &State{
 		c:  meta.(*Config),
 		d:  d,
@@ -78,8 +143,9 @@ func makeState(d *schema.ResourceData, meta interface{}, operation string, old b
 	if old {
 		s.ctx["cur"] = s.ctx["old"]
 	}
-	s.env = getEnv(s, old)
-	return s
+	env, err := makeEnv(s)
+	s.env = env
+	return s, err
 }
 
 func copyState(s *State) *State {
@@ -88,46 +154,57 @@ func copyState(s *State) *State {
 		d:   s.d,
 		op:  s.op,
 		ctx: s.ctx,
-		env: s.env,
+		env: &Environment{
+			old: s.env.old,
+			new: s.env.new,
+		},
 	}
 }
 
 func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
-	return resourceScriptedCreateBase(makeState(d, meta, "create", false))
+	s, err := makeState(d, meta, "create", false)
+	if err != nil {
+		return err
+	}
+	return resourceScriptedCreateBase(s)
 }
 
 func resourceScriptedCreateBase(s *State) error {
-	command, err := interpolateCommand(
+	command, err := renderTemplate(
 		prepareCommands(s, s.c.CommandPrefix, s.c.CreateCommand),
 		s.ctx)
 	if err != nil {
 		return err
 	}
 	writeLog(s, hclog.Debug, "creating resource")
-	_, err = runCommand(s, command)
+	_, err = runCommand(s, s.env.new, command)
 	if err != nil {
 		return err
 	}
 
-	s.d.SetId(makeId(s.d, s.env))
+	s.d.SetId(makeId(s.d, s.env.new))
 	writeLog(s, hclog.Debug, "created generic resource", "id", s.d.Id())
 
 	return resourceScriptedReadBase(s)
 }
 
 func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
-	return resourceScriptedReadBase(makeState(d, meta, "read", false))
+	s, err := makeState(d, meta, "read", false)
+	if err != nil {
+		return err
+	}
+	return resourceScriptedReadBase(s)
 }
 
 func resourceScriptedReadBase(s *State) error {
-	command, err := interpolateCommand(
+	command, err := renderTemplate(
 		prepareCommands(s, s.c.CommandPrefix, s.c.ReadCommand),
 		s.ctx)
 	if err != nil {
 		return err
 	}
 	writeLog(s, hclog.Debug, "reading resource")
-	stdout, err := runCommand(s, command)
+	stdout, err := runCommand(s, s.env.new, command)
 	if err != nil {
 		writeLog(s, hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
 		if s.c.DeleteOnReadFailure {
@@ -152,7 +229,11 @@ func resourceScriptedReadBase(s *State) error {
 }
 
 func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
-	s := makeState(d, meta, "update", false)
+	s, err := makeState(d, meta, "update", false)
+	if err != nil {
+		return err
+	}
+
 	if s.c.DeleteBeforeUpdate {
 		if err := resourceScriptedDeleteBase(s); err != nil {
 			return err
@@ -166,11 +247,11 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	if s.c.UpdateCommand != "" {
-		deleteCommand, _ := interpolateCommand(
+		deleteCommand, _ := renderTemplate(
 			wrapCommands(s, s.c.CommandPrefix, s.c.DeleteCommand),
 			mergeMaps(s.ctx, map[string]interface{}{"cur": s.ctx["old"]}))
-		createCommand, _ := interpolateCommand(wrapCommands(s, s.c.CommandPrefix, s.c.CreateCommand), s.ctx)
-		command, err := interpolateCommand(
+		createCommand, _ := renderTemplate(wrapCommands(s, s.c.CommandPrefix, s.c.CreateCommand), s.ctx)
+		command, err := renderTemplate(
 			prepareCommands(s, s.c.CommandPrefix, s.c.UpdateCommand),
 			mergeMaps(s.ctx, map[string]interface{}{
 				"delete_command": deleteCommand,
@@ -180,12 +261,12 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 			return err
 		}
 		writeLog(s, hclog.Debug, "updating resource", "command", command)
-		_, err = runCommand(s, command)
+		_, err = runCommand(s, s.env.new, command)
 		if err != nil {
 			writeLog(s, hclog.Warn, "update command returned error", "error", err)
 			return nil
 		}
-		d.SetId(makeId(d, s.env))
+		d.SetId(makeId(d, s.env.new))
 	}
 
 	if s.c.CreateAfterUpdate {
@@ -198,18 +279,21 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
-	s := makeState(d, meta, "exists", false)
+	s, err := makeState(d, meta, "exists", false)
+	if err != nil {
+		return false, err
+	}
 	if s.c.ExistsCommand == "" {
 		return true, nil
 	}
-	command, err := interpolateCommand(
+	command, err := renderTemplate(
 		prepareCommands(s, s.c.CommandPrefix, s.c.ExistsCommand),
 		s.ctx)
 	if err != nil {
 		return false, err
 	}
 	writeLog(s, hclog.Debug, "resource exists")
-	_, err = runCommand(s, command)
+	_, err = runCommand(s, s.env.new, command)
 	if err != nil {
 		writeLog(s, hclog.Warn, "command returned error", "error", err)
 	}
@@ -224,23 +308,26 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 }
 
 func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
-	return resourceScriptedDeleteBase(makeState(d, meta, "delete", true))
+	s, err := makeState(d, meta, "delete", true)
+	if err != nil {
+		return err
+	}
+	return resourceScriptedDeleteBase(s)
 }
 
 func resourceScriptedDeleteBase(s *State) error {
 	s = copyState(s)
 	if s.op != "delete" {
 		s.ctx = mergeMaps(s.ctx, map[string]interface{}{"cur": s.ctx["old"]})
-		s.env = getEnv(s, true)
 	}
-	command, err := interpolateCommand(
+	command, err := renderTemplate(
 		prepareCommands(s, s.c.CommandPrefix, s.c.DeleteCommand),
 		s.ctx)
 	if err != nil {
 		return err
 	}
 	writeLog(s, hclog.Debug, "reading resource")
-	_, err = runCommand(s, command)
+	_, err = runCommand(s, s.env.old, command)
 	if err != nil {
 		return err
 	}
@@ -326,37 +413,20 @@ func mergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 	return ctx
 }
 
-func interpolateCommand(command string, context map[string]interface{}) (string, error) {
-	t := template.Must(template.New("command").Parse(command))
+func renderTemplate(tpl string, context map[string]interface{}) (string, error) {
+	t := template.Must(template.New("template").Parse(tpl))
 	var buf bytes.Buffer
 	err := t.Execute(&buf, context)
 	return buf.String(), err
 }
 
-func getEnv(s *State, old bool) []string {
-	var env []string
-
-	if s.c.IncludeParentEnvironment {
-		env = os.Environ()
-	}
-	o, n := s.d.GetChange("environment")
-	cur := n.(map[string]interface{})
-	if old {
-		cur = o.(map[string]interface{})
-	}
-	for key, value := range cur {
-		env = append(env, key+"="+value.(string))
-	}
-	return env
-}
-
-func runCommand(s *State, commands ...string) (string, error) {
+func runCommand(s *State, env []string, commands ...string) (string, error) {
 	interpreter := s.c.Interpreter[0]
 	command := prepareCommands(s, commands...)
 	args := append(s.c.Interpreter[1:], command)
 	cmd := exec.Command(interpreter, args...)
 	cmd.Dir = s.c.WorkingDirectory
-	cmd.Env = s.env
+	cmd.Env = env
 
 	// Setup the reader that will read the output from the command.
 	// We use an os.Pipe so that the *os.File can be passed directly to the

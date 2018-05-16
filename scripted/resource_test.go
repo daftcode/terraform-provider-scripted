@@ -141,6 +141,65 @@ func TestAccScriptedResourceCRD_Parameters(t *testing.T) {
 	})
 }
 
+func TestAccScriptedResourceCRD_EnvironmentTemplate(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+  		read_command = "echo -n \"out=$test_var\""
+	}
+	resource "scripted_resource" "test" {
+		environment_templates = ["test_var"]
+		context {
+			output = "param value"
+		}
+		environment {
+			test_var = "{{.cur.output}}"
+		}
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "out", "param value"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccScriptedResourceCRD_MultilineEnvironment(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+        read_format = "base64"
+  		read_command = <<EOF
+echo -n "out=$(echo -n "$test_var" | base64)"
+EOF
+	}
+	resource "scripted_resource" "test" {
+		environment {
+			test_var = "line1\nline2"
+		}
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "out", "line1\nline2"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResourceCRD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
