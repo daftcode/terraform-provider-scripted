@@ -1,7 +1,6 @@
 package scripted
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"github.com/Masterminds/sprig"
 	"github.com/ghodss/yaml"
@@ -10,13 +9,6 @@ import (
 
 var TemplateFuncs = getTemplateFuncs()
 var templateFuncs = template.FuncMap{
-	"toBase64": func(value string) string {
-		return string(base64.StdEncoding.EncodeToString([]byte(value))[:])
-	},
-	"fromBase64": func(value string) (string, error) {
-		ret, err := base64.StdEncoding.DecodeString(value)
-		return string(ret[:]), err
-	},
 	"toYaml": func(value interface{}) (string, error) {
 		ret, err := yaml.Marshal(value)
 		return string(ret[:]), err

@@ -235,7 +235,7 @@ func TestAccScriptedResourceCRD_YAML(t *testing.T) {
 	provider "scripted" {
 		read_format = "base64"
   		read_command = <<EOF
-echo -n 'out={{ toBase64 (toYaml (fromYaml .cur.val)) }}'
+echo -n 'out={{ b64enc (toYaml (fromYaml .cur.val)) }}'
 EOF
 	}
 	resource "scripted_resource" "test" {
