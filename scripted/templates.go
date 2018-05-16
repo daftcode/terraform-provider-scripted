@@ -43,6 +43,8 @@ var templateFuncs = template.FuncMap{
 
 func getTemplateFuncs() template.FuncMap {
 	ret := sprig.TxtFuncMap()
+	delete(ret, "env")
+	delete(ret, "expandenv")
 
 	for k, v := range templateFuncs {
 		ret[k] = v
