@@ -46,7 +46,18 @@ func getScriptedResource() *schema.Resource {
 				Optional:    true,
 				Default:     "",
 				Description: "Resource name to display in log messages",
-				// Hack so it doesn't ever change
+				// Hack so it doesn't ever force updates
+				ForceNew: true,
+				StateFunc: func(v interface{}) string {
+					return ""
+				},
+			},
+			"environment_templates_propagate_errors": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     true,
+				Description: "Should environment templates propagate errors?",
+				// Hack so it doesn't ever force updates
 				ForceNew: true,
 				StateFunc: func(v interface{}) string {
 					return ""
@@ -57,6 +68,11 @@ func getScriptedResource() *schema.Resource {
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				Description: "Environment keys that are themselves templates to be rendered",
+				// Hack so it doesn't ever force updates
+				ForceNew: true,
+				StateFunc: func(v interface{}) string {
+					return ""
+				},
 			},
 			"context": {
 				Type:        schema.TypeMap,
@@ -97,7 +113,10 @@ func getEnv(s *State, environment map[string]interface{}, environmentTemplates [
 		tpl := environment[key].(string)
 		rendered, err := renderTemplate(tpl, s.ctx)
 		if err != nil {
-			return nil, err
+			if s.d.Get("environment_templates_propagate_errors").(bool) {
+				return nil, err
+			}
+			rendered = fmt.Sprintf("<ERROR: %s>", err.Error())
 		}
 		writeLog(s, hclog.Debug, "rendering envvar", "key", key, "template", tpl, "rendered", rendered)
 		renderedEnv[key] = rendered
