@@ -50,8 +50,10 @@ func (s *State) renderEnv(old bool) error {
 	s.setOld(old)
 	if old {
 		env = s.rc.Environment.Old
+		prefix = "old"
 	} else {
 		env = s.rc.Environment.New
+		prefix = "new"
 	}
 
 	for _, key := range s.rc.EnvironmentTemplates {
