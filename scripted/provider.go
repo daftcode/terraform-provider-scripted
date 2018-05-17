@@ -259,7 +259,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		cau = true
 		cbu = false
 	}
-	config := Config{
+	config := ProviderConfig{
 		Logger:                   logger,
 		FileLogger:               fileLogger,
 		CommandLogLevel:          hclog.LevelFromString(d.Get("command_log_level").(string)),

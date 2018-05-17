@@ -2,7 +2,7 @@ package scripted
 
 import "github.com/hashicorp/go-hclog"
 
-type Config struct {
+type ProviderConfig struct {
 	BufferSize               int64
 	Interpreter              []string
 	WorkingDirectory         string
