@@ -171,6 +171,57 @@ func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
 	})
 }
 
+func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
+	const config = `
+	provider "scripted" {
+  		read_command = "echo -n \"out=$test_var\""
+	}
+	resource "scripted_resource" "test" {
+		context {
+			output = "param value"
+		}
+		environment_templates = ["test_var"]
+		environment {
+			test_var = "{{.Cur.output}}"
+		}
+	}
+`
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "out", "param value"),
+				),
+			},
+			{
+				Config: `
+	provider "scripted" {
+  		read_command = "echo -n \"out=$test_var\""
+	}
+	resource "scripted_resource" "test" {
+		environment_templates = ["test_var"]
+		context {
+			output = "param value"
+		}
+		environment {
+			test_var = "{{ ZXVCASEQWSA }}"
+		}
+	}
+`,
+			},
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "out", "param value"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResource_MultilineEnvironment(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {

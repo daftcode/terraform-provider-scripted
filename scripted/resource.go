@@ -25,12 +25,6 @@ func getScriptedResource() *schema.Resource {
 					return ""
 				},
 			},
-			"templates_propagate_errors": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Default:     true,
-				Description: "Should templates propagate errors?",
-			},
 			"environment_templates": {
 				Type:        schema.TypeList,
 				Optional:    true,
@@ -67,6 +61,11 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedCreateBase(s *State) error {
+	if s.pc.CreateCommand == "" {
+		s.log(hclog.Debug, `"create_command" is empty, exiting.`)
+		s.ensureId()
+		return resourceScriptedReadBase(s)
+	}
 	command, err := s.renderTemplate(
 		"command_prefix+create_command",
 		s.prepareCommands(s.pc.CommandPrefix, s.pc.CreateCommand))
@@ -93,6 +92,10 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedReadBase(s *State) error {
+	if s.pc.ReadCommand == "" {
+		s.log(hclog.Debug, `"read_command" is empty, exiting.`)
+		return nil
+	}
 	command, err := s.renderTemplate(
 		"command_prefix+read_command",
 		s.prepareCommands(s.pc.CommandPrefix, s.pc.ReadCommand))
@@ -119,7 +122,7 @@ func resourceScriptedReadBase(s *State) error {
 	case "raw":
 		outputs = s.getOutputsText(stdout, s.pc.ReadLinePrefix)
 	}
-	s.log(hclog.Debug, "Setting outputs", "output", outputs)
+	s.log(hclog.Debug, "setting outputs", "output", outputs)
 	s.d.Set("output", outputs)
 
 	return nil
@@ -169,6 +172,8 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 			return nil
 		}
 		s.ensureId()
+	} else {
+		s.log(hclog.Debug, `"update_command" is empty, skipping`)
 	}
 
 	if s.pc.CreateAfterUpdate {
@@ -186,6 +191,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return false, err
 	}
 	if s.pc.ExistsCommand == "" {
+		s.log(hclog.Debug, `"exists_command" is empty, exiting.`)
 		return true, nil
 	}
 	command, err := s.renderTemplate(
@@ -218,7 +224,12 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedDeleteBase(s *State) error {
-	wasOld := s.isOld()
+	if s.pc.DeleteCommand == "" {
+		s.log(hclog.Debug, `"delete_command" is empty, exiting.`)
+		s.d.SetId("")
+		return nil
+	}
+	wasOld := s.isOld
 	s.setOld(true)
 	command, err := s.renderTemplate(
 		"command_prefix+delete_command",
