@@ -28,4 +28,6 @@ type Config struct {
 	CreateAfterUpdate        bool
 	CreateBeforeUpdate       bool
 	DeleteOnNotExists        bool
+	TemplatesRightDelim      string
+	TemplatesLeftDelim       string
 }

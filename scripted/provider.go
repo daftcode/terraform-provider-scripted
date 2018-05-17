@@ -53,6 +53,18 @@ func Provider() terraform.ResourceProvider {
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
 				Description:  fmt.Sprintf("Logging level: %s", strings.Join(ValidLevelsStrings, ", ")),
 			},
+			"templates_left_delim": {
+				Type:        schema.TypeString,
+				DefaultFunc: schema.EnvDefaultFunc("TF_PROVIDER_SCRIPTED_TEMPLATES_LEFT_DELIM", "{{"),
+				Optional:    true,
+				Description: "Left delimiter for templates, `{{` by default.",
+			},
+			"templates_right_delim": {
+				Type:        schema.TypeString,
+				DefaultFunc: schema.EnvDefaultFunc("TF_PROVIDER_SCRIPTED_TEMPLATES_RIGHT_DELIM", "}}"),
+				Optional:    true,
+				Description: "Right delimiter for templates, `}}` by default.",
+			},
 			"command_log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -269,6 +281,8 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		DeleteBeforeUpdate:       dbu,
 		CreateAfterUpdate:        cau,
 		CreateBeforeUpdate:       cbu,
+		TemplatesLeftDelim:       d.Get("templates_left_delim").(string),
+		TemplatesRightDelim:      d.Get("templates_right_delim").(string),
 		DeleteCommand:            d.Get("delete_command").(string),
 		ExistsCommand:            d.Get("exists_command").(string),
 		ExistsExpectedStatus:     d.Get("exists_expected_status").(int),

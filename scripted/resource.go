@@ -57,22 +57,12 @@ func getScriptedResource() *schema.Resource {
 				Optional:    true,
 				Default:     true,
 				Description: "Should environment templates propagate errors?",
-				// Hack so it doesn't ever force updates
-				ForceNew: true,
-				StateFunc: func(v interface{}) string {
-					return ""
-				},
 			},
 			"environment_templates": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				Description: "Environment keys that are themselves templates to be rendered",
-				// Hack so it doesn't ever force updates
-				ForceNew: true,
-				StateFunc: func(v interface{}) string {
-					return ""
-				},
 			},
 			"context": {
 				Type:        schema.TypeMap,
@@ -97,21 +87,24 @@ func getScriptedResource() *schema.Resource {
 
 func getEnv(s *State, environment map[string]interface{}, environmentTemplates []interface{}, old bool) ([]string, error) {
 	var env []string
+	var prefix string
 	if s.c.IncludeParentEnvironment {
 		env = os.Environ()
 	}
 	cur := s.ctx["cur"]
 
 	if old {
+		prefix = "old"
 		s.ctx["cur"] = s.ctx["old"]
 	} else {
+		prefix = "new"
 		s.ctx["cur"] = s.ctx["new"]
 	}
 	renderedEnv := map[string]string{}
 	for _, k := range environmentTemplates {
 		key := k.(string)
 		tpl := environment[key].(string)
-		rendered, err := renderTemplate(tpl, s.ctx)
+		rendered, err := renderTemplate(s, fmt.Sprintf("env.%s.%s", prefix, key), tpl, s.ctx)
 		if err != nil {
 			if s.d.Get("environment_templates_propagate_errors").(bool) {
 				return nil, err
@@ -190,6 +183,8 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 
 func resourceScriptedCreateBase(s *State) error {
 	command, err := renderTemplate(
+		s,
+		"command_prefix+create_command",
 		prepareCommands(s, s.c.CommandPrefix, s.c.CreateCommand),
 		s.ctx)
 	if err != nil {
@@ -217,6 +212,8 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 
 func resourceScriptedReadBase(s *State) error {
 	command, err := renderTemplate(
+		s,
+		"command_prefix+read_command",
 		prepareCommands(s, s.c.CommandPrefix, s.c.ReadCommand),
 		s.ctx)
 	if err != nil {
@@ -267,10 +264,17 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	if s.c.UpdateCommand != "" {
 		deleteCommand, _ := renderTemplate(
+			s,
+			"command_prefix+delete_command",
 			wrapCommands(s, s.c.CommandPrefix, s.c.DeleteCommand),
 			mergeMaps(s.ctx, map[string]interface{}{"cur": s.ctx["old"]}))
-		createCommand, _ := renderTemplate(wrapCommands(s, s.c.CommandPrefix, s.c.CreateCommand), s.ctx)
+		createCommand, _ := renderTemplate(
+			s,
+			"command_prefix+create_command",
+			wrapCommands(s, s.c.CommandPrefix, s.c.CreateCommand), s.ctx)
 		command, err := renderTemplate(
+			s,
+			"command_prefix+update_command",
 			prepareCommands(s, s.c.CommandPrefix, s.c.UpdateCommand),
 			mergeMaps(s.ctx, map[string]interface{}{
 				"delete_command": deleteCommand,
@@ -306,6 +310,8 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return true, nil
 	}
 	command, err := renderTemplate(
+		s,
+		"command_prefix+exists_command",
 		prepareCommands(s, s.c.CommandPrefix, s.c.ExistsCommand),
 		s.ctx)
 	if err != nil {
@@ -340,6 +346,8 @@ func resourceScriptedDeleteBase(s *State) error {
 		s.ctx = mergeMaps(s.ctx, map[string]interface{}{"cur": s.ctx["old"]})
 	}
 	command, err := renderTemplate(
+		s,
+		"command_prefix+delete_command",
 		prepareCommands(s, s.c.CommandPrefix, s.c.DeleteCommand),
 		s.ctx)
 	if err != nil {
@@ -435,10 +443,16 @@ func mergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 	return ctx
 }
 
-func renderTemplate(tpl string, context map[string]interface{}) (string, error) {
-	t := template.Must(template.New("template").Funcs(TemplateFuncs).Parse(tpl))
+func renderTemplate(s *State, name, tpl string, context map[string]interface{}) (string, error) {
+	t := template.New(name)
+	t = t.Delims(s.c.TemplatesLeftDelim, s.c.TemplatesRightDelim)
+	t = t.Funcs(TemplateFuncs)
+	t, err := t.Parse(tpl)
+	if err != nil {
+		return "", err
+	}
 	var buf bytes.Buffer
-	err := t.Execute(&buf, context)
+	err = t.Execute(&buf, context)
 	return buf.String(), err
 }
 

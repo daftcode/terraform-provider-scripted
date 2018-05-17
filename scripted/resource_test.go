@@ -35,7 +35,7 @@ func TestAccScriptedResourceCRD_Basic(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResourceCRD_Base64(t *testing.T) {
+func TestAccScriptedResource_Base64(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \"hi\" > test_file"
@@ -61,7 +61,7 @@ func TestAccScriptedResourceCRD_Base64(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResourceCRD_Prefixed(t *testing.T) {
+func TestAccScriptedResource_Prefixed(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \"hi\" > test_file"
@@ -87,7 +87,7 @@ func TestAccScriptedResourceCRD_Prefixed(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResourceCRD_WeirdOutput(t *testing.T) {
+func TestAccScriptedResource_WeirdOutput(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \" can you = read this\" > test_file3"
@@ -112,7 +112,7 @@ func TestAccScriptedResourceCRD_WeirdOutput(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResourceCRD_Parameters(t *testing.T) {
+func TestAccScriptedResource_Parameters(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		create_command = "echo -n \"{{.new.output}}\" > {{.new.file}}"
@@ -141,7 +141,7 @@ func TestAccScriptedResourceCRD_Parameters(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResourceCRD_EnvironmentTemplate(t *testing.T) {
+func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
   		read_command = "echo -n \"out=$test_var\""
@@ -171,7 +171,7 @@ func TestAccScriptedResourceCRD_EnvironmentTemplate(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResourceCRD_MultilineEnvironment(t *testing.T) {
+func TestAccScriptedResource_MultilineEnvironment(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
         read_format = "base64"
@@ -200,7 +200,7 @@ EOF
 	})
 }
 
-func TestAccScriptedResourceCRD_JSON(t *testing.T) {
+func TestAccScriptedResource_JSON(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
   		read_command = <<EOF
@@ -230,7 +230,38 @@ EOF
 	})
 }
 
-func TestAccScriptedResourceCRD_YAML(t *testing.T) {
+func TestAccScriptedResource_JSON_Nested(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+  		read_command = <<EOF
+{{ $val := fromJson .cur.val }}
+echo -n 'out={{ toJson $val.a }}'
+EOF
+	}
+	resource "scripted_resource" "test" {
+		context {
+			val = <<EOF
+{"a":[1,2],"b":"c","d":4}
+EOF
+		}
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "out", `[1,2]`),
+				),
+			},
+		},
+	})
+}
+
+func TestAccScriptedResource_YAML(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		read_format = "base64"
