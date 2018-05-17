@@ -60,7 +60,7 @@ func (s *State) renderEnv(old bool) error {
 		tpl := env[key]
 		rendered, err := s.renderTemplate(fmt.Sprintf("env.%s.%s", prefix, key), tpl)
 		if err != nil {
-			if s.rc.TemplatePropagateErrors {
+			if !old && s.rc.TemplatePropagateErrors {
 				return err
 			}
 			rendered = fmt.Sprintf("<ERROR: %s>", err.Error())
