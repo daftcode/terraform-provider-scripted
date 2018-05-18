@@ -165,7 +165,7 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 		_, err = s.execute(command)
 		if err != nil {
 			s.log(hclog.Warn, "update command returned error", "error", err)
-			return nil
+			return err
 		}
 		s.ensureId()
 	} else {
