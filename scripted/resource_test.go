@@ -1,6 +1,7 @@
 package scripted
 
 import (
+	"regexp"
 	"testing"
 
 	"fmt"
@@ -211,6 +212,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 		}
 	}
 `,
+				ExpectError: regexp.MustCompile(`.*`),
 			},
 			{
 				Config: config,

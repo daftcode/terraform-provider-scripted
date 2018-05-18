@@ -112,12 +112,6 @@ func Provider() terraform.ResourceProvider {
 				Default:     "%s\n%s",
 				Description: "Format for joining 2 commands together without isolating them, %s\n%s by default",
 			},
-			"command_isolator": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "(\n%s\n)",
-				Description: "Wrapper for isolating joined commands, (\n%s\n) by default",
-			},
 			"create_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -228,12 +222,17 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		interpreter[i] = vI.(string)
 	}
 
+	logProviderName := d.Get("log_provider_name").(string)
+
 	logLevel := hclog.LevelFromString(d.Get("log_level").(string))
 	logger := hclog.New(&hclog.LoggerOptions{
 		JSONFormat: os.Getenv("TF_ACC") == "",
 		Output:     Stderr,
 		Level:      logLevel,
 	})
+	if logProviderName != "" {
+		logger = logger.With("provider", logProviderName)
+	}
 
 	logPath := d.Get("log_path").(string)
 	var fileLogger hclog.Logger
@@ -247,6 +246,9 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			Output:     logFile,
 			Level:      logLevel,
 		})
+		if logProviderName != "" {
+			fileLogger = logger.With("provider", logProviderName)
+		}
 	}
 
 	dbu := d.Get("delete_before_update").(bool)
@@ -264,7 +266,6 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		FileLogger:               fileLogger,
 		CommandLogLevel:          hclog.LevelFromString(d.Get("command_log_level").(string)),
 		CommandLogWidth:          d.Get("command_log_width").(int),
-		CommandIsolator:          d.Get("command_isolator").(string),
 		CommandJoiner:            d.Get("command_joiner").(string),
 		CommandPrefix:            d.Get("command_prefix").(string),
 		Interpreter:              interpreter,
@@ -286,8 +287,10 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		DeleteCommand:            d.Get("delete_command").(string),
 		ExistsCommand:            d.Get("exists_command").(string),
 		ExistsExpectedStatus:     d.Get("exists_expected_status").(int),
-		LogProviderName:          d.Get("log_provider_name").(string),
 	}
-
+	config.Logger.Info(`Provider "scripted" initialized`)
+	if config.FileLogger != nil {
+		config.FileLogger.Info(`Provider "scripted" initialized`)
+	}
 	return &config, nil
 }

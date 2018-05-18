@@ -53,7 +53,7 @@ func getScriptedResource() *schema.Resource {
 }
 
 func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
-	s, err := NewState(d, meta, "create", false)
+	s, err := NewState(d, meta, Create, false)
 	if err != nil {
 		return err
 	}
@@ -66,14 +66,14 @@ func resourceScriptedCreateBase(s *State) error {
 		s.ensureId()
 		return resourceScriptedReadBase(s)
 	}
-	command, err := s.renderTemplate(
+	command, err := s.template(
 		"command_prefix+create_command",
 		s.prepareCommands(s.pc.CommandPrefix, s.pc.CreateCommand))
 	if err != nil {
 		return err
 	}
 	s.log(hclog.Debug, "creating resource")
-	_, err = s.runCommand(command)
+	_, err = s.execute(command)
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func resourceScriptedCreateBase(s *State) error {
 }
 
 func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
-	s, err := NewState(d, meta, "read", false)
+	s, err := NewState(d, meta, Read, false)
 	if err != nil {
 		return err
 	}
@@ -96,14 +96,22 @@ func resourceScriptedReadBase(s *State) error {
 		s.log(hclog.Debug, `"read_command" is empty, exiting.`)
 		return nil
 	}
-	command, err := s.renderTemplate(
+	command, err := s.template(
 		"command_prefix+read_command",
 		s.prepareCommands(s.pc.CommandPrefix, s.pc.ReadCommand))
 	if err != nil {
 		return err
 	}
 	s.log(hclog.Debug, "reading resource")
-	stdout, err := s.runCommand(command)
+	env, err := s.Environment()
+	if err != nil {
+		if s.op == Read {
+			// Return immediately in read so Context.Refresh() passes
+			return nil
+		}
+		return err
+	}
+	stdout, err := s.executeEnv(env, command)
 	if err != nil {
 		s.log(hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
 		if s.pc.DeleteOnReadFailure {
@@ -116,11 +124,11 @@ func resourceScriptedReadBase(s *State) error {
 
 	switch s.pc.ReadFormat {
 	case "base64":
-		outputs = s.getOutputsBase64(stdout, s.pc.ReadLinePrefix)
+		outputs = s.outputsBase64(stdout, s.pc.ReadLinePrefix)
 	default:
 		fallthrough
 	case "raw":
-		outputs = s.getOutputsText(stdout, s.pc.ReadLinePrefix)
+		outputs = s.outputsText(stdout, s.pc.ReadLinePrefix)
 	}
 	s.log(hclog.Debug, "setting outputs", "output", outputs)
 	s.d.Set("output", outputs)
@@ -129,7 +137,7 @@ func resourceScriptedReadBase(s *State) error {
 }
 
 func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
-	s, err := NewState(d, meta, "update", false)
+	s, err := NewState(d, meta, Update, false)
 	if err != nil {
 		return err
 	}
@@ -147,26 +155,14 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	if s.pc.UpdateCommand != "" {
-		s.setOld(true)
-		deleteCommand, _ := s.renderTemplate(
-			"command_prefix+delete_command",
-			s.wrapCommands(s.pc.CommandPrefix, s.pc.DeleteCommand))
-		s.setOld(false)
-		createCommand, _ := s.renderTemplate(
-			"command_prefix+create_command",
-			s.wrapCommands(s.pc.CommandPrefix, s.pc.CreateCommand))
-		command, err := s.renderTemplateExtraCtx(
+		command, err := s.template(
 			"command_prefix+update_command",
-			s.prepareCommands(s.pc.CommandPrefix, s.pc.UpdateCommand),
-			map[string]string{
-				"delete_command": deleteCommand,
-				"create_command": createCommand,
-			})
+			s.prepareCommands(s.pc.CommandPrefix, s.pc.UpdateCommand))
 		if err != nil {
 			return err
 		}
 		s.log(hclog.Debug, "updating resource", "command", command)
-		_, err = s.runCommand(command)
+		_, err = s.execute(command)
 		if err != nil {
 			s.log(hclog.Warn, "update command returned error", "error", err)
 			return nil
@@ -186,7 +182,7 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
-	s, err := NewState(d, meta, "exists", false)
+	s, err := NewState(d, meta, Exists, false)
 	if err != nil {
 		return false, err
 	}
@@ -194,16 +190,16 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		s.log(hclog.Debug, `"exists_command" is empty, exiting.`)
 		return true, nil
 	}
-	command, err := s.renderTemplate(
+	command, err := s.template(
 		"command_prefix+exists_command",
 		s.prepareCommands(s.pc.CommandPrefix, s.pc.ExistsCommand))
 	if err != nil {
 		return false, err
 	}
 	s.log(hclog.Debug, "resource exists")
-	_, err = s.runCommand(command)
+	_, err = s.execute(command)
 	if err != nil {
-		s.log(hclog.Warn, "command returned error", "error", err)
+		s.log(hclog.Warn, "exists returned error", "error", err)
 	}
 	exists := getExitStatus(err) == s.pc.ExistsExpectedStatus
 	if s.pc.ExistsExpectedStatus == 0 {
@@ -216,7 +212,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 }
 
 func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
-	s, err := NewState(d, meta, "delete", true)
+	s, err := NewState(d, meta, Delete, true)
 	if err != nil {
 		return err
 	}
@@ -229,21 +225,20 @@ func resourceScriptedDeleteBase(s *State) error {
 		s.d.SetId("")
 		return nil
 	}
-	wasOld := s.isOld
-	s.setOld(true)
-	command, err := s.renderTemplate(
+	s.addOld(true)
+	defer s.removeOld()
+	command, err := s.template(
 		"command_prefix+delete_command",
 		s.prepareCommands(s.pc.CommandPrefix, s.pc.DeleteCommand))
 	if err != nil {
 		return err
 	}
 	s.log(hclog.Debug, "reading resource")
-	_, err = s.runCommand(command)
+	_, err = s.execute(command)
 	if err != nil {
 		return err
 	}
 
 	s.d.SetId("")
-	s.setOld(wasOld)
 	return nil
 }

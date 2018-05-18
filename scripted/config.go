@@ -7,7 +7,6 @@ type ProviderConfig struct {
 	Interpreter              []string
 	WorkingDirectory         string
 	CommandPrefix            string
-	CommandIsolator          string
 	CommandJoiner            string
 	CreateCommand            string
 	ReadCommand              string
@@ -23,7 +22,6 @@ type ProviderConfig struct {
 	CommandLogWidth          int
 	IncludeParentEnvironment bool
 	ExistsExpectedStatus     int
-	LogProviderName          string
 	DeleteBeforeUpdate       bool
 	CreateAfterUpdate        bool
 	CreateBeforeUpdate       bool
