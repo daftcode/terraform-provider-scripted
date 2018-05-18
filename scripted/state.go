@@ -220,7 +220,7 @@ func (s *State) outputsBase64(output, prefix string) map[string]string {
 			s.log(hclog.Warn, "error decoding base64", "error", err)
 			continue
 		}
-		s.log(hclog.Debug, "read Output entry (decoded)", "key", key, key, string(decoded[:]), "base64", value)
+		s.log(hclog.Debug, "read output entry (decoded)", "key", key, key, string(decoded[:]), "base64", value)
 		outputs[key] = string(decoded[:])
 	}
 	return outputs
