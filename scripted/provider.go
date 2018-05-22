@@ -206,6 +206,11 @@ func Provider() terraform.ResourceProvider {
 				Optional:    true,
 				Description: "Delete command",
 			},
+			"dependencies": {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Description: "Dependencies purely for provider graph walking, otherwise ignored.",
+			},
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
