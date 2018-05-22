@@ -131,7 +131,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"read_command": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "Read command",
 			},
 			"delete_on_read_failure": {
