@@ -136,6 +136,7 @@ func (s *State) Environment() (*ChangeMap, error) {
 			env.Cur = env.New
 		}
 		s.rc.environment = env
+
 		if err := s.renderEnv(true); err != nil {
 			s.rc.environment = nil
 			return nil, err
@@ -143,6 +144,26 @@ func (s *State) Environment() (*ChangeMap, error) {
 		if err := s.renderEnv(false); err != nil {
 			s.rc.environment = nil
 			return nil, err
+		}
+
+		extra := map[string]string{}
+
+		if s.pc.OldEnvironmentPrefix != "" {
+			for k, v := range env.Old {
+				key := fmt.Sprintf("%s%s", s.pc.OldEnvironmentPrefix, k)
+				extra[key] = v
+			}
+		}
+
+		if s.pc.NewEnvironmentPrefix != "" {
+			for k, v := range env.New {
+				key := fmt.Sprintf("%s%s", s.pc.NewEnvironmentPrefix, k)
+				extra[key] = v
+			}
+		}
+		for k, v := range extra {
+			env.Old[k] = v
+			env.New[k] = v
 		}
 	}
 	return s.rc.environment, nil

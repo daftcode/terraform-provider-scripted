@@ -253,6 +253,53 @@ EOF
 	})
 }
 
+func TestAccScriptedResource_OldNewEnvironment(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+		include_parent_environment = false
+  		read_command = "env"
+	}
+	resource "scripted_resource" "test" {
+		environment {
+			var = "config1"
+		}
+	}
+`
+	const testConfig2 = `
+	provider "scripted" {
+		include_parent_environment = false
+		old_environment_prefix = "old_"
+		new_environment_prefix = "new_"
+  		read_command = "env"
+	}
+	resource "scripted_resource" "test" {
+		environment {
+			var = "config2"
+		}
+	}
+`
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "var", "config1"),
+				),
+			},
+			{
+				Config: testConfig2,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResource("scripted_resource.test", "old_var", "config1"),
+					testAccCheckResource("scripted_resource.test", "new_var", "config2"),
+					testAccCheckResource("scripted_resource.test", "var", "config2"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResource_JSON(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {

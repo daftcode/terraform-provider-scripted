@@ -100,6 +100,18 @@ func Provider() terraform.ResourceProvider {
 				Default:     true,
 				Description: "Include parent environment in the command?",
 			},
+			"old_environment_prefix": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "",
+				Description: "Old environment prefix (skip if empty)",
+			},
+			"new_environment_prefix": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "",
+				Description: "New environment prefix (skip if empty)",
+			},
 			"command_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -270,7 +282,6 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		CommandPrefix:            d.Get("command_prefix").(string),
 		Interpreter:              interpreter,
 		WorkingDirectory:         d.Get("working_directory").(string),
-		IncludeParentEnvironment: d.Get("include_parent_environment").(bool),
 		BufferSize:               int64(d.Get("buffer_size").(int)),
 		CreateCommand:            d.Get("create_command").(string),
 		ReadCommand:              d.Get("read_command").(string),
@@ -287,6 +298,9 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		DeleteCommand:            d.Get("delete_command").(string),
 		ExistsCommand:            d.Get("exists_command").(string),
 		ExistsExpectedStatus:     d.Get("exists_expected_status").(int),
+		IncludeParentEnvironment: d.Get("include_parent_environment").(bool),
+		NewEnvironmentPrefix:     d.Get("new_environment_prefix").(string),
+		OldEnvironmentPrefix:     d.Get("old_environment_prefix").(string),
 	}
 	config.Logger.Info(`Provider "scripted" initialized`)
 	if config.FileLogger != nil {

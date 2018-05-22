@@ -28,4 +28,6 @@ type ProviderConfig struct {
 	DeleteOnNotExists        bool
 	TemplatesRightDelim      string
 	TemplatesLeftDelim       string
+	NewEnvironmentPrefix     string
+	OldEnvironmentPrefix     string
 }
