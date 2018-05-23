@@ -148,7 +148,6 @@ func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
   		read_command = "echo -n \"out=$test_var\""
 	}
 	resource "scripted_resource" "test" {
-		environment_templates = ["test_var"]
 		context {
 			output = "param value"
 		}
@@ -181,7 +180,6 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 		context {
 			output = "param value"
 		}
-		environment_templates = ["test_var"]
 		environment {
 			test_var = "{{.Cur.output}}"
 		}
@@ -203,7 +201,6 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
   		read_command = "echo -n \"out=$test_var\""
 	}
 	resource "scripted_resource" "test" {
-		environment_templates = ["test_var"]
 		context {
 			output = "param value"
 		}

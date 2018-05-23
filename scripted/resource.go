@@ -25,12 +25,6 @@ func getScriptedResource() *schema.Resource {
 					return ""
 				},
 			},
-			"environment_templates": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Elem:        &schema.Schema{Type: schema.TypeString},
-				Description: "Environment keys that are themselves templates to be rendered",
-			},
 			"context": {
 				Type:        schema.TypeMap,
 				Optional:    true,

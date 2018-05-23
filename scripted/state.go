@@ -60,9 +60,8 @@ func NewState(d *schema.ResourceData, meta interface{}, operation Operation, old
 		pc: meta.(*ProviderConfig),
 		d:  d,
 		rc: &ResourceConfig{
-			LogName:              d.Get("log_name").(string),
-			EnvironmentTemplates: castConfigList(d.Get("environment_templates")),
-			Context:              castConfigChangeMap(d.GetChange("context")),
+			LogName: d.Get("log_name").(string),
+			Context: castConfigChangeMap(d.GetChange("context")),
 		},
 	}).setOperation(operation)
 	s.ensureLoggers()
@@ -96,9 +95,10 @@ func (s *State) renderEnv(old bool) error {
 	} else {
 		prefix = "new"
 	}
-
-	for _, key := range s.rc.EnvironmentTemplates {
-		tpl := env[key]
+	for key, tpl := range env {
+		if !strings.Contains(tpl, s.pc.TemplatesLeftDelim) {
+			continue
+		}
 		rendered, err := s.template(fmt.Sprintf("env.%s.%s", prefix, key), tpl)
 		if err != nil {
 			if !s.old {
