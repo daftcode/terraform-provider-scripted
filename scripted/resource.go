@@ -88,6 +88,7 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 func resourceScriptedReadBase(s *State) error {
 	if s.pc.ReadCommand == "" {
 		s.log(hclog.Debug, `"read_command" is empty, exiting.`)
+		s.d.Set("output", map[string]string{})
 		return nil
 	}
 	command, err := s.template(
