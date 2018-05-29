@@ -17,6 +17,8 @@ var Stderr = os.Stderr
 var Stdout = os.Stdout
 var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
+var defaultString = RandomString(128)
+
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
@@ -162,7 +164,7 @@ func Provider() terraform.ResourceProvider {
 			"update_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     "",
+				Default:     defaultString,
 				Description: "Update command. Runs destroy then create by default.",
 			},
 			"delete_before_update": {
@@ -273,7 +275,8 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	cbu := d.Get("create_before_update").(bool)
 
 	update := d.Get("update_command").(string)
-	if update == "" {
+	if update == defaultString {
+		update = ""
 		dbu = true
 		cau = true
 		cbu = false
