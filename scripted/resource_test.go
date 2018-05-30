@@ -29,7 +29,29 @@ func TestAccScriptedResource_BasicCRD(t *testing.T) {
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+				),
+			},
+		},
+	})
+}
+func TestAccScriptedResource_IdCommand(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+		id_command = "echo -n 'test-id'"
+	}
+	resource "scripted_resource" "test" {
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceId("scripted_resource.test", "test-id"),
 				),
 			},
 		},
@@ -55,7 +77,7 @@ func TestAccScriptedResource_Base64(t *testing.T) {
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 		},
@@ -81,7 +103,7 @@ func TestAccScriptedResource_Prefixed(t *testing.T) {
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 		},
@@ -106,7 +128,7 @@ func TestAccScriptedResource_WeirdOutput(t *testing.T) {
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", " can you = read this"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", " can you = read this"),
 				),
 			},
 		},
@@ -135,7 +157,7 @@ func TestAccScriptedResource_Parameters(t *testing.T) {
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "param value"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
 		},
@@ -164,7 +186,7 @@ func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "param value"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
 		},
@@ -192,7 +214,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 			{
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "param value"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
 			{
@@ -214,7 +236,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 			{
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "param value"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
 		},
@@ -243,7 +265,7 @@ EOF
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "line1\nline2"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "line1\nline2"),
 				),
 			},
 		},
@@ -282,15 +304,104 @@ func TestAccScriptedResource_OldNewEnvironment(t *testing.T) {
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "var", "config1"),
+					testAccCheckResourceOutput("scripted_resource.test", "var", "config1"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "old_var", "config1"),
-					testAccCheckResource("scripted_resource.test", "new_var", "config2"),
-					testAccCheckResource("scripted_resource.test", "var", "config2"),
+					testAccCheckResourceOutput("scripted_resource.test", "old_var", "config1"),
+					testAccCheckResourceOutput("scripted_resource.test", "new_var", "config2"),
+					testAccCheckResourceOutput("scripted_resource.test", "var", "config2"),
+				),
+			},
+		},
+	})
+}
+func TestAccScriptedResource_State(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+  		create_command = <<EOF
+echo -n "{{ .StatePrefix }}value={{ .Cur.value }}"
+EOF
+		update_command = ""
+		read_command = <<EOF
+echo "old={{ .State.Old.value }}"
+echo "new={{ .State.New.value }}"
+EOF
+	}
+	resource "scripted_resource" "test" {
+		context {
+			value = "test"
+		}
+	}
+`
+	const testConfig2 = `
+	provider "scripted" {
+		create_before_update = true
+  		create_command = ""
+		update_command = ""
+		read_command = <<EOF
+echo "old={{ .State.Old.value }}"
+echo "new={{ .State.New.value }}"
+EOF
+	}
+	resource "scripted_resource" "test" {
+		context {
+			value = "test2"
+		}
+	}
+`
+	const testConfig3 = `
+	provider "scripted" {
+		create_before_update = true
+  		create_command = " "
+		update_command = ""
+		read_command = <<EOF
+echo "old={{ .State.Old.value }}"
+echo "new={{ .State.New.value }}"
+EOF
+	}
+	resource "scripted_resource" "test" {
+		context {
+			value = "test3"
+		}
+	}
+`
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceState("scripted_resource.test", "value", "test"),
+					testAccCheckResourceOutput("scripted_resource.test", "old", "<no value>"),
+					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
+				),
+			},
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceState("scripted_resource.test", "value", "test"),
+					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
+					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
+				),
+			},
+			{
+				Config: testConfig2,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceState("scripted_resource.test", "value", "test"),
+					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
+					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
+				),
+			},
+			{
+				Config: testConfig3,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceStateMissing("scripted_resource.test", "value"),
+					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
+					testAccCheckResourceOutput("scripted_resource.test", "new", "<no value>"),
 				),
 			},
 		},
@@ -320,7 +431,7 @@ EOF
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", `{"a":[1,2],"b":"pc","d":4}`),
+					testAccCheckResourceOutput("scripted_resource.test", "out", `{"a":[1,2],"b":"pc","d":4}`),
 				),
 			},
 		},
@@ -351,7 +462,7 @@ EOF
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", `[1,2]`),
+					testAccCheckResourceOutput("scripted_resource.test", "out", `[1,2]`),
 				),
 			},
 		},
@@ -386,7 +497,7 @@ EOF
 			{
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", `a:
+					testAccCheckResourceOutput("scripted_resource.test", "out", `a:
 - 1
 - 2
 b: pc
@@ -433,20 +544,64 @@ func TestAccScriptedResourceCRD_Update(t *testing.T) {
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi all"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
 		},
 	})
 }
 
-func testAccCheckResource(name string, outparam string, value string) resource.TestCheckFunc {
+func testAccCheckResourceId(name string, id string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("resource not found: %s, found: %s", name, s.RootModule().Resources)
+		}
+		if rs.Primary.ID != id {
+			return fmt.Errorf("id is not right: `%s` != `%s`", rs.Primary.ID, id)
+		}
+		return nil
+	}
+}
+func testAccCheckResourceState(name string, outparam string, value string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("resource not found: %s, found: %s", name, s.RootModule().Resources)
+		}
+		if rs.Primary.ID == "" {
+			return fmt.Errorf("no Record ID is set")
+		}
+
+		if expected, got := value, rs.Primary.Attributes["state."+outparam]; got != expected {
+			return fmt.Errorf("wrong value in state '%s=%s', expected '%s'", outparam, got, expected)
+		}
+		return nil
+	}
+}
+func testAccCheckResourceStateMissing(name string, outparam string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("resource not found: %s, found: %s", name, s.RootModule().Resources)
+		}
+		if rs.Primary.ID == "" {
+			return fmt.Errorf("no Record ID is set")
+		}
+		if _, ok := rs.Primary.Attributes["state."+outparam]; ok {
+			return fmt.Errorf("state key %s is present", outparam)
+		}
+		return nil
+	}
+}
+
+func testAccCheckResourceOutput(name string, outparam string, value string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[name]
 		if !ok {
@@ -515,13 +670,13 @@ func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi all"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
 		},
@@ -568,13 +723,13 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi all"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
 		},
@@ -619,13 +774,13 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 			{
 				Config: testConfig1,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResource("scripted_resource.test", "out", "hi all"),
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
 		},

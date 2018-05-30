@@ -17,7 +17,7 @@ var Stderr = os.Stderr
 var Stdout = os.Stdout
 var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
-var defaultString = RandomString(128)
+var emptyString = RandomSafeString(32)
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
@@ -131,6 +131,12 @@ func Provider() terraform.ResourceProvider {
 				Optional:    true,
 				Description: "Create command",
 			},
+			"id_command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "",
+				Description: "Command building resource id",
+			},
 			"read_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -153,18 +159,24 @@ func Provider() terraform.ResourceProvider {
 				Optional:     true,
 				Default:      "raw",
 				ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
-				Description:  "Read command output type: raw or base64",
+				Description:  "Commands output types: raw /^(?<key>[^=]+)=(?<value>[^\\n]*)$/ or base64 /^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/",
+			},
+			"state_line_prefix": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     emptyString,
+				Description: "Ignore lines in create/update commands without this prefix. Random string by default.",
 			},
 			"read_line_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "",
-				Description: "Ignore lines without this prefix",
+				Description: "Ignore lines in read command without this prefix. Empty by default.",
 			},
 			"update_command": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     defaultString,
+				Default:     emptyString,
 				Description: "Update command. Runs destroy then create by default.",
 			},
 			"delete_before_update": {
@@ -275,13 +287,13 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	cbu := d.Get("create_before_update").(bool)
 
 	update := d.Get("update_command").(string)
-	if update == defaultString {
-		update = ""
+	if update == emptyString {
 		dbu = true
 		cau = true
 		cbu = false
 	}
 	config := ProviderConfig{
+		EmptyString:              emptyString,
 		Logger:                   logger,
 		FileLogger:               fileLogger,
 		CommandLogLevel:          hclog.LevelFromString(d.Get("command_log_level").(string)),
@@ -296,7 +308,8 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		DeleteOnReadFailure:      d.Get("delete_on_read_failure").(bool),
 		DeleteOnNotExists:        d.Get("delete_on_not_exists").(bool),
 		ReadFormat:               d.Get("read_format").(string),
-		ReadLinePrefix:           d.Get("read_line_prefix").(string),
+		StateLinePrefix:          d.Get("state_line_prefix").(string),
+		OutputLinePrefix:         d.Get("read_line_prefix").(string),
 		UpdateCommand:            update,
 		DeleteBeforeUpdate:       dbu,
 		CreateAfterUpdate:        cau,
@@ -305,6 +318,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		TemplatesRightDelim:      d.Get("templates_right_delim").(string),
 		DeleteCommand:            d.Get("delete_command").(string),
 		ExistsCommand:            d.Get("exists_command").(string),
+		IdCommand:                d.Get("id_command").(string),
 		ExistsExpectedStatus:     d.Get("exists_expected_status").(int),
 		IncludeParentEnvironment: d.Get("include_parent_environment").(bool),
 		NewEnvironmentPrefix:     d.Get("new_environment_prefix").(string),

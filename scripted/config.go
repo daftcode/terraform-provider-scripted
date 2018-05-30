@@ -12,7 +12,8 @@ type ProviderConfig struct {
 	ReadCommand              string
 	DeleteOnReadFailure      bool
 	ReadFormat               string
-	ReadLinePrefix           string
+	OutputLinePrefix         string
+	StateLinePrefix          string
 	UpdateCommand            string
 	DeleteCommand            string
 	ExistsCommand            string
@@ -30,4 +31,6 @@ type ProviderConfig struct {
 	TemplatesLeftDelim       string
 	NewEnvironmentPrefix     string
 	OldEnvironmentPrefix     string
+	EmptyString              string
+	IdCommand                string
 }

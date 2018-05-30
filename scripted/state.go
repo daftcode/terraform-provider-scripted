@@ -25,15 +25,14 @@ const (
 	Delete Operation = "delete"
 )
 
-type State struct {
-	pc         *ProviderConfig
-	d          *schema.ResourceData
-	rc         *ResourceConfig
-	op         Operation
-	logger     hclog.Logger
-	fileLogger hclog.Logger
-	old        bool
-	oldLog     []bool
+type Scripted struct {
+	pc      *ProviderConfig
+	d       *schema.ResourceData
+	rc      *ResourceConfig
+	op      Operation
+	loggers *Loggers
+	old     bool
+	oldLog  []bool
 }
 
 type ChangeMap struct {
@@ -44,47 +43,50 @@ type ChangeMap struct {
 
 type TemplateContext struct {
 	*ChangeMap
-	Operation Operation
-	Output    map[string]string
+	Operation    Operation
+	StatePrefix  string
+	OutputPrefix string
+	Output       map[string]string
+	State        *ChangeMap
 }
 
 type ResourceConfig struct {
 	LogName              string
 	EnvironmentTemplates []string
 	Context              *ChangeMap
+	state                *ChangeMap
 	environment          *ChangeMap
 }
 
-func NewState(d *schema.ResourceData, meta interface{}, operation Operation, old bool) (*State, error) {
-	s := (&State{
+func NewState(d *schema.ResourceData, meta interface{}, operation Operation, old bool) (*Scripted, error) {
+	s := (&Scripted{
 		pc: meta.(*ProviderConfig),
 		d:  d,
 		rc: &ResourceConfig{
 			LogName: d.Get("log_name").(string),
 			Context: castConfigChangeMap(d.GetChange("context")),
+			state:   castConfigChangeMap(d.GetChange("state")),
 		},
 	}).setOperation(operation)
 	s.ensureLoggers()
 	s.setOld(old)
 	s.log(hclog.Trace, "resource initialized")
+	s.log(hclog.Trace, "initialized state", "old", s.rc.state.Old, "new", s.rc.state.New)
 	return s, nil
 }
 
-func (s *State) ensureLoggers() *State {
+func (s *Scripted) ensureLoggers() *Scripted {
 	args := []interface{}{
 		"operation", s.op,
 	}
 	if s.rc.LogName != "" {
 		args = append(args, "resource", s.rc.LogName)
 	}
-	s.logger = s.pc.Logger.With(args...)
-	if s.pc.FileLogger != nil {
-		s.fileLogger = s.pc.FileLogger.With(args...)
-	}
+	s.loggers = initLoggers(s, args...)
 	return s
 }
 
-func (s *State) renderEnv(old bool) error {
+func (s *Scripted) renderEnv(old bool) error {
 	s.addOld(old)
 	defer s.removeOld()
 	env := s.rc.environment.Cur
@@ -111,7 +113,7 @@ func (s *State) renderEnv(old bool) error {
 	return nil
 }
 
-func (s *State) Environment() (*ChangeMap, error) {
+func (s *Scripted) Environment() (*ChangeMap, error) {
 	if s.rc.environment == nil {
 		env := castConfigChangeMap(s.d.GetChange("environment"))
 		if s.pc.IncludeParentEnvironment {
@@ -169,12 +171,12 @@ func (s *State) Environment() (*ChangeMap, error) {
 	return s.rc.environment, nil
 }
 
-func (s *State) setOperation(operation Operation) *State {
+func (s *Scripted) setOperation(operation Operation) *Scripted {
 	s.op = operation
 	return s
 }
 
-func (s *State) setOld(old bool) {
+func (s *Scripted) setOld(old bool) {
 	s.old = old
 	if old {
 		s.rc.Context.Cur = s.rc.Context.Old
@@ -189,19 +191,18 @@ func (s *State) setOld(old bool) {
 	}
 }
 
-func (s *State) addOld(old bool) {
+func (s *Scripted) addOld(old bool) {
 	s.oldLog = append(s.oldLog, old)
 	s.setOld(old)
 }
 
-func (s *State) removeOld() {
+func (s *Scripted) removeOld() {
 	l := len(s.oldLog)
 	s.setOld(s.oldLog[l-1])
 	s.oldLog = s.oldLog[:l-1]
 }
 
-func (s *State) outputsText(output string, prefix string) map[string]string {
-	outputs := make(map[string]string)
+func (s *Scripted) outputsText(output string, prefix string, outputs map[string]string) map[string]string {
 	split := strings.Split(output, "\n")
 	for _, varline := range split {
 		s.log(hclog.Trace, "reading output line", "line", varline)
@@ -233,9 +234,8 @@ func (s *State) outputsText(output string, prefix string) map[string]string {
 	return outputs
 }
 
-func (s *State) outputsBase64(output, prefix string) map[string]string {
-	outputs := make(map[string]string)
-	for key, value := range s.outputsText(output, prefix) {
+func (s *Scripted) outputsBase64(output, prefix string, outputs map[string]string) map[string]string {
+	for key, value := range s.outputsText(output, prefix, outputs) {
 		decoded, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
 			s.log(hclog.Warn, "error decoding base64", "error", err)
@@ -247,7 +247,7 @@ func (s *State) outputsBase64(output, prefix string) map[string]string {
 	return outputs
 }
 
-func (s *State) templateExtra(name, tpl string, extraCtx map[string]string) (string, error) {
+func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (string, error) {
 	s.log(hclog.Trace, "rendering template", "name", name, "template", tpl)
 	t := template.New(name)
 	t = t.Delims(s.pc.TemplatesLeftDelim, s.pc.TemplatesRightDelim)
@@ -264,8 +264,11 @@ func (s *State) templateExtra(name, tpl string, extraCtx map[string]string) (str
 			New: s.rc.Context.New,
 			Cur: mergeMaps(s.rc.Context.Cur, extraCtx),
 		},
-		Operation: s.op,
-		Output:    castConfigMap(s.d.Get("output")),
+		Operation:    s.op,
+		StatePrefix:  s.pc.StateLinePrefix,
+		OutputPrefix: s.pc.OutputLinePrefix,
+		Output:       castConfigMap(s.d.Get("output")),
+		State:        s.rc.state,
 	}
 	err = t.Execute(&buf, ctx)
 	rendered := buf.String()
@@ -275,11 +278,11 @@ func (s *State) templateExtra(name, tpl string, extraCtx map[string]string) (str
 	return rendered, err
 }
 
-func (s *State) template(name, tpl string) (string, error) {
+func (s *Scripted) template(name, tpl string) (string, error) {
 	return s.templateExtra(name, tpl, map[string]string{})
 }
 
-func (s *State) executeEnv(env *ChangeMap, commands ...string) (string, error) {
+func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error) {
 	interpreter := s.pc.Interpreter[0]
 	command := s.prepareCommands(commands...)
 	args := append(s.pc.Interpreter[1:], command)
@@ -287,27 +290,13 @@ func (s *State) executeEnv(env *ChangeMap, commands ...string) (string, error) {
 	cmd.Dir = s.pc.WorkingDirectory
 	cmd.Env = mapToEnv(env.Cur)
 
-	// Setup the reader that will read the output from the command.
-	// We use an os.Pipe so that the *os.File can be passed directly to the
-	// process, and not rely on goroutines copying the data which may block.
-	// See golang.org/issue/18874
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		return "", fmt.Errorf("failed to initialize pipe for output: %s", err)
-	}
-
 	stdout, _ := circbuf.NewBuffer(s.pc.BufferSize)
 	output, _ := circbuf.NewBuffer(8 * 1024)
 
-	cmd.Stdout = io.MultiWriter(pw, stdout)
-	cmd.Stderr = pw
-
-	// Write everything we read from the pipe to the output buffer too
-	tee := io.TeeReader(pr, output)
-
-	// copy the teed output to the logger
-	copyDoneCh := make(chan struct{})
-	go copyOutput(s, tee, copyDoneCh)
+	outLog, err := newLoggedOutput(s, "out")
+	errLog, err := newLoggedOutput(s, "err")
+	cmd.Stdout = io.MultiWriter(outLog.Start(), stdout)
+	cmd.Stderr = errLog.Start()
 
 	logArgs := []interface{}{
 		"interpreter", interpreter,
@@ -324,13 +313,9 @@ func (s *State) executeEnv(env *ChangeMap, commands ...string) (string, error) {
 		err = cmd.Wait()
 	}
 
-	// Close the write-end of the pipe so that the goroutine mirroring output
-	// ends properly.
-	pw.Close()
+	outLog.Close()
+	errLog.Close()
 
-	select {
-	case <-copyDoneCh:
-	}
 	if err != nil {
 		return stdout.String(), fmt.Errorf("error running command '%s': %v. output: %s",
 			command, err, output.Bytes())
@@ -338,7 +323,7 @@ func (s *State) executeEnv(env *ChangeMap, commands ...string) (string, error) {
 	return stdout.String(), nil
 }
 
-func (s *State) execute(commands ...string) (string, error) {
+func (s *Scripted) execute(commands ...string) (string, error) {
 	env, err := s.Environment()
 	if err != nil {
 		return "", err
@@ -346,7 +331,7 @@ func (s *State) execute(commands ...string) (string, error) {
 	return s.executeEnv(env, commands...)
 }
 
-func (s *State) prepareCommands(commands ...string) string {
+func (s *Scripted) prepareCommands(commands ...string) string {
 	out := ""
 	for _, cmd := range commands {
 		if out == "" {
@@ -358,32 +343,32 @@ func (s *State) prepareCommands(commands ...string) string {
 	return out
 }
 
-func (s *State) getLogFunction(level hclog.Level) func(msg string, args ...interface{}) {
-	fns := []func(msg string, args ...interface{}){
-		selectLogFunction(s.logger, level),
-	}
-
-	if s.fileLogger != nil {
-		fns = append(fns, selectLogFunction(s.fileLogger, level))
-	}
-
-	return func(msg string, args ...interface{}) {
-		for _, v := range fns {
-			v(msg, args...)
-		}
-	}
-}
-
-func (s *State) log(level hclog.Level, msg string, args ...interface{}) {
-	fn := s.getLogFunction(level)
+func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
 	resourceName := s.d.Get("log_name").(string)
 	if resourceName != "" {
 		args = append(args, "resource", resourceName)
 	}
-	fn(msg, args...)
+	s.loggers.Log(level, msg, args...)
 }
 
-func (s *State) ensureId() {
+func (s *Scripted) ensureId() error {
+	if s.pc.IdCommand != "" {
+		defer s.loggers.PopIf(s.loggers.Push("id", true))
+		command, err := s.template(
+			"command_prefix+id_command",
+			s.prepareCommands(s.pc.CommandPrefix, s.pc.IdCommand),
+		)
+		if err != nil {
+			return err
+		}
+		stdout, err := s.execute(command)
+		if err != nil {
+			return err
+		}
+		s.log(hclog.Debug, "setting resource id", "id", stdout)
+		s.d.SetId(stdout)
+		return nil
+	}
 	env := castConfigMap(s.d.Get("environment"))
 
 	var keys []string
@@ -404,8 +389,54 @@ func (s *State) ensureId() {
 	value := hash(strings.Join(entries, ""))
 	s.log(hclog.Debug, "setting resource id", "id", value)
 	s.d.SetId(value)
+	return nil
 }
 
-func (s *State) getId() string {
+func (s *Scripted) getId() string {
 	return s.d.Id()
+}
+
+func (s *Scripted) setOutput(stdout string) {
+	output := s.readLines(stdout, s.pc.OutputLinePrefix, map[string]string{})
+	s.log(hclog.Debug, "setting output", "output", output)
+	s.d.Set("output", output)
+}
+
+func (s *Scripted) updateState(stdout string) {
+	s.log(hclog.Debug, "updating state")
+	s.readLines(stdout, s.pc.StateLinePrefix, s.rc.state.New)
+	s.syncState()
+}
+
+func (s *Scripted) clearState() {
+	s.log(hclog.Debug, "clearing state")
+	s.rc.state.New = map[string]string{}
+	s.syncState()
+}
+
+func (s *Scripted) syncState() {
+	s.log(hclog.Debug, "setting state", "state", s.rc.state.New)
+	s.d.Set("state", s.rc.state.New)
+}
+
+func (s *Scripted) clear() {
+	s.log(hclog.Debug, "clearing resource")
+	s.d.SetId("")
+	s.d.Set("output", map[string]string{})
+	s.clearState()
+}
+
+func (s *Scripted) readLines(data, prefix string, outputs map[string]string) map[string]string {
+	if data == "" {
+		return outputs
+	}
+	switch s.pc.ReadFormat {
+	case "base64":
+		outputs = s.outputsBase64(data, prefix, outputs)
+	default:
+		fallthrough
+	case "raw":
+		outputs = s.outputsText(data, prefix, outputs)
+	}
+	return outputs
 }

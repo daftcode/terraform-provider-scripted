@@ -14,5 +14,6 @@ func getScriptedDataSource() *schema.Resource {
 	resource.Update = nil
 	resource.Delete = nil
 	resource.Exists = nil
+	delete(resource.Schema, "state")
 	return resource
 }

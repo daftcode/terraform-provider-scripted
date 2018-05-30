@@ -41,6 +41,11 @@ func getScriptedResource() *schema.Resource {
 				Computed:    true,
 				Description: "Output from the read command",
 			},
+			"state": {
+				Type:        schema.TypeMap,
+				Computed:    true,
+				Description: "Output from create/update commands",
+			},
 		},
 	}
 	return ret
@@ -51,13 +56,17 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	return resourceScriptedCreateBase(s)
+	return resourceScriptedCreateBase(s, true)
 }
 
-func resourceScriptedCreateBase(s *State) error {
+func resourceScriptedCreateBase(s *Scripted, newState bool) error {
+	defer s.loggers.PopIf(s.loggers.Push("create", true))
 	if s.pc.CreateCommand == "" {
 		s.log(hclog.Debug, `"create_command" is empty, exiting.`)
-		s.ensureId()
+		if err := s.ensureId(); err != nil {
+			return err
+		}
+		s.syncState()
 		return resourceScriptedReadBase(s)
 	}
 	command, err := s.template(
@@ -67,12 +76,18 @@ func resourceScriptedCreateBase(s *State) error {
 		return err
 	}
 	s.log(hclog.Debug, "creating resource")
-	_, err = s.execute(command)
+	stdout, err := s.execute(command)
 	if err != nil {
 		return err
 	}
 
-	s.ensureId()
+	if err := s.ensureId(); err != nil {
+		return err
+	}
+	if newState {
+		s.clearState()
+	}
+	s.updateState(stdout)
 	s.log(hclog.Debug, "created resource", "id", s.getId())
 	return resourceScriptedReadBase(s)
 }
@@ -85,7 +100,8 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 	return resourceScriptedReadBase(s)
 }
 
-func resourceScriptedReadBase(s *State) error {
+func resourceScriptedReadBase(s *Scripted) error {
+	defer s.loggers.PopIf(s.loggers.Push("read", true))
 	if s.pc.ReadCommand == "" {
 		s.log(hclog.Debug, `"read_command" is empty, exiting.`)
 		s.d.Set("output", map[string]string{})
@@ -110,24 +126,12 @@ func resourceScriptedReadBase(s *State) error {
 	if err != nil {
 		s.log(hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
 		if s.pc.DeleteOnReadFailure {
-			s.d.SetId("")
+			s.clear()
 			return nil
 		}
 		return err
 	}
-	var outputs map[string]string
-
-	switch s.pc.ReadFormat {
-	case "base64":
-		outputs = s.outputsBase64(stdout, s.pc.ReadLinePrefix)
-	default:
-		fallthrough
-	case "raw":
-		outputs = s.outputsText(stdout, s.pc.ReadLinePrefix)
-	}
-	s.log(hclog.Debug, "setting outputs", "output", outputs)
-	s.d.Set("output", outputs)
-
+	s.setOutput(stdout)
 	return nil
 }
 
@@ -144,36 +148,47 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	if s.pc.CreateBeforeUpdate {
-		if err := resourceScriptedCreateBase(s); err != nil {
+		if err := resourceScriptedCreateBase(s, true); err != nil {
 			return err
 		}
 	}
 
-	if s.pc.UpdateCommand != "" {
-		command, err := s.template(
-			"command_prefix+update_command",
-			s.prepareCommands(s.pc.CommandPrefix, s.pc.UpdateCommand))
+	shouldUpdate := s.pc.UpdateCommand != s.pc.EmptyString
+	if shouldUpdate {
+		err = resourceScriptedUpdateBase(s)
 		if err != nil {
 			return err
 		}
-		s.log(hclog.Debug, "updating resource", "command", command)
-		_, err = s.execute(command)
-		if err != nil {
-			s.log(hclog.Warn, "update command returned error", "error", err)
-			return err
-		}
-		s.ensureId()
 	} else {
 		s.log(hclog.Debug, `"update_command" is empty, skipping`)
 	}
 
 	if s.pc.CreateAfterUpdate {
-		if err := resourceScriptedCreateBase(s); err != nil {
+		if err := resourceScriptedCreateBase(s, !shouldUpdate); err != nil {
 			return err
 		}
 	}
 
 	return resourceScriptedReadBase(s)
+}
+
+func resourceScriptedUpdateBase(s *Scripted) error {
+	defer s.loggers.PopIf(s.loggers.Push("update", true))
+	command, err := s.template(
+		"command_prefix+update_command",
+		s.prepareCommands(s.pc.CommandPrefix, s.pc.UpdateCommand))
+	if err != nil {
+		return err
+	}
+	s.log(hclog.Debug, "updating resource", "command", command)
+	stdout, err := s.execute(command)
+	if err != nil {
+		s.log(hclog.Warn, "update command returned error", "error", err)
+		return err
+	}
+	s.ensureId()
+	s.updateState(stdout)
+	return nil
 }
 
 func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
@@ -201,7 +216,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		exists = err == nil
 	}
 	if !exists && s.pc.DeleteOnNotExists {
-		s.d.SetId("")
+		s.clear()
 	}
 	return exists, nil
 }
@@ -214,10 +229,11 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 	return resourceScriptedDeleteBase(s)
 }
 
-func resourceScriptedDeleteBase(s *State) error {
+func resourceScriptedDeleteBase(s *Scripted) error {
+	defer s.loggers.PopIf(s.loggers.Push("update", true))
 	if s.pc.DeleteCommand == "" {
 		s.log(hclog.Debug, `"delete_command" is empty, exiting.`)
-		s.d.SetId("")
+		s.clear()
 		return nil
 	}
 	s.addOld(true)
@@ -234,6 +250,6 @@ func resourceScriptedDeleteBase(s *State) error {
 		return err
 	}
 
-	s.d.SetId("")
+	s.clear()
 	return nil
 }
