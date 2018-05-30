@@ -154,12 +154,19 @@ func Provider() terraform.ResourceProvider {
 				Default:     true,
 				Description: "Delete resource when exists fails",
 			},
-			"read_format": {
+			"output_format": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				Default:      "raw",
 				ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
 				Description:  "Commands output types: raw /^(?<key>[^=]+)=(?<value>[^\\n]*)$/ or base64 /^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/",
+			},
+			"state_format": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "",
+				ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
+				Description:  "State format type, defaults `to output_format`",
 			},
 			"state_line_prefix": {
 				Type:        schema.TypeString,
@@ -167,7 +174,7 @@ func Provider() terraform.ResourceProvider {
 				Default:     emptyString,
 				Description: "Ignore lines in create/update commands without this prefix. Random string by default.",
 			},
-			"read_line_prefix": {
+			"output_line_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "",
@@ -292,6 +299,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		cau = true
 		cbu = false
 	}
+	of := d.Get("output_format").(string)
+	sf := d.Get("state_format").(string)
+	if sf == "" {
+		sf = of
+	}
 	config := ProviderConfig{
 		EmptyString:              emptyString,
 		Logger:                   logger,
@@ -307,9 +319,10 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		ReadCommand:              d.Get("read_command").(string),
 		DeleteOnReadFailure:      d.Get("delete_on_read_failure").(bool),
 		DeleteOnNotExists:        d.Get("delete_on_not_exists").(bool),
-		ReadFormat:               d.Get("read_format").(string),
+		OutputFormat:             of,
+		StateFormat:              sf,
 		StateLinePrefix:          d.Get("state_line_prefix").(string),
-		OutputLinePrefix:         d.Get("read_line_prefix").(string),
+		OutputLinePrefix:         d.Get("output_line_prefix").(string),
 		UpdateCommand:            update,
 		DeleteBeforeUpdate:       dbu,
 		CreateAfterUpdate:        cau,

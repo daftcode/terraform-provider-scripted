@@ -11,7 +11,7 @@ type ProviderConfig struct {
 	CreateCommand            string
 	ReadCommand              string
 	DeleteOnReadFailure      bool
-	ReadFormat               string
+	OutputFormat             string
 	OutputLinePrefix         string
 	StateLinePrefix          string
 	UpdateCommand            string
@@ -33,4 +33,5 @@ type ProviderConfig struct {
 	OldEnvironmentPrefix     string
 	EmptyString              string
 	IdCommand                string
+	StateFormat              string
 }

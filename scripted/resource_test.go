@@ -63,7 +63,7 @@ func TestAccScriptedResource_Base64(t *testing.T) {
 	provider "scripted" {
 		create_command = "echo -n \"hi\" > test_file"
   		read_command = "echo -n \"out=$(base64 'test_file')\""
-		read_format = "base64"
+		output_format = "base64"
 		delete_command = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
@@ -89,7 +89,7 @@ func TestAccScriptedResource_Prefixed(t *testing.T) {
 	provider "scripted" {
 		create_command = "echo -n \"hi\" > test_file"
   		read_command = "echo -n \"PREFIX_out=$(cat 'test_file')\""
-		read_line_prefix =  "PREFIX_"
+		output_line_prefix =  "PREFIX_"
 		delete_command = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
@@ -246,7 +246,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 func TestAccScriptedResource_MultilineEnvironment(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-        read_format = "base64"
+        output_format = "base64"
   		read_command = <<EOF
 echo -n "out=$(echo -n "$test_var" | base64)"
 EOF
@@ -472,7 +472,7 @@ EOF
 func TestAccScriptedResource_YAML(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		read_format = "base64"
+		output_format = "base64"
   		read_command = <<EOF
 echo -n 'out={{ b64enc (toYaml (fromYaml .Cur.val)) }}'
 EOF

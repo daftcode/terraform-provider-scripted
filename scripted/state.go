@@ -397,14 +397,14 @@ func (s *Scripted) getId() string {
 }
 
 func (s *Scripted) setOutput(stdout string) {
-	output := s.readLines(stdout, s.pc.OutputLinePrefix, map[string]string{})
+	output := s.readLines(stdout, s.pc.OutputLinePrefix, s.pc.OutputFormat, map[string]string{})
 	s.log(hclog.Debug, "setting output", "output", output)
 	s.d.Set("output", output)
 }
 
 func (s *Scripted) updateState(stdout string) {
 	s.log(hclog.Debug, "updating state")
-	s.readLines(stdout, s.pc.StateLinePrefix, s.rc.state.New)
+	s.readLines(stdout, s.pc.StateLinePrefix, s.pc.StateFormat, s.rc.state.New)
 	s.syncState()
 }
 
@@ -426,11 +426,11 @@ func (s *Scripted) clear() {
 	s.clearState()
 }
 
-func (s *Scripted) readLines(data, prefix string, outputs map[string]string) map[string]string {
+func (s *Scripted) readLines(data, prefix, format string, outputs map[string]string) map[string]string {
 	if data == "" {
 		return outputs
 	}
-	switch s.pc.ReadFormat {
+	switch format {
 	case "base64":
 		outputs = s.outputsBase64(data, prefix, outputs)
 	default:
