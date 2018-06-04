@@ -37,20 +37,22 @@ $ terraform destroy
 To create a more complete example add this to the sample example file
 
 ```hcl
-provider "scripted" {
-  alias = "write_to_file"
-  commands_create = "echo \"{{.new.input}}\" > {{.new.file}}"
-  commands_read = "echo -n \"out=$(cat '{{.new.file}}')\""
-  commands_delete = "rm {{.old.file}}"
-}
-
-resource "scripted_resource" "filetest" {
-  provider = "script.write_to_file"
-  context {
-    input = "this to the file"
-    file = "test_file2"
-  }
-}
+	provider "scripted" {
+		alias = "file"
+		commands_should_update = <<EOF
+[ "$(cat '{{ .Cur.path }}')" == '{{ .Cur.content }}' ] || exit 1
+EOF
+		commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"
+		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
+		commands_delete = "rm '{{ .Cur.path }}'"
+	}
+	resource "scripted_resource" "test" {
+		provider = "scripted.file"
+		context {
+			path = "test_file"
+			content = "hi"
+		}
+	}
 ```
 
 Parameters can by used to change the resources.

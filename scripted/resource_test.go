@@ -41,7 +41,7 @@ func TestAccScriptedResource_ShouldUpdate(t *testing.T) {
 	provider "scripted" {
 		alias = "file"
 		commands_should_update = <<EOF
-[ "$(cat '{{ .Cur.path }}')" == "{{ .Cur.content }}" ] || exit 1
+[ "$(cat '{{ .Cur.path }}')" == '{{ .Cur.content }}' ] || exit 1
 EOF
 		commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
