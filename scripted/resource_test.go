@@ -14,9 +14,9 @@ import (
 func TestAccScriptedResource_BasicCRD(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		create_command = "echo -n \"hi\" > test_file"
-		read_command = "echo -n \"out=$(cat test_file)\""
-		delete_command = "rm test_file"
+		commands_create = "echo -n \"hi\" > test_file"
+		commands_read = "echo -n \"out=$(cat test_file)\""
+		commands_delete = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
 	}
@@ -38,7 +38,7 @@ func TestAccScriptedResource_BasicCRD(t *testing.T) {
 func TestAccScriptedResource_IdCommand(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		id_command = "echo -n 'test-id'"
+		commands_id = "echo -n 'test-id'"
 	}
 	resource "scripted_resource" "test" {
 	}
@@ -61,10 +61,10 @@ func TestAccScriptedResource_IdCommand(t *testing.T) {
 func TestAccScriptedResource_Base64(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		create_command = "echo -n \"hi\" > test_file"
-  		read_command = "echo -n \"out=$(base64 'test_file')\""
-		output_format = "base64"
-		delete_command = "rm test_file"
+		commands_create = "echo -n \"hi\" > test_file"
+  		commands_read = "echo -n \"out=$(base64 'test_file')\""
+		commands_read_format = "base64"
+		commands_delete = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
 	}
@@ -87,10 +87,10 @@ func TestAccScriptedResource_Base64(t *testing.T) {
 func TestAccScriptedResource_Prefixed(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		create_command = "echo -n \"hi\" > test_file"
-  		read_command = "echo -n \"PREFIX_out=$(cat 'test_file')\""
-		output_line_prefix =  "PREFIX_"
-		delete_command = "rm test_file"
+		commands_create = "echo -n \"hi\" > test_file"
+  		commands_read = "echo -n \"PREFIX_out=$(cat 'test_file')\""
+		commands_read_line_prefix =  "PREFIX_"
+		commands_delete = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
 	}
@@ -113,9 +113,9 @@ func TestAccScriptedResource_Prefixed(t *testing.T) {
 func TestAccScriptedResource_WeirdOutput(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		create_command = "echo -n \" can you = read this\" > test_file3"
-  		read_command = "echo -n \"out=$(cat 'test_file3')\""
-		delete_command = "rm test_file3"
+		commands_create = "echo -n \" can you = read this\" > test_file3"
+  		commands_read = "echo -n \"out=$(cat 'test_file3')\""
+		commands_delete = "rm test_file3"
 	}
 	resource "scripted_resource" "test" {
 	}
@@ -138,9 +138,9 @@ func TestAccScriptedResource_WeirdOutput(t *testing.T) {
 func TestAccScriptedResource_Parameters(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-  		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		delete_command = "rm {{.Old.file}}"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+  		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_delete = "rm {{.Old.file}}"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -167,7 +167,7 @@ func TestAccScriptedResource_Parameters(t *testing.T) {
 func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-  		read_command = "echo -n \"out=$test_var\""
+  		commands_read = "echo -n \"out=$test_var\""
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -196,7 +196,7 @@ func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
 func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 	const config = `
 	provider "scripted" {
-  		read_command = "echo -n \"out=$test_var\""
+  		commands_read = "echo -n \"out=$test_var\""
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -220,7 +220,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 			{
 				Config: `
 	provider "scripted" {
-  		read_command = "echo -n \"out=$test_var\""
+  		commands_read = "echo -n \"out=$test_var\""
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -246,8 +246,8 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 func TestAccScriptedResource_MultilineEnvironment(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-        output_format = "base64"
-  		read_command = <<EOF
+        commands_read_format = "base64"
+  		commands_read = <<EOF
 echo -n "out=$(echo -n "$test_var" | base64)"
 EOF
 	}
@@ -275,8 +275,8 @@ EOF
 func TestAccScriptedResource_OldNewEnvironment(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		include_parent_environment = false
-  		read_command = "env"
+		commands_environment_include_parent = false
+  		commands_read = "env"
 	}
 	resource "scripted_resource" "test" {
 		environment {
@@ -286,10 +286,10 @@ func TestAccScriptedResource_OldNewEnvironment(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "scripted" {
-		include_parent_environment = false
-		old_environment_prefix = "old_"
-		new_environment_prefix = "new_"
-  		read_command = "env"
+		commands_environment_include_parent = false
+		commands_environment_prefix_old = "old_"
+		commands_environment_prefix_new = "new_"
+  		commands_read = "env"
 	}
 	resource "scripted_resource" "test" {
 		environment {
@@ -318,14 +318,15 @@ func TestAccScriptedResource_OldNewEnvironment(t *testing.T) {
 		},
 	})
 }
+
 func TestAccScriptedResource_State(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-  		create_command = <<EOF
+  		commands_create = <<EOF
 echo -n "{{ .StatePrefix }}value={{ .Cur.value }}"
 EOF
-		update_command = ""
-		read_command = <<EOF
+		commands_update = ""
+		commands_read = <<EOF
 echo "old={{ .State.Old.value }}"
 echo "new={{ .State.New.value }}"
 EOF
@@ -338,10 +339,9 @@ EOF
 `
 	const testConfig2 = `
 	provider "scripted" {
-		create_before_update = true
-  		create_command = ""
-		update_command = ""
-		read_command = <<EOF
+  		commands_create = ""
+		commands_update = ""
+		commands_read = <<EOF
 echo "old={{ .State.Old.value }}"
 echo "new={{ .State.New.value }}"
 EOF
@@ -354,10 +354,11 @@ EOF
 `
 	const testConfig3 = `
 	provider "scripted" {
-		create_before_update = true
-  		create_command = " "
-		update_command = ""
-		read_command = <<EOF
+  		commands_create = ""
+		commands_update = <<EOF
+echo -n "{{ .StatePrefix }}value={{ .EmptyString }}"
+EOF
+		commands_read = <<EOF
 echo "old={{ .State.Old.value }}"
 echo "new={{ .State.New.value }}"
 EOF
@@ -411,7 +412,7 @@ EOF
 func TestAccScriptedResource_JSON(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-  		read_command = <<EOF
+  		commands_read = <<EOF
 echo -n 'out={{ toJson (fromJson .Cur.val) }}'
 EOF
 	}
@@ -441,7 +442,7 @@ EOF
 func TestAccScriptedResource_JSON_Nested(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-  		read_command = <<EOF
+  		commands_read = <<EOF
 {{ $val := fromJson .Cur.val }}
 echo -n 'out={{ toJson $val.a }}'
 EOF
@@ -472,8 +473,8 @@ EOF
 func TestAccScriptedResource_YAML(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		output_format = "base64"
-  		read_command = <<EOF
+		commands_read_format = "base64"
+  		commands_read = <<EOF
 echo -n 'out={{ b64enc (toYaml (fromYaml .Cur.val)) }}'
 EOF
 	}
@@ -512,9 +513,9 @@ d: 4
 func TestAccScriptedResourceCRD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		delete_command = "rm {{.Old.file}}"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_delete = "rm {{.Old.file}}"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -525,9 +526,9 @@ func TestAccScriptedResourceCRD_Update(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		delete_command = "rm {{.Old.file}}"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_delete = "rm {{.Old.file}}"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -595,7 +596,7 @@ func testAccCheckResourceStateMissing(name string, outparam string) resource.Tes
 			return fmt.Errorf("no Record ID is set")
 		}
 		if _, ok := rs.Primary.Attributes["state."+outparam]; ok {
-			return fmt.Errorf("state key %s is present", outparam)
+			return fmt.Errorf("state key `%s` is present", outparam)
 		}
 		return nil
 	}
@@ -624,7 +625,7 @@ func testAccCheckScriptedDestroy(s *terraform.State) error {
 			continue
 		}
 
-		splitted := strings.Split(rs.Primary.Attributes["create_command"], " ")
+		splitted := strings.Split(rs.Primary.Attributes["commands_create"], " ")
 		file := splitted[len(splitted)-1]
 		if _, err := os.Stat(file); err == nil {
 			return fmt.Errorf("file '%s' exists after delete", file)
@@ -636,10 +637,10 @@ func testAccCheckScriptedDestroy(s *terraform.State) error {
 func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		update_command = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
-		delete_command = "rm {{.Old.file}}"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_delete = "rm {{.Old.file}}"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -650,10 +651,10 @@ func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		update_command = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
-		delete_command = "rm {{.Old.file}}"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_delete = "rm {{.Old.file}}"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -686,10 +687,10 @@ func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		delete_command = "rm {{.Old.file}}"
-		log_level = "INFO"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_delete = "rm {{.Old.file}}"
+		logging_log_level = "INFO"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -700,10 +701,10 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		delete_command = "rm {{.Old.file}}"
-		log_level = "INFO"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_delete = "rm {{.Old.file}}"
+		logging_log_level = "INFO"
 	}
 	locals {
 		test = "hi all"
@@ -738,11 +739,11 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		exists_command = "[ -f '{{.New.file}}' ] && exit 0 || exit 1"
-		update_command = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
-		delete_command = "rm {{.Old.file}}"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_exists = "[ -f '{{.New.file}}' ] && exit 0 || exit 1"
+		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_delete = "rm {{.Old.file}}"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -753,11 +754,11 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 `
 	const testConfig2 = `
 	provider "scripted" {
-		create_command = "echo -n \"{{.New.output}}\" > {{.New.file}}"
-		read_command = "echo -n \"out=$(cat '{{.New.file}}')\""
-		exists_command = "[ -f '{{.New.file}}' ] && exit 0 || exit 1"
-		update_command = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
-		delete_command = "rm {{.Old.file}}"
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_exists = "[ -f '{{.New.file}}' ] && exit 0 || exit 1"
+		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_delete = "rm {{.Old.file}}"
 	}
 	resource "scripted_resource" "test" {
 		context {

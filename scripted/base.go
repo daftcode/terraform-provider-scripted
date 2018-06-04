@@ -30,7 +30,7 @@ type Scripted struct {
 	d       *schema.ResourceData
 	rc      *ResourceConfig
 	op      Operation
-	loggers *Loggers
+	logging *Logging
 	old     bool
 	oldLog  []bool
 }
@@ -44,6 +44,7 @@ type ChangeMap struct {
 type TemplateContext struct {
 	*ChangeMap
 	Operation    Operation
+	EmptyString  string
 	StatePrefix  string
 	OutputPrefix string
 	Output       map[string]string
@@ -58,7 +59,7 @@ type ResourceConfig struct {
 	environment          *ChangeMap
 }
 
-func NewState(d *schema.ResourceData, meta interface{}, operation Operation, old bool) (*Scripted, error) {
+func New(d *schema.ResourceData, meta interface{}, operation Operation, old bool) (*Scripted, error) {
 	s := (&Scripted{
 		pc: meta.(*ProviderConfig),
 		d:  d,
@@ -68,21 +69,22 @@ func NewState(d *schema.ResourceData, meta interface{}, operation Operation, old
 			state:   castConfigChangeMap(d.GetChange("state")),
 		},
 	}).setOperation(operation)
-	s.ensureLoggers()
+	s.ensureLogging()
 	s.setOld(old)
 	s.log(hclog.Trace, "resource initialized")
 	s.log(hclog.Trace, "initialized state", "old", s.rc.state.Old, "new", s.rc.state.New)
 	return s, nil
 }
 
-func (s *Scripted) ensureLoggers() *Scripted {
+func (s *Scripted) ensureLogging() *Scripted {
 	args := []interface{}{
 		"operation", s.op,
 	}
 	if s.rc.LogName != "" {
 		args = append(args, "resource", s.rc.LogName)
 	}
-	s.loggers = initLoggers(s, args...)
+	s.logging = s.pc.Logging.Clone()
+	s.logging.Push(args...)
 	return s
 }
 
@@ -98,7 +100,7 @@ func (s *Scripted) renderEnv(old bool) error {
 		prefix = "new"
 	}
 	for key, tpl := range env {
-		if !strings.Contains(tpl, s.pc.TemplatesLeftDelim) {
+		if !strings.Contains(tpl, s.pc.Templates.LeftDelim) {
 			continue
 		}
 		rendered, err := s.template(fmt.Sprintf("env.%s.%s", prefix, key), tpl)
@@ -116,7 +118,7 @@ func (s *Scripted) renderEnv(old bool) error {
 func (s *Scripted) Environment() (*ChangeMap, error) {
 	if s.rc.environment == nil {
 		env := castConfigChangeMap(s.d.GetChange("environment"))
-		if s.pc.IncludeParentEnvironment {
+		if s.pc.Commands.Environment.IncludeParent {
 			for _, line := range os.Environ() {
 				split := strings.SplitN(line, "=", 1)
 				key := split[0]
@@ -150,16 +152,16 @@ func (s *Scripted) Environment() (*ChangeMap, error) {
 
 		extra := map[string]string{}
 
-		if s.pc.OldEnvironmentPrefix != "" {
+		if s.isSet(s.pc.Commands.Environment.PrefixOld) {
 			for k, v := range env.Old {
-				key := fmt.Sprintf("%s%s", s.pc.OldEnvironmentPrefix, k)
+				key := fmt.Sprintf("%s%s", s.pc.Commands.Environment.PrefixOld, k)
 				extra[key] = v
 			}
 		}
 
-		if s.pc.NewEnvironmentPrefix != "" {
+		if s.isSet(s.pc.Commands.Environment.PrefixNew) {
 			for k, v := range env.New {
-				key := fmt.Sprintf("%s%s", s.pc.NewEnvironmentPrefix, k)
+				key := fmt.Sprintf("%s%s", s.pc.Commands.Environment.PrefixNew, k)
 				extra[key] = v
 			}
 		}
@@ -202,8 +204,11 @@ func (s *Scripted) removeOld() {
 	s.oldLog = s.oldLog[:l-1]
 }
 
-func (s *Scripted) outputsText(output string, prefix string, outputs map[string]string) map[string]string {
+func (s *Scripted) outputsText(output string, prefix, exceptPrefix string, outputs map[string]string) map[string]string {
 	split := strings.Split(output, "\n")
+	hasPrefix := s.isSet(prefix)
+	hasExceptPrefix := s.isSet(exceptPrefix)
+
 	for _, varline := range split {
 		s.log(hclog.Trace, "reading output line", "line", varline)
 
@@ -212,7 +217,13 @@ func (s *Scripted) outputsText(output string, prefix string, outputs map[string]
 			continue
 		}
 
-		if prefix != "" {
+		if hasExceptPrefix {
+			if strings.HasPrefix(varline, exceptPrefix) {
+				s.log(hclog.Debug, "ignoring line with prefix", "prefix", exceptPrefix, "line", varline)
+				continue
+			}
+		}
+		if hasPrefix {
 			if !strings.HasPrefix(varline, prefix) {
 				s.log(hclog.Debug, "ignoring line without prefix", "prefix", prefix, "line", varline)
 				continue
@@ -234,8 +245,8 @@ func (s *Scripted) outputsText(output string, prefix string, outputs map[string]
 	return outputs
 }
 
-func (s *Scripted) outputsBase64(output, prefix string, outputs map[string]string) map[string]string {
-	for key, value := range s.outputsText(output, prefix, outputs) {
+func (s *Scripted) outputsBase64(output, prefix, exceptPrefix string, outputs map[string]string) map[string]string {
+	for key, value := range s.outputsText(output, prefix, exceptPrefix, outputs) {
 		decoded, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
 			s.log(hclog.Warn, "error decoding base64", "error", err)
@@ -250,7 +261,7 @@ func (s *Scripted) outputsBase64(output, prefix string, outputs map[string]strin
 func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (string, error) {
 	s.log(hclog.Trace, "rendering template", "name", name, "template", tpl)
 	t := template.New(name)
-	t = t.Delims(s.pc.TemplatesLeftDelim, s.pc.TemplatesRightDelim)
+	t = t.Delims(s.pc.Templates.LeftDelim, s.pc.Templates.RightDelim)
 	t = t.Funcs(TemplateFuncs)
 	t, err := t.Parse(tpl)
 	if err != nil {
@@ -265,6 +276,7 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (
 			Cur: mergeMaps(s.rc.Context.Cur, extraCtx),
 		},
 		Operation:    s.op,
+		EmptyString:  s.pc.EmptyString,
 		StatePrefix:  s.pc.StateLinePrefix,
 		OutputPrefix: s.pc.OutputLinePrefix,
 		Output:       castConfigMap(s.d.Get("output")),
@@ -282,15 +294,43 @@ func (s *Scripted) template(name, tpl string) (string, error) {
 	return s.templateExtra(name, tpl, map[string]string{})
 }
 
+func (s *Scripted) getInterpreter(command string) (string, []string, error) {
+	var args []string
+	hadTemplate := false
+	for _, value := range s.pc.Commands.Templates.Interpreter[1:] {
+		if strings.Contains(value, s.pc.Templates.LeftDelim) {
+			hadTemplate = true
+			t := template.New("commands_interpreter")
+			t = t.Delims(s.pc.Templates.LeftDelim, s.pc.Templates.RightDelim)
+			t, err := t.Parse(value)
+			if err != nil {
+				return "", nil, err
+			}
+			var buf bytes.Buffer
+			err = t.Execute(&buf, map[string]string{
+				"command": command,
+			})
+			if err != nil {
+				return "", nil, err
+			}
+			value = buf.String()
+		}
+		args = append(args, value)
+	}
+	if !hadTemplate {
+		args = append(args, command)
+	}
+	return s.pc.Commands.Templates.Interpreter[0], args, nil
+}
+
 func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error) {
-	interpreter := s.pc.Interpreter[0]
-	command := s.prepareCommands(commands...)
-	args := append(s.pc.Interpreter[1:], command)
+	command := s.joinCommands(commands...)
+	interpreter, args, err := s.getInterpreter(command)
 	cmd := exec.Command(interpreter, args...)
-	cmd.Dir = s.pc.WorkingDirectory
+	cmd.Dir = s.pc.Commands.WorkingDirectory
 	cmd.Env = mapToEnv(env.Cur)
 
-	stdout, _ := circbuf.NewBuffer(s.pc.BufferSize)
+	stdout, _ := circbuf.NewBuffer(s.pc.LoggingBufferSize)
 	output, _ := circbuf.NewBuffer(8 * 1024)
 
 	outLog, err := newLoggedOutput(s, "out")
@@ -331,13 +371,14 @@ func (s *Scripted) execute(commands ...string) (string, error) {
 	return s.executeEnv(env, commands...)
 }
 
-func (s *Scripted) prepareCommands(commands ...string) string {
+func (s *Scripted) joinCommands(commands ...string) string {
 	out := ""
 	for _, cmd := range commands {
-		if out == "" {
+		isSet := s.isSet(cmd)
+		if out == "" && isSet {
 			out = cmd
-		} else if cmd != "" {
-			out = fmt.Sprintf(s.pc.CommandJoiner, out, cmd)
+		} else if isSet {
+			out = fmt.Sprintf(s.pc.Commands.Separator, out, cmd)
 		}
 	}
 	return out
@@ -348,15 +389,19 @@ func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
 	if resourceName != "" {
 		args = append(args, "resource", resourceName)
 	}
-	s.loggers.Log(level, msg, args...)
+	s.logging.Log(level, msg, args...)
+}
+
+func (s *Scripted) isSet(str string) bool {
+	return str != s.pc.EmptyString
 }
 
 func (s *Scripted) ensureId() error {
-	if s.pc.IdCommand != "" {
-		defer s.loggers.PopIf(s.loggers.Push("id", true))
+	if s.isSet(s.pc.Commands.Templates.Id) {
+		defer s.logging.PopIf(s.logging.Push("id", true))
 		command, err := s.template(
-			"command_prefix+id_command",
-			s.prepareCommands(s.pc.CommandPrefix, s.pc.IdCommand),
+			"commands_prefix+commands_id",
+			s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Id),
 		)
 		if err != nil {
 			return err
@@ -397,14 +442,19 @@ func (s *Scripted) getId() string {
 }
 
 func (s *Scripted) setOutput(stdout string) {
-	output := s.readLines(stdout, s.pc.OutputLinePrefix, s.pc.OutputFormat, map[string]string{})
+	output := s.readLines(stdout, s.pc.OutputLinePrefix, s.pc.OutputFormat, s.pc.StateLinePrefix, map[string]string{})
 	s.log(hclog.Debug, "setting output", "output", output)
 	s.d.Set("output", output)
 }
 
 func (s *Scripted) updateState(stdout string) {
 	s.log(hclog.Debug, "updating state")
-	s.readLines(stdout, s.pc.StateLinePrefix, s.pc.StateFormat, s.rc.state.New)
+	s.readLines(stdout, s.pc.StateLinePrefix, s.pc.StateFormat, s.pc.EmptyString, s.rc.state.New)
+	for key, value := range s.rc.state.New {
+		if value == s.pc.EmptyString {
+			delete(s.rc.state.New, key)
+		}
+	}
 	s.syncState()
 }
 
@@ -426,17 +476,17 @@ func (s *Scripted) clear() {
 	s.clearState()
 }
 
-func (s *Scripted) readLines(data, prefix, format string, outputs map[string]string) map[string]string {
+func (s *Scripted) readLines(data, prefix, format, exceptPrefix string, outputs map[string]string) map[string]string {
 	if data == "" {
 		return outputs
 	}
 	switch format {
 	case "base64":
-		outputs = s.outputsBase64(data, prefix, outputs)
+		outputs = s.outputsBase64(data, prefix, exceptPrefix, outputs)
 	default:
 		fallthrough
 	case "raw":
-		outputs = s.outputsText(data, prefix, outputs)
+		outputs = s.outputsText(data, prefix, exceptPrefix, outputs)
 	}
 	return outputs
 }

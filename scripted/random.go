@@ -5,11 +5,10 @@ import (
 	"time"
 )
 
-const safeCharset = "abcdefghijklmnopqrstuvwxyz" +
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-	"0123456789"
+const alphaCharset = "abcdefghijklmnopqrstuvwxyz" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const alnumCharset = alphaCharset + "0123456789"
 
-const charset = safeCharset + "`~!@#$%^&*()_+[]{};':,./<>?\\|\""
+const charset = alnumCharset + "`~!@#$%^&*()_+[]{};':,./<>?\\|\""
 
 var seededRand = rand.New(
 	rand.NewSource(time.Now().UnixNano()))
@@ -23,7 +22,7 @@ func RandomStringWithCharset(length int, charset string) string {
 }
 
 func RandomSafeString(length int) string {
-	return RandomStringWithCharset(length, safeCharset)
+	return RandomStringWithCharset(1, alphaCharset) + RandomStringWithCharset(length-1, alnumCharset)
 }
 
 func RandomString(length int) string {

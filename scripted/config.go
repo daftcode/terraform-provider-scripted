@@ -2,36 +2,54 @@ package scripted
 
 import "github.com/hashicorp/go-hclog"
 
-type ProviderConfig struct {
-	BufferSize               int64
-	Interpreter              []string
-	WorkingDirectory         string
-	CommandPrefix            string
-	CommandJoiner            string
-	CreateCommand            string
-	ReadCommand              string
-	DeleteOnReadFailure      bool
-	OutputFormat             string
-	OutputLinePrefix         string
-	StateLinePrefix          string
-	UpdateCommand            string
-	DeleteCommand            string
-	ExistsCommand            string
-	Logger                   hclog.Logger
-	FileLogger               hclog.Logger
-	CommandLogLevel          hclog.Level
-	CommandLogWidth          int
-	IncludeParentEnvironment bool
-	ExistsExpectedStatus     int
-	DeleteBeforeUpdate       bool
+type EnvironmentConfig struct {
+	PrefixNew string
+	PrefixOld string
+	IncludeParent bool
+}
+
+type CommandTemplates struct {
+	Create      string
+	Delete      string
+	Exists      string
+	Id          string
+	Interpreter []string
+	Prefix      string
+	Read        string
+	Update      string
+}
+
+type OutputConfig struct {
+	LogLevel  hclog.Level
+	LineWidth int
+}
+
+type CommandsConfig struct {
+	Environment              *EnvironmentConfig
+	Templates                *CommandTemplates
+	Output                   *OutputConfig
 	CreateAfterUpdate        bool
-	CreateBeforeUpdate       bool
+	DeleteBeforeUpdate       bool
 	DeleteOnNotExists        bool
-	TemplatesRightDelim      string
-	TemplatesLeftDelim       string
-	NewEnvironmentPrefix     string
-	OldEnvironmentPrefix     string
-	EmptyString              string
-	IdCommand                string
-	StateFormat              string
+	DeleteOnReadFailure      bool
+	ExistsExpectedStatus     int
+	Separator                string
+	WorkingDirectory         string
+}
+
+type TemplatesConfig struct {
+	LeftDelim  string
+	RightDelim string
+}
+
+type ProviderConfig struct {
+	Commands          *CommandsConfig
+	Logging           *Logging
+	Templates         *TemplatesConfig
+	EmptyString       string
+	LoggingBufferSize int64
+	OutputLinePrefix  string
+	OutputFormat      string
+	StateFormat       string
+	StateLinePrefix   string
 }

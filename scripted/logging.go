@@ -7,26 +7,25 @@ type Logger struct {
 	logFn     func(msg string, args ...interface{})
 }
 
-type Loggers struct {
+type Logging struct {
 	stack []*Logger
 }
 
-func initLoggers(s *Scripted, args ...interface{}) *Loggers {
+func newLogging(hcloggers []hclog.Logger, args ...interface{}) *Logging {
 	logger := &Logger{}
-	logger.append(s.pc.Logger)
-	logger.append(s.pc.FileLogger)
-	loggers := &Loggers{
+	logger.append(hcloggers...)
+	ret := &Logging{
 		stack: []*Logger{
 			logger,
 		},
 	}
 	if len(args) > 0 {
-		loggers.Push(args...)
+		ret.Push(args...)
 	}
-	return loggers
+	return ret
 }
 
-func (ls *Loggers) Push(args ...interface{}) *Logger {
+func (ls *Logging) Push(args ...interface{}) *Logger {
 	l := len(ls.stack)
 	logger := ls.stack[l-1]
 	ret := &Logger{}
@@ -37,7 +36,7 @@ func (ls *Loggers) Push(args ...interface{}) *Logger {
 	return ret
 }
 
-func (ls *Loggers) PopIf(expected *Logger) *Logger {
+func (ls *Logging) PopIf(expected *Logger) *Logger {
 	s := ls.stack
 	l := len(s)
 	logger := s[l-1]
@@ -48,8 +47,14 @@ func (ls *Loggers) PopIf(expected *Logger) *Logger {
 	return logger
 }
 
-func (ls *Loggers) Log(level hclog.Level, msg string, args ...interface{}) {
+func (ls *Logging) Log(level hclog.Level, msg string, args ...interface{}) {
 	ls.stack[len(ls.stack)-1].Log(level, msg, args...)
+}
+
+func (ls *Logging) Clone() *Logging {
+	return &Logging{
+		stack: append([]*Logger{}, ls.stack...),
+	}
 }
 
 func (l *Logger) With(args ...interface{}) *Logger {
@@ -60,10 +65,8 @@ func (l *Logger) With(args ...interface{}) *Logger {
 	return ret
 }
 
-func (l *Logger) append(logger hclog.Logger) {
-	if logger != nil {
-		l.hcloggers = append(l.hcloggers, logger)
-	}
+func (l *Logger) append(loggers ... hclog.Logger) {
+	l.hcloggers = append(l.hcloggers, loggers...)
 }
 
 func (l *Logger) Log(level hclog.Level, msg string, args ...interface{}) {

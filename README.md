@@ -19,9 +19,9 @@ First, an simple example that is used in tests too
 
 ```hcl
 provider "scripted" {
-  create_command = "echo \"hi\" > test_file"
-  read_command = "echo -n \"out=$(cat test_file)\""
-  delete_command = "rm test_file"
+  commands_create = "echo \"hi\" > test_file"
+  commands_read = "echo -n \"out=$(cat test_file)\""
+  commands_delete = "rm test_file"
 }
 
 resource "scripted_resource" "test" {
@@ -39,9 +39,9 @@ To create a more complete example add this to the sample example file
 ```hcl
 provider "scripted" {
   alias = "write_to_file"
-  create_command = "echo \"{{.new.input}}\" > {{.new.file}}"
-  read_command = "echo -n \"out=$(cat '{{.new.file}}')\""
-  delete_command = "rm {{.old.file}}"
+  commands_create = "echo \"{{.new.input}}\" > {{.new.file}}"
+  commands_read = "echo -n \"out=$(cat '{{.new.file}}')\""
+  commands_delete = "rm {{.old.file}}"
 }
 
 resource "scripted_resource" "filetest" {
