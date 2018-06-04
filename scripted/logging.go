@@ -65,7 +65,7 @@ func (l *Logger) With(args ...interface{}) *Logger {
 	return ret
 }
 
-func (l *Logger) append(loggers ... hclog.Logger) {
+func (l *Logger) append(loggers ...hclog.Logger) {
 	l.hcloggers = append(l.hcloggers, loggers...)
 }
 

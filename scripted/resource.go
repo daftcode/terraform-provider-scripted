@@ -13,6 +13,13 @@ func getScriptedResource() *schema.Resource {
 		Delete: resourceScriptedDelete,
 		Exists: resourceScriptedExists,
 
+		CustomizeDiff: func(diff *schema.ResourceDiff, i interface{}) error {
+			if diff.Get("needs_update").(bool) {
+				diff.SetNewComputed("needs_update")
+			}
+			return nil
+		},
+
 		Schema: map[string]*schema.Schema{
 			"log_name": {
 				Type:        schema.TypeString,
@@ -29,23 +36,31 @@ func getScriptedResource() *schema.Resource {
 				Type:        schema.TypeMap,
 				Optional:    true,
 				Description: "Template context for rendering commands",
+				Sensitive:   true,
 			},
 			"environment": {
 				Type:        schema.TypeMap,
 				Optional:    true,
 				Default:     []string{},
 				Description: "Environment to run commands in",
+				Sensitive:   true,
 			},
 			"output": {
 				Type:        schema.TypeMap,
 				Computed:    true,
 				Description: "Output from the read command",
+				Sensitive:   true,
 			},
 			"state": {
 				Type:        schema.TypeMap,
 				Computed:    true,
-				Optional:    true,
 				Description: "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
+				Sensitive:   true,
+			},
+			"needs_update": {
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "Helper indicating whether resource should be updated, ignore this.",
 			},
 		},
 	}
@@ -100,6 +115,9 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedReadBase(s *Scripted) error {
+	if err := resourceScriptedNeedsUpdate(s); err != nil {
+		return err
+	}
 	defer s.logging.PopIf(s.logging.Push("read", true))
 	if !s.isSet(s.pc.Commands.Templates.Read) {
 		s.log(hclog.Debug, `"commands_read" is not set, exiting.`)
@@ -184,8 +202,30 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	return nil
 }
 
+func resourceScriptedNeedsUpdate(s *Scripted) error {
+	defer s.logging.PopIf(s.logging.Push("is_current", true))
+	if !s.isSet(s.pc.Commands.Templates.ShouldUpdate) {
+		s.log(hclog.Debug, `"commands_should_update" is empty, exiting.`)
+		return nil
+	}
+	command, err := s.template(
+		"commands_prefix+commands_should_update",
+		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ShouldUpdate))
+	if err != nil {
+		return err
+	}
+	s.log(hclog.Debug, "resource is_current")
+	_, err = s.execute(command)
+	if err != nil {
+		s.log(hclog.Warn, "is_current returned error", "error", err)
+		s.forceUpdate()
+	}
+	return nil
+}
+
 func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
 	s, err := New(d, meta, Exists, false)
+	defer s.logging.PopIf(s.logging.Push("exists", true))
 	if err != nil {
 		return false, err
 	}

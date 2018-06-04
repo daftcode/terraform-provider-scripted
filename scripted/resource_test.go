@@ -35,6 +35,66 @@ func TestAccScriptedResource_BasicCRD(t *testing.T) {
 		},
 	})
 }
+
+func TestAccScriptedResource_ShouldUpdate(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+		alias = "file"
+		commands_should_update = <<EOF
+[ "$(cat '{{ .Cur.path }}')" == "{{ .Cur.content }}" ] || exit 1
+EOF
+		commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"
+		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
+		commands_delete = "rm '{{ .Cur.path }}'"
+	}
+	resource "scripted_resource" "test" {
+		provider = "scripted.file"
+		context {
+			path = "test_file"
+			content = "hi"
+		}
+	}
+`
+	const testConfigNotCurrent = `
+	provider "scripted" {
+		alias = "file"
+		commands_should_update = "exit 1"
+		commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"
+		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
+		commands_delete = "rm '{{ .Cur.path }}'"
+	}
+	resource "scripted_resource" "test" {
+		provider = "scripted.file"
+		context {
+			path = "test_file"
+			content = "hi"
+		}
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+				),
+			},
+			{
+				Config:   testConfig,
+				PlanOnly: true,
+			},
+			{
+				Config:             testConfigNotCurrent,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
 func TestAccScriptedResource_IdCommand(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {

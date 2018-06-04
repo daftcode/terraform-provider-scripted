@@ -473,6 +473,7 @@ func (s *Scripted) clear() {
 	s.log(hclog.Debug, "clearing resource")
 	s.d.SetId("")
 	s.d.Set("output", map[string]string{})
+	s.d.Set("is_current", nil)
 	s.clearState()
 }
 
@@ -489,4 +490,9 @@ func (s *Scripted) readLines(data, prefix, format, exceptPrefix string, outputs 
 		outputs = s.outputsText(data, prefix, exceptPrefix, outputs)
 	}
 	return outputs
+}
+
+func (s *Scripted) forceUpdate() {
+	s.log(hclog.Debug, "forcing update")
+	s.d.Set("needs_update", true)
 }
