@@ -330,22 +330,17 @@ func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error
 	cmd.Dir = s.pc.Commands.WorkingDirectory
 	cmd.Env = mapToEnv(env.Cur)
 
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		return "", fmt.Errorf("failed to initialize redirection pipe: %s", err)
-	}
 	output, err := circbuf.NewBuffer(8 * 1024)
 	if err != nil {
 		return "", fmt.Errorf("failed to initialize redirection buffer: %s", err)
 	}
-	io.TeeReader(pr, output)
 
 	stdout, _ := circbuf.NewBuffer(s.pc.LoggingBufferSize)
 
 	outLog, err := newLoggedOutput(s, "out")
 	errLog, err := newLoggedOutput(s, "err")
-	cmd.Stdout = io.MultiWriter(pw, outLog.Start(), stdout)
-	cmd.Stderr = io.MultiWriter(pw, errLog.Start())
+	cmd.Stdout = io.MultiWriter(output, outLog.Start(), stdout)
+	cmd.Stderr = io.MultiWriter(output, errLog.Start())
 
 	logArgs := []interface{}{
 		"interpreter", interpreter,
@@ -362,7 +357,6 @@ func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error
 		err = cmd.Wait()
 	}
 
-	pw.Close()
 	outLog.Close()
 	errLog.Close()
 
