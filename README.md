@@ -4,7 +4,7 @@ This is a terraform provider that lets you wrap shell/interpreter based tools to
 
 ## Naming
 
-The naming of this provider has been hard. The provider is about wrapping functionality by running shell or any other interpreter-based scripts. Originally the name was `generic_shell_wrapper` then `shell`, but currently the name is just `script`.
+The naming of this provider has been hard. The provider is about wrapping functionality by running shell or any other interpreter-based scripts. Originally the name was `generic_shell_wrapper` then `shell`, but currently the name is just `scripted`.
 
 ## Installing
 
