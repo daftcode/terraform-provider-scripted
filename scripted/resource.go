@@ -206,6 +206,7 @@ func resourceScriptedNeedsUpdate(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("is_current", true))
 	if !s.isSet(s.pc.Commands.Templates.ShouldUpdate) {
 		s.log(hclog.Debug, `"commands_should_update" is empty, exiting.`)
+		s.ensureNeedsUpdate()
 		return nil
 	}
 	command, err := s.template(

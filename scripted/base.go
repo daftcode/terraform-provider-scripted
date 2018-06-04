@@ -492,7 +492,17 @@ func (s *Scripted) readLines(data, prefix, format, exceptPrefix string, outputs 
 	return outputs
 }
 
+func (s *Scripted) setNeedsUpdate(value bool) {
+	s.log(hclog.Debug, "setting `needs_update`", "value", value)
+	s.d.Set("needs_update", value)
+}
+
+func (s *Scripted) ensureNeedsUpdate() {
+	if _, ok := s.d.GetOk("needs_update"); !ok {
+		s.setNeedsUpdate(false)
+	}
+}
+
 func (s *Scripted) forceUpdate() {
-	s.log(hclog.Debug, "forcing update")
-	s.d.Set("needs_update", true)
+	s.setNeedsUpdate(true)
 }
