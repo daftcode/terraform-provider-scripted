@@ -41,7 +41,6 @@ func getScriptedResource() *schema.Resource {
 			"environment": {
 				Type:        schema.TypeMap,
 				Optional:    true,
-				Default:     []string{},
 				Description: "Environment to run commands in",
 				Sensitive:   true,
 			},

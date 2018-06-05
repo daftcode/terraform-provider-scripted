@@ -1,2 +1,3 @@
 *
 !.gitignore
+!terraform-provider-scripted.json

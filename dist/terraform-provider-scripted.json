@@ -1,0 +1,354 @@
+{
+  "name": "terraform-provider-scripted",
+  "type": "provider",
+  "version": "v1.0.0",
+  "provider": {
+    "commands_create": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Create command",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_delete": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Delete command",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_delete_on_not_exists": {
+      "Type": "TypeBool",
+      "Optional": true,
+      "Description": "Delete resource when exists fails",
+      "Default": {
+        "Type": "bool",
+        "Value": "true"
+      },
+      "Elem": {}
+    },
+    "commands_delete_on_read_failure": {
+      "Type": "TypeBool",
+      "Optional": true,
+      "Description": "Delete resource when read fails",
+      "Default": {
+        "Type": "bool",
+        "Value": "true"
+      },
+      "Elem": {}
+    },
+    "commands_environment_include_parent": {
+      "Type": "TypeBool",
+      "Optional": true,
+      "Description": "Include parent environment in the command?",
+      "Default": {
+        "Type": "bool",
+        "Value": "true"
+      },
+      "Elem": {}
+    },
+    "commands_environment_prefix_new": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "New environment prefix (skip if empty)",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_environment_prefix_old": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Old environment prefix (skip if empty)",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_exists": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Exists command",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_exists_expected_exit_code": {
+      "Type": "TypeInt",
+      "Optional": true,
+      "Description": "Exists command return status",
+      "Default": {
+        "Type": "int",
+        "Value": "0"
+      },
+      "Elem": {}
+    },
+    "commands_id": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Command building resource id",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_interpreter": {
+      "Type": "TypeList",
+      "Optional": true,
+      "Description": "Interpreter and it's arguments, can be template with `command` variable.",
+      "Default": {},
+      "Elem": {
+        "Type": "SchemaElements",
+        "ElementsType": "TypeString"
+      }
+    },
+    "commands_prefix": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Command prefix shared between all commands",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_read": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Read command",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_read_format": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Templates output types: raw `/^(?\u003ckey\u003e[^=]+)=(?\u003cvalue\u003e[^\\n]*)$/` or base64 `/^(?\u003ckey\u003e[^=]+)=(?\u003cvalue_base64\u003e[^\\n]*)$/`. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`raw`"
+      },
+      "Elem": {}
+    },
+    "commands_read_line_prefix": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Ignore lines in read command without this prefix.",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_separator": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Format for joining 2 commands together without isolating them. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`%s\\n%s`"
+      },
+      "Elem": {}
+    },
+    "commands_should_update": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Command indicating whether resource should be updated, non-zero exit code to force update",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_state_format": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "State format type. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`commands_read_format`"
+      },
+      "Elem": {}
+    },
+    "commands_update": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Update command. Runs destroy then create by default.",
+      "Default": {},
+      "Elem": {}
+    },
+    "commands_working_directory": {
+      "Type": "TypeString",
+      "Required": true,
+      "Description": "Working directory to run commands in",
+      "Default": {},
+      "Elem": {}
+    },
+    "dependencies": {
+      "Type": "TypeMap",
+      "Optional": true,
+      "Description": "Dependencies purely for provider graph walking, otherwise ignored.",
+      "Default": {},
+      "Elem": {}
+    },
+    "logging_buffer_size": {
+      "Type": "TypeInt",
+      "Optional": true,
+      "Description": "stdout and stderr buffer sizes",
+      "Default": {
+        "Type": "int",
+        "Value": "1048576"
+      },
+      "Elem": {}
+    },
+    "logging_jsonformat": {
+      "Type": "TypeBool",
+      "Optional": true,
+      "Description": "should logs be json instead of plain text? ",
+      "Default": {
+        "Type": "string",
+        "Value": "`$TF_SCRIPTED_LOGGING_JSONFORMAT` != \"\""
+      },
+      "Elem": {}
+    },
+    "logging_log_level": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Logging level: TRACE, DEBUG, INFO, WARN, ERROR. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`$TF_SCRIPTED_LOGGING_LOG_LEVEL`"
+      },
+      "Elem": {}
+    },
+    "logging_log_path": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Extra logs output path. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`$TF_SCRIPTED_LOGGING_LOG_PATH`"
+      },
+      "Elem": {}
+    },
+    "logging_output_line_width": {
+      "Type": "TypeInt",
+      "Optional": true,
+      "Description": "Width of command's line to use during formatting. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`$TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH`"
+      },
+      "Elem": {}
+    },
+    "logging_output_logging_log_level": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Command stdout/stderr log level: TRACE, DEBUG, INFO, WARN, ERROR. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`$TF_SCRIPTED_LOGGING_OUTPUT_LOG_LEVEL`"
+      },
+      "Elem": {}
+    },
+    "logging_provider_name": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Name to display in log entries for this provider",
+      "Default": {},
+      "Elem": {}
+    },
+    "templates_left_delim": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Left delimiter for templates. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`$TF_SCRIPTED_TEMPLATES_LEFT_DELIM` or `{{`"
+      },
+      "Elem": {}
+    },
+    "templates_right_delim": {
+      "Type": "TypeString",
+      "Optional": true,
+      "Description": "Right delimiter for templates. ",
+      "Default": {
+        "Type": "string",
+        "Value": "`$TF_SCRIPTED_TEMPLATES_RIGHT_DELIM` or `{{`"
+      },
+      "Elem": {}
+    }
+  },
+  "resources": {
+    "scripted_resource": {
+      "context": {
+        "Type": "TypeMap",
+        "Optional": true,
+        "Description": "Template context for rendering commands",
+        "Default": {},
+        "Elem": {}
+      },
+      "environment": {
+        "Type": "TypeMap",
+        "Optional": true,
+        "Description": "Environment to run commands in",
+        "Default": {},
+        "Elem": {}
+      },
+      "log_name": {
+        "Type": "TypeString",
+        "Optional": true,
+        "Description": "Resource name to display in log messages",
+        "Default": {
+          "Type": "string"
+        },
+        "Elem": {}
+      },
+      "needs_update": {
+        "Type": "TypeBool",
+        "Description": "Helper indicating whether resource should be updated, ignore this.",
+        "Computed": true,
+        "Default": {},
+        "Elem": {}
+      },
+      "output": {
+        "Type": "TypeMap",
+        "Description": "Output from the read command",
+        "Computed": true,
+        "Default": {},
+        "Elem": {}
+      },
+      "state": {
+        "Type": "TypeMap",
+        "Description": "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
+        "Computed": true,
+        "Default": {},
+        "Elem": {}
+      }
+    }
+  },
+  "data-sources": {
+    "scripted_data": {
+      "context": {
+        "Type": "TypeMap",
+        "Optional": true,
+        "Description": "Template context for rendering commands",
+        "Default": {},
+        "Elem": {}
+      },
+      "environment": {
+        "Type": "TypeMap",
+        "Optional": true,
+        "Description": "Environment to run commands in",
+        "Default": {},
+        "Elem": {}
+      },
+      "log_name": {
+        "Type": "TypeString",
+        "Optional": true,
+        "Description": "Resource name to display in log messages",
+        "Default": {
+          "Type": "string"
+        },
+        "Elem": {}
+      },
+      "needs_update": {
+        "Type": "TypeBool",
+        "Description": "Helper indicating whether resource should be updated, ignore this.",
+        "Computed": true,
+        "Default": {},
+        "Elem": {}
+      },
+      "output": {
+        "Type": "TypeMap",
+        "Description": "Output from the read command",
+        "Computed": true,
+        "Default": {},
+        "Elem": {}
+      }
+    }
+  }
+}
