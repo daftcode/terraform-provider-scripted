@@ -6,6 +6,7 @@ import (
 	tf "github.com/hashicorp/terraform/terraform"
 	"os/user"
 	"path"
+	"strings"
 
 	"encoding/json"
 	"fmt"
@@ -54,11 +55,23 @@ func (m schemaMap) Export() SchemaInfo {
 
 func export(v *schema.Schema) SchemaDefinition {
 	item := SchemaDefinition{}
+	defVal := v.Default
+	description := v.Description
+
+	if defVal == scripted.EmptyString {
+		defVal = nil
+	}
+
+	if strings.Contains(description, "Defaults to: ") {
+		split := strings.SplitN(description, "Defaults to: ", 2)
+		description = split[0]
+		defVal = split[1]
+	}
 
 	item.Type = fmt.Sprintf("%s", v.Type)
 	item.Optional = v.Optional
 	item.Required = v.Required
-	item.Description = v.Description
+	item.Description = description
 	item.InputDefault = v.InputDefault
 	item.Computed = v.Computed
 	item.MaxItems = v.MaxItems
@@ -73,8 +86,8 @@ func export(v *schema.Schema) SchemaDefinition {
 		item.Elem = exportValue(v.Elem, fmt.Sprintf("%T", v.Elem))
 	}
 
-	if v.Default != nil {
-		item.Elem = exportValue(v.Default, fmt.Sprintf("%T", v.Default))
+	if defVal != nil {
+		item.Default = exportValue(defVal, fmt.Sprintf("%T", defVal))
 	}
 
 	// // Do not export DefaultFunc

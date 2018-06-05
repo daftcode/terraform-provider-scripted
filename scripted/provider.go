@@ -107,7 +107,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "%s\n%s",
-				Description: "Format for joining 2 commands together without isolating them, %s\n%s by default",
+				Description: "Format for joining 2 commands together without isolating them. Defaults to: `%s\\\\n%s`",
 			},
 			"commands_read": {
 				Type:        schema.TypeString,
@@ -120,20 +120,20 @@ func Provider() terraform.ResourceProvider {
 				Optional:     true,
 				Default:      "raw",
 				ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
-				Description:  "Templates output types: raw /^(?<key>[^=]+)=(?<value>[^\\n]*)$/ or base64 /^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/",
+				Description:  "Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/` or base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/`. Defaults to: `raw`",
 			},
 			"commands_read_line_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Ignore lines in read command without this prefix. Empty by default.",
+				Description: "Ignore lines in read command without this prefix.",
 			},
 			"commands_state_format": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				DefaultFunc:  defaultEmptyString,
 				ValidateFunc: validation.StringInSlice([]string{"raw", "base64", EmptyString}, false),
-				Description:  "State format type, defaults to `commands_read_format`",
+				Description:  "State format type. Defaults to: `commands_read_format`",
 			},
 			"commands_update": {
 				Type:        schema.TypeString,
@@ -164,32 +164,32 @@ func Provider() terraform.ResourceProvider {
 					return os.Getenv("TF_SCRIPTED_LOGGING_JSONFORMAT") != "", nil
 				},
 				Optional:    true,
-				Description: "should logs be json instead of plain text?",
+				Description: "should logs be json instead of plain text? Defaults to: `$TF_SCRIPTED_LOGGING_JSONFORMAT` != \"\"",
 			},
 			"logging_log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				DefaultFunc:  schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_LEVEL", "INFO"),
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
-				Description:  fmt.Sprintf("Logging level: %s", strings.Join(ValidLevelsStrings, ", ")),
+				Description:  fmt.Sprintf("Logging level: %s. Defaults to: `$TF_SCRIPTED_LOGGING_LOG_LEVEL`", strings.Join(ValidLevelsStrings, ", ")),
 			},
 			"logging_log_path": {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_PATH", EmptyString),
 				Optional:    true,
-				Description: "Extra logs output path",
+				Description: "Extra logs output path. Defaults to: `$TF_SCRIPTED_LOGGING_LOG_PATH`",
 			},
 			"logging_output_logging_log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				DefaultFunc:  schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_OUTPUT_LOG_LEVEL", "INFO"),
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
-				Description:  fmt.Sprintf("Command stdout/stderr log level: %s", strings.Join(ValidLevelsStrings, ", ")),
+				Description:  fmt.Sprintf("Command stdout/stderr log level: %s. Defaults to: `$TF_SCRIPTED_LOGGING_OUTPUT_LOG_LEVEL`", strings.Join(ValidLevelsStrings, ", ")),
 			},
 			"logging_output_line_width": {
 				Type:        schema.TypeInt,
 				Optional:    true,
-				Description: "Width of command's line to use during formatting.",
+				Description: "Width of command's line to use during formatting. Defaults to: `$TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH`",
 				DefaultFunc: func() (interface{}, error) {
 					env, _ := schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH", "1")()
 					val, err := strconv.Atoi(env.(string))
@@ -206,13 +206,13 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_TEMPLATES_LEFT_DELIM", "{{"),
 				Optional:    true,
-				Description: "Left delimiter for templates, `{{` by default.",
+				Description: "Left delimiter for templates. Defaults to: $TF_SCRIPTED_TEMPLATES_LEFT_DELIM or `{{`",
 			},
 			"templates_right_delim": {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_TEMPLATES_RIGHT_DELIM", "}}"),
 				Optional:    true,
-				Description: "Right delimiter for templates, `}}` by default.",
+				Description: "Right delimiter for templates. Defaults to: $TF_SCRIPTED_TEMPLATES_RIGHT_DELIM or `{{`",
 			},
 		},
 
