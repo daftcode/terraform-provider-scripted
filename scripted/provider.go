@@ -143,7 +143,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"commands_working_directory": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:   true,
 				DefaultFunc: schema.EnvDefaultFunc("PWD", nil),
 				Description: "Working directory to run commands in",
 			},

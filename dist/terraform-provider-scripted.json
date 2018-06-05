@@ -162,7 +162,7 @@
     },
     "commands_working_directory": {
       "Type": "TypeString",
-      "Required": true,
+      "Optional": true,
       "Description": "Working directory to run commands in",
       "Default": {},
       "Elem": {}
