@@ -28,7 +28,7 @@ docs: schema
 	"${OUT}/generate-docs" "${OUT}/${TF_NAME}.json"
 
 build_provider:
-	if [ -f "${OUT}/VERSION" ] ; then [ "$$(cat "${OUT}/VERSION")" = "${VERSION}" ] && (echo "version ${VERSION} already exists!"; exit 1); fi
+	if [ -f "${OUT}/VERSION" ] ; then if [ "$$(cat "${OUT}/VERSION")" = "${VERSION}" ] ; then echo "version ${VERSION} already exists!"; exit 1; fi ; fi
 	echo -n "${VERSION}" > "${OUT}/VERSION"
 	go build -o "${OUT}/${TF_NAME}"
 

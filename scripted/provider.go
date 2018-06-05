@@ -40,7 +40,7 @@ func Provider() terraform.ResourceProvider {
 			"commands_delete_on_read_failure": {
 				Type:        schema.TypeBool,
 				Optional:    true,
-				Default:     true,
+				Default:     false,
 				Description: "Delete resource when read fails",
 			},
 			"commands_delete_on_not_exists": {
@@ -143,7 +143,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"commands_working_directory": {
 				Type:        schema.TypeString,
-				Optional:   true,
+				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("PWD", nil),
 				Description: "Working directory to run commands in",
 			},

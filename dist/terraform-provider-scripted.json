@@ -1,7 +1,7 @@
 {
   "name": "scripted",
   "type": "provider",
-  "version": "v1.0.0",
+  "version": "v1.1.1",
   "provider": {
     "commands_create": {
       "Type": "TypeString",
@@ -33,7 +33,7 @@
       "Description": "Delete resource when read fails",
       "Default": {
         "Type": "bool",
-        "Value": "true"
+        "Value": "false"
       },
       "Elem": {}
     },

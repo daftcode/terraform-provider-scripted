@@ -8,7 +8,7 @@
 | `commands_create` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Create command | not set |
 | `commands_delete` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Delete command | not set |
 | `commands_delete_on_not_exists` | [TypeBool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when exists fails | `true` |
-| `commands_delete_on_read_failure` | [TypeBool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when read fails | `true` |
+| `commands_delete_on_read_failure` | [TypeBool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when read fails | `false` |
 | `commands_environment_include_parent` | [TypeBool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Include parent environment in the command? | `true` |
 | `commands_environment_prefix_new` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | New environment prefix (skip if empty) | not set |
 | `commands_environment_prefix_old` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Old environment prefix (skip if empty) | not set |
