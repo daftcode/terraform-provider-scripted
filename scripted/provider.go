@@ -107,7 +107,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "%s\n%s",
-				Description: "Format for joining 2 commands together without isolating them. Defaults to: `%s\\\\n%s`",
+				Description: "Format for joining 2 commands together without isolating them. Defaults to: `%s\\n%s`",
 			},
 			"commands_read": {
 				Type:        schema.TypeString,
@@ -206,13 +206,13 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_TEMPLATES_LEFT_DELIM", "{{"),
 				Optional:    true,
-				Description: "Left delimiter for templates. Defaults to: $TF_SCRIPTED_TEMPLATES_LEFT_DELIM or `{{`",
+				Description: "Left delimiter for templates. Defaults to: `$TF_SCRIPTED_TEMPLATES_LEFT_DELIM` or `{{`",
 			},
 			"templates_right_delim": {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_TEMPLATES_RIGHT_DELIM", "}}"),
 				Optional:    true,
-				Description: "Right delimiter for templates. Defaults to: $TF_SCRIPTED_TEMPLATES_RIGHT_DELIM or `{{`",
+				Description: "Right delimiter for templates. Defaults to: `$TF_SCRIPTED_TEMPLATES_RIGHT_DELIM` or `{{`",
 			},
 		},
 

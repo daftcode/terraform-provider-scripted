@@ -75,7 +75,11 @@ var description = makeBackticks(`## Argument reference
 | \'{{ $arg }}\' | 
 {{- "" }} [{{ $data.Type }}](https://www.terraform.io/docs/extend/schemas/schema-types.html#{{ $data.Type | lower }}) | 
 {{- "" }} {{ $data.Description }} | 
-{{- "" }} {{ $default := default "" $data.Default.Value -}}{{ if contains "\'" $default | not }}\'{{ end }}{{ $default }}{{ if contains "\'" $default | not }}\'{{ end }} | 
+{{- "" }} {{ if hasKey $data.Default "Value" }}{{ $default := default "" $data.Default.Value -}}
+	{{ if contains "\'" $default | not }}\'{{ end }}
+    {{- $default -}}
+ 	{{ if contains "\'" $default | not }}\'{{ end }}
+{{- else }}not set{{ end }} | 
 {{- end }}
 `)
 
