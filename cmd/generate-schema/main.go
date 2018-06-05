@@ -18,6 +18,7 @@ import (
 // of the provider.
 func Export(p *schema.Provider, name, version string) *ResourceProviderSchema {
 	result := new(ResourceProviderSchema)
+	name = strings.TrimPrefix(name, "terraform-provider-")
 
 	result.Name = name
 	result.Type = "provider"
@@ -110,6 +111,9 @@ func exportValue(value interface{}, t string) SchemaElement {
 }
 
 func Generate(provider *schema.Provider, name, version, outputPath string) {
+	if !strings.HasPrefix(name, "terraform-provider-") {
+		name = "terraform-provider-" + name
+	}
 	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.json", name))
 
 	if err := DoGenerate(provider, name, version, outputFilePath); err != nil {

@@ -1,5 +1,5 @@
 {
-  "name": "terraform-provider-scripted",
+  "name": "scripted",
   "type": "provider",
   "version": "v1.0.0",
   "provider": {
