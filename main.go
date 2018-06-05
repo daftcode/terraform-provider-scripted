@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/terraform/plugin"
-	"github.com/nazarewk/terraform-provider-scripted/scripted"
+	"github.com/daftcode/terraform-provider-scripted/scripted"
 )
 
 func main() {

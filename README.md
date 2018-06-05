@@ -61,10 +61,9 @@ Parameters can by used to change the resources.
 
 1.  [Install Go](https://golang.org/doc/install) on your machine
 2.  [Set up Gopath](https://golang.org/doc/code.html)
-3.  `git clone` this repository into `$GOPATH/src/github.com/nazarewk/terraform-provider-scripted`
+3.  `git clone` this repository into `$GOPATH/src/github.com/daftcode/terraform-provider-scripted`
 4.  Get the dependencies. Run `go get`
-6.  `make install`. You will now find the
-    binary at `$GOPATH/bin/terraform-provider-scripted`.
+6.  `make build-dev`. You will now find the binary at `dist/terraform-provider-scripted_`.
 
 ## Running acceptance tests
 

@@ -17,7 +17,11 @@ var Stderr = os.Stderr
 var Stdout = os.Stdout
 var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
-var emptyString = RandomSafeString(32)
+var EmptyString = `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ` // String representing empty value, can be set to anything (eg. generate random each time)
+
+func defaultEmptyString() (interface{}, error) {
+	return EmptyString, nil
+}
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
@@ -30,7 +34,7 @@ func Provider() terraform.ResourceProvider {
 			"commands_delete": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Delete command",
 			},
 			"commands_delete_on_read_failure": {
@@ -54,19 +58,19 @@ func Provider() terraform.ResourceProvider {
 			"commands_environment_prefix_old": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Old environment prefix (skip if empty)",
 			},
 			"commands_environment_prefix_new": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "New environment prefix (skip if empty)",
 			},
 			"commands_exists": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Exists command",
 			},
 			"commands_exists_expected_exit_code": {
@@ -78,13 +82,13 @@ func Provider() terraform.ResourceProvider {
 			"commands_id": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Command building resource id",
 			},
 			"commands_should_update": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Command indicating whether resource should be updated, non-zero exit code to force update",
 			},
 			"commands_interpreter": {
@@ -96,7 +100,7 @@ func Provider() terraform.ResourceProvider {
 			"commands_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Command prefix shared between all commands",
 			},
 			"commands_separator": {
@@ -108,7 +112,7 @@ func Provider() terraform.ResourceProvider {
 			"commands_read": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Read command",
 			},
 			"commands_read_format": {
@@ -121,20 +125,20 @@ func Provider() terraform.ResourceProvider {
 			"commands_read_line_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Ignore lines in read command without this prefix. Empty by default.",
 			},
 			"commands_state_format": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				Default:      emptyString,
-				ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
+				DefaultFunc:  defaultEmptyString,
+				ValidateFunc: validation.StringInSlice([]string{"raw", "base64", EmptyString}, false),
 				Description:  "State format type, defaults to `commands_read_format`",
 			},
 			"commands_update": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Description: "Update command. Runs destroy then create by default.",
 			},
 			"commands_working_directory": {
@@ -165,13 +169,13 @@ func Provider() terraform.ResourceProvider {
 			"logging_log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				DefaultFunc:  schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_LEVEL", "WARN"),
+				DefaultFunc:  schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_LEVEL", "INFO"),
 				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
 				Description:  fmt.Sprintf("Logging level: %s", strings.Join(ValidLevelsStrings, ", ")),
 			},
 			"logging_log_path": {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_PATH", emptyString),
+				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_PATH", EmptyString),
 				Optional:    true,
 				Description: "Extra logs output path",
 			},
@@ -194,7 +198,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"logging_provider_name": {
 				Type:        schema.TypeString,
-				Default:     emptyString,
+				DefaultFunc: defaultEmptyString,
 				Optional:    true,
 				Description: "Name to display in log entries for this provider",
 			},
@@ -237,7 +241,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 
 	logPath := d.Get("logging_log_path").(string)
 	var fileLogger hclog.Logger
-	if logPath != emptyString {
+	if logPath != EmptyString {
 		logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			return nil, err
@@ -251,7 +255,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	}
 
 	logging := newLogging(hcloggers)
-	if logProviderName != emptyString {
+	if logProviderName != EmptyString {
 		logging.Push("provider_name", logProviderName)
 	}
 	return logging, nil
@@ -281,13 +285,13 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	cau := false
 
 	update := d.Get("commands_update").(string)
-	if update == emptyString {
+	if update == EmptyString {
 		dbu = true
 		cau = true
 	}
 	of := d.Get("commands_read_format").(string)
 	sf := d.Get("commands_state_format").(string)
-	if sf == emptyString {
+	if sf == EmptyString {
 		sf = of
 	}
 	config := ProviderConfig{
@@ -324,7 +328,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			LeftDelim:  d.Get("templates_left_delim").(string),
 			RightDelim: d.Get("templates_right_delim").(string),
 		},
-		EmptyString:       emptyString,
+		EmptyString:       EmptyString,
 		Logging:           logging,
 		LoggingBufferSize: int64(d.Get("logging_buffer_size").(int)),
 		OutputFormat:      of,

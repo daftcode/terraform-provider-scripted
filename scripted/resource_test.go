@@ -750,7 +750,6 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
 		commands_delete = "rm {{.Old.file}}"
-		logging_log_level = "INFO"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -764,7 +763,6 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
 		commands_delete = "rm {{.Old.file}}"
-		logging_log_level = "INFO"
 	}
 	locals {
 		test = "hi all"
