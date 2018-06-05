@@ -2,10 +2,6 @@
 
 This is a terraform provider that lets you wrap shell/interpreter based tools to [Terraform](https://terraform.io/) resources in a simple way.
 
-## Naming
-
-The naming of this provider has been hard. The provider is about wrapping functionality by running shell or any other interpreter-based scripts. Originally the name was `generic_shell_wrapper` then `shell`, but currently the name is just `scripted`.
-
 ## Installing
 
 [Copied from the Terraform documentation](https://www.terraform.io/docs/plugins/basics.html):
@@ -46,6 +42,7 @@ EOF
   commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
   commands_delete = "rm '{{ .Cur.path }}'"
 }
+
 resource "scripted_resource" "test" {
   provider = "scripted.file"
   context {
@@ -55,7 +52,7 @@ resource "scripted_resource" "test" {
 }
 ```
 
-Parameters can by used to change the resources.
+Parameters can be used to change the resources. More info in [docs](docs/README.md)
 
 ## Building from source
 
