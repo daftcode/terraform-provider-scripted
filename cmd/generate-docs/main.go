@@ -58,12 +58,12 @@ func makeBackticks(s string) string {
 }
 
 const readme = `# {{ .name }} {{ .version }}
-- [provider_scripted.md](provider_scripted.md)
+- [provider_scripted](provider_scripted.md)
 {{- range $name, $data := .resources }}
-- [{{ $name }}.md]({{ $name }}.md)
+- [{{ $name }}]({{ $name }}.md)
 {{- end }}
 {{- range $name, $data := (index . "data-sources") }}
-- [{{ $name }}.md]({{ $name }}.md)
+- [{{ $name }}]({{ $name }}.md)
 {{- end }}
 `
 
