@@ -33,9 +33,10 @@ provider:
 build: provider
 
 install: schema docs provider
+	[ -f "${BIN_PATH}" ] && (echo "version ${VERSION} already exists!"; exit 1)
 	mkdir -p "${TF_PLUGINS}" "${TF_SCHEMAS}"
 	cp "dist/${TF_NAME}" "${BIN_PATH}"
-	cp "${OUT}/${TF_NAME}.json" "${TF_SCHEMAS}"
+	cp "${OUT}/${TF_NAME}.json" "${TF_SCHEMAS}/${BIN}.json"
 	ln -sfT "${BIN_PATH}" "${TF_PLUGINS}/${BIN}"
 
 fmtcheck:
