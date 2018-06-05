@@ -1,4 +1,7 @@
-## Argument reference
+
+# scripted_resource
+
+# Argument reference
 
 | Argument | Type | Description | Default |
 |:---      | ---  | ---         | ---     |

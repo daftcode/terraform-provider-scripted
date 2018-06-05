@@ -1,4 +1,7 @@
-## Argument reference
+
+# scripted_data
+
+# Argument reference
 
 | Argument | Type | Description | Default |
 |:---      | ---  | ---         | ---     |

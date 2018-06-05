@@ -67,11 +67,14 @@ const readme = `# {{ .name }} {{ .version }}
 {{- end }}
 `
 
-var description = makeBackticks(`## Argument reference
+var description = makeBackticks(`
+# {{ .name }}
+
+# Argument reference
 
 | Argument | Type | Description | Default |
 |:---      | ---  | ---         | ---     |
-{{- range $arg, $data := . }}
+{{- range $arg, $data := .config }}
 | \'{{ $arg }}\' | 
 {{- "" }} [{{ $data.Type }}](https://www.terraform.io/docs/extend/schemas/schema-types.html#{{ $data.Type | lower }}) | 
 {{- "" }} {{ $data.Description }} | 
@@ -121,12 +124,21 @@ func main() {
 	t := &Templates{templates: map[string]*Template{}}
 	data := getJson(arg(1))
 	t.set("README.md", readme, data)
-	t.set("provider_scripted.md", description, get(data, "provider"))
+	t.set("provider_scripted.md", description, map[string]interface{}{
+		"name": "provider scripted",
+		"config": get(data, "provider"),
+	})
 	for name, values := range get(data, "resources").(map[string]interface{}) {
-		t.set(name+".md", description, values)
+		t.set(name+".md", description, map[string]interface{}{
+			"name": name,
+			"config": values,
+		})
 	}
 	for name, values := range get(data, "data-sources").(map[string]interface{}) {
-		t.set(name+".md", description, values)
+		t.set(name+".md", description, map[string]interface{}{
+			"name": name,
+			"config": values,
+		})
 	}
 	t.write(argOrDefault(2, "docs"), data)
 }
