@@ -1,4 +1,4 @@
-# Terraform custom provider
+# `terraform-provider-scripted`
 
 This is a terraform provider that lets you wrap shell/interpreter based tools to [Terraform](https://terraform.io/) resources in a simple way.
 
