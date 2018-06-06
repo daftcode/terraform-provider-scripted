@@ -23,6 +23,7 @@ type CommandTemplates struct {
 type OutputConfig struct {
 	LogLevel  hclog.Level
 	LineWidth int
+	LogPids   bool
 }
 
 type CommandsConfig struct {

@@ -190,6 +190,14 @@ func Provider() terraform.ResourceProvider {
 					return val, err
 				},
 			},
+			"logging_output_pids": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "Should output lines contain `ppid` and `pid`? Defaults to: `$TF_SCRIPTED_LOGGING_OUTPUT_PIDS`",
+				DefaultFunc: func() (interface{}, error) {
+					return os.Getenv("TF_SCRIPTED_LOGGING_OUTPUT_PIDS") != "", nil
+				},
+			},
 			"logging_provider_name": {
 				Type:        schema.TypeString,
 				DefaultFunc: defaultEmptyString,
@@ -309,6 +317,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			Output: &OutputConfig{
 				LogLevel:  hclog.LevelFromString(d.Get("logging_output_logging_log_level").(string)),
 				LineWidth: d.Get("logging_output_line_width").(int),
+				LogPids:   d.Get("logging_output_pids").(bool),
 			},
 			CreateAfterUpdate:   cau,
 			DeleteBeforeUpdate:  dbu,

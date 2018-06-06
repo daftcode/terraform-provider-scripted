@@ -55,8 +55,13 @@ func (lo *LoggedOutput) Close() {
 func (lo *LoggedOutput) logOutput() {
 	defer close(lo.doneCh)
 	lr := linereader.New(lo.tee)
+	extra := ""
+	if lo.s.pc.Commands.Output.LogPids {
+		extra += fmt.Sprintf(" ppid=%-5[1]d pid=%-5[2]d", os.Getppid(), os.Getpid())
+	}
 	for line := range lr.Ch {
-		format := fmt.Sprintf("<%[1]s ppid=%-5[3]d pid=%-5[4]d>%%-%[2]ds</%[1]s>", lo.tag, lo.s.pc.Commands.Output.LineWidth, os.Getppid(), os.Getpid())
+		format := fmt.Sprintf("<%[1]s%[3]s>%%-%[2]ds</%[1]s>", lo.tag, lo.s.pc.Commands.Output.LineWidth, extra)
+
 		lo.s.log(lo.s.pc.Commands.Output.LogLevel, fmt.Sprintf(format, line))
 	}
 }

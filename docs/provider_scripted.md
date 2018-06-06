@@ -31,6 +31,7 @@
 | `logging_log_path` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Extra logs output path.  | `$TF_SCRIPTED_LOGGING_LOG_PATH` |
 | `logging_output_line_width` | [TypeInt](https://www.terraform.io/docs/extend/schemas/schema-types.html#typeint) | Width of command's line to use during formatting.  | `$TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH` |
 | `logging_output_logging_log_level` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command stdout/stderr log level: TRACE, DEBUG, INFO, WARN, ERROR.  | `$TF_SCRIPTED_LOGGING_OUTPUT_LOG_LEVEL` |
+| `logging_output_pids` | [TypeBool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Should output lines contain `ppid` and `pid`?  | `$TF_SCRIPTED_LOGGING_OUTPUT_PIDS` |
 | `logging_provider_name` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Name to display in log entries for this provider | not set |
 | `templates_left_delim` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Left delimiter for templates.  | `$TF_SCRIPTED_TEMPLATES_LEFT_DELIM` or `{{` |
 | `templates_right_delim` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Right delimiter for templates.  | `$TF_SCRIPTED_TEMPLATES_RIGHT_DELIM` or `{{` |
