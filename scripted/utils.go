@@ -4,9 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os/exec"
 	"reflect"
-	"syscall"
+	"sort"
 )
 
 func mergeMaps(maps ...map[string]string) map[string]string {
@@ -59,19 +58,23 @@ func is(b, other interface{}) bool {
 	return x.Pointer() == y.Pointer()
 }
 
-func getExitStatus(err error) int {
-	if err == nil {
-		return 0
-	}
-	if exiterr, ok := err.(*exec.ExitError); ok {
-		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-			return status.ExitStatus()
-		}
-	}
-	return -1
-}
-
 func hash(s string) string {
 	sha := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sha[:])
+}
+
+func getMapHash(data map[string]interface{}) []string {
+	var keys []string
+	var entries []string
+
+	ctx := data
+	for k := range ctx {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		entries = append(entries, hash(hash(k)+hash(ctx[k].(string))))
+	}
+	return entries
 }

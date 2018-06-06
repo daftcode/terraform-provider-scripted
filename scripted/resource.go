@@ -218,10 +218,6 @@ func resourceScriptedNeedsUpdate(s *Scripted) error {
 	}
 	s.log(hclog.Debug, "resource should_update")
 	_, err = s.execute(command)
-	status := getExitStatus(err)
-	if err != nil {
-		s.log(hclog.Warn, "should_update returned error", "error", err, "status", status)
-	}
 	s.setNeedsUpdate(err != nil)
 	return nil
 }

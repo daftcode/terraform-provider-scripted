@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"sort"
 	"strings"
 	"text/template"
 )
@@ -419,18 +418,9 @@ func (s *Scripted) ensureId() error {
 		return nil
 	}
 	env := castConfigMap(s.d.Get("environment"))
-
-	var keys []string
-	ctx := s.d.Get("context").(map[string]interface{})
-	for k := range ctx {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
 	var entries []string
-	for _, k := range keys {
-		entries = append(entries, hash(hash(k)+hash(ctx[k].(string))))
-	}
+	entries = append(entries, getMapHash(s.d.Get("context").(map[string]interface{}))...)
+	entries = append(entries, getMapHash(s.d.Get("state").(map[string]interface{}))...)
 	for _, entry := range env {
 		entries = append(entries, hash(entry))
 	}

@@ -10,7 +10,7 @@ BIN := $(TF_NAME)_$(VERSION)
 BIN_PATH := $(GOPATH)/bin/$(BIN)
 TEST ?= $$(go list ./...)
 
-all: fmt test schema docs build_provider
+all: fmt test build
 
 fmt:
 	go fmt ${NAME}/*
@@ -28,17 +28,22 @@ docs: schema
 	"${OUT}/generate-docs" "${OUT}/${TF_NAME}.json"
 
 build_provider:
-	if [ -f "${OUT}/VERSION" ] ; then if [ "$$(cat "${OUT}/VERSION")" = "${VERSION}" ] ; then echo "version ${VERSION} already exists!"; exit 1; fi ; fi
 	echo -n "${VERSION}" > "${OUT}/VERSION"
 	go build -o "${OUT}/${TF_NAME}"
 
-build: build_provider
+build: schema docs build_provider
 
-install: schema docs build_provider
+install: build
 	mkdir -p "${TF_PLUGINS}" "${TF_SCHEMAS}"
 	cp "dist/${TF_NAME}" "${BIN_PATH}"
 	cp "${OUT}/${TF_NAME}.json" "${TF_SCHEMAS}/${BIN}.json"
 	ln -sfT "${BIN_PATH}" "${TF_PLUGINS}/${BIN}"
+
+release:
+	if [ "$$(cat "${OUT}/VERSION")" = "${VERSION}" ] ; then echo "tagging ${VERSION}"; else echo "version ${VERSION} is not built!"; exit 1; fi;
+	git diff --quiet
+	git tag -a "${VERSION}"
+	git push --follow-tags
 
 fmtcheck:
 	l=`gofmt -l ${NAME}`; if [ -n "$$l" ]; then echo "Following needs formatting (gofmt):"; echo "$$l"; exit 1; fi

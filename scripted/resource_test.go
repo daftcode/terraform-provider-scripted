@@ -85,8 +85,8 @@ EOF
 				),
 			},
 			{
-				Config:   testConfig,
-				PlanOnly: true,
+				Config:             testConfig,
+				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 			{
@@ -95,8 +95,8 @@ EOF
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				Config:   testConfig,
-				PlanOnly: true,
+				Config:             testConfig,
+				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 		},
