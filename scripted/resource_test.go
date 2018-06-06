@@ -40,6 +40,7 @@ func TestAccScriptedResource_ShouldUpdate(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		alias = "file"
+		commands_prefix = "set -xEeo pipefail"
 		commands_should_update = <<EOF
 [ "$(cat '{{ .Cur.path }}')" == '{{ .Cur.content }}' ] || exit 1
 EOF
@@ -58,6 +59,7 @@ EOF
 	const testConfigNotCurrent = `
 	provider "scripted" {
 		alias = "file"
+		commands_prefix = "set -xEeo pipefail"
 		commands_should_update = "exit 1"
 		commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
@@ -85,11 +87,17 @@ EOF
 			{
 				Config:   testConfig,
 				PlanOnly: true,
+				ExpectNonEmptyPlan: false,
 			},
 			{
 				Config:             testConfigNotCurrent,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config:   testConfig,
+				PlanOnly: true,
+				ExpectNonEmptyPlan: false,
 			},
 		},
 	})

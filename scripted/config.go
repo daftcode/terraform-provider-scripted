@@ -26,16 +26,15 @@ type OutputConfig struct {
 }
 
 type CommandsConfig struct {
-	Environment          *EnvironmentConfig
-	Templates            *CommandTemplates
-	Output               *OutputConfig
-	CreateAfterUpdate    bool
-	DeleteBeforeUpdate   bool
-	DeleteOnNotExists    bool
-	DeleteOnReadFailure  bool
-	ExistsExpectedStatus int
-	Separator            string
-	WorkingDirectory     string
+	Environment               *EnvironmentConfig
+	Templates                 *CommandTemplates
+	Output                    *OutputConfig
+	CreateAfterUpdate         bool
+	DeleteBeforeUpdate        bool
+	DeleteOnNotExists         bool
+	DeleteOnReadFailure       bool
+	Separator                 string
+	WorkingDirectory          string
 }
 
 type TemplatesConfig struct {

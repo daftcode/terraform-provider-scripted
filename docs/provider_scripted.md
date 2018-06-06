@@ -13,7 +13,6 @@
 | `commands_environment_prefix_new` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | New environment prefix (skip if empty) | not set |
 | `commands_environment_prefix_old` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Old environment prefix (skip if empty) | not set |
 | `commands_exists` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exists command | not set |
-| `commands_exists_expected_exit_code` | [TypeInt](https://www.terraform.io/docs/extend/schemas/schema-types.html#typeint) | Exists command return status | `0` |
 | `commands_id` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command building resource id | not set |
 | `commands_interpreter` | [TypeList](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | Interpreter and it's arguments, can be template with `command` variable. | not set |
 | `commands_prefix` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command prefix shared between all commands | not set |

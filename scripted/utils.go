@@ -60,6 +60,9 @@ func is(b, other interface{}) bool {
 }
 
 func getExitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
 	if exiterr, ok := err.(*exec.ExitError); ok {
 		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 			return status.ExitStatus()

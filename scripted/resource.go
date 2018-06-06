@@ -16,6 +16,8 @@ func getScriptedResource() *schema.Resource {
 		CustomizeDiff: func(diff *schema.ResourceDiff, i interface{}) error {
 			if diff.Get("needs_update").(bool) {
 				diff.SetNewComputed("needs_update")
+			} else {
+				diff.Clear("needs_update")
 			}
 			return nil
 		},
@@ -202,10 +204,10 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 }
 
 func resourceScriptedNeedsUpdate(s *Scripted) error {
-	defer s.logging.PopIf(s.logging.Push("is_current", true))
+	defer s.logging.PopIf(s.logging.Push("should_update", true))
 	if !s.isSet(s.pc.Commands.Templates.ShouldUpdate) {
 		s.log(hclog.Debug, `"commands_should_update" is empty, exiting.`)
-		s.ensureNeedsUpdate()
+		s.setNeedsUpdate(false)
 		return nil
 	}
 	command, err := s.template(
@@ -214,12 +216,13 @@ func resourceScriptedNeedsUpdate(s *Scripted) error {
 	if err != nil {
 		return err
 	}
-	s.log(hclog.Debug, "resource is_current")
+	s.log(hclog.Debug, "resource should_update")
 	_, err = s.execute(command)
+	status := getExitStatus(err)
 	if err != nil {
-		s.log(hclog.Warn, "is_current returned error", "error", err)
-		s.forceUpdate()
+		s.log(hclog.Warn, "should_update returned error", "error", err, "status", status)
 	}
+	s.setNeedsUpdate(err != nil)
 	return nil
 }
 
@@ -244,10 +247,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	if err != nil {
 		s.log(hclog.Warn, "exists returned error", "error", err)
 	}
-	exists := getExitStatus(err) == s.pc.Commands.ExistsExpectedStatus
-	if s.pc.Commands.ExistsExpectedStatus == 0 {
-		exists = err == nil
-	}
+	exists := err == nil
 	if !exists && s.pc.Commands.DeleteOnNotExists {
 		s.clear()
 	}

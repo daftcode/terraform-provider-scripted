@@ -477,7 +477,7 @@ func (s *Scripted) clear() {
 	s.log(hclog.Debug, "clearing resource")
 	s.d.SetId("")
 	s.d.Set("output", map[string]string{})
-	s.d.Set("is_current", nil)
+	s.d.Set("needs_update", nil)
 	s.clearState()
 }
 
@@ -499,14 +499,4 @@ func (s *Scripted) readLines(data, prefix, format, exceptPrefix string, outputs 
 func (s *Scripted) setNeedsUpdate(value bool) {
 	s.log(hclog.Debug, "setting `needs_update`", "value", value)
 	s.d.Set("needs_update", value)
-}
-
-func (s *Scripted) ensureNeedsUpdate() {
-	if _, ok := s.d.GetOk("needs_update"); !ok {
-		s.setNeedsUpdate(false)
-	}
-}
-
-func (s *Scripted) forceUpdate() {
-	s.setNeedsUpdate(true)
 }
