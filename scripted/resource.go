@@ -87,8 +87,8 @@ func resourceScriptedCreateBase(s *Scripted) error {
 		return resourceScriptedReadBase(s)
 	}
 	command, err := s.template(
-		"commands_prefix+commands_create",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Create))
+		"commands_prefix+commands_modify_prefix+commands_create",
+		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ModifyPrefix, s.pc.Commands.Templates.Create))
 	if err != nil {
 		return err
 	}
@@ -187,8 +187,8 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 func resourceScriptedUpdateBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("update", true))
 	command, err := s.template(
-		"commands_prefix+commands_update",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Update))
+		"commands_prefix+commands_modify_prefix+commands_update",
+		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ModifyPrefix, s.pc.Commands.Templates.Update))
 	if err != nil {
 		return err
 	}

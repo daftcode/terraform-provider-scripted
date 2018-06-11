@@ -14,6 +14,7 @@ type CommandTemplates struct {
 	Exists       string
 	Id           string
 	Interpreter  []string
+	ModifyPrefix string
 	Prefix       string
 	Read         string
 	ShouldUpdate string

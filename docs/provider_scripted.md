@@ -15,6 +15,7 @@
 | `commands_exists` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exists command | not set |
 | `commands_id` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command building resource id | not set |
 | `commands_interpreter` | [TypeList](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | Interpreter and it's arguments, can be template with `command` variable. | not set |
+| `commands_modify_prefix` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Modification (create and update) commands prefix | not set |
 | `commands_prefix` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command prefix shared between all commands | not set |
 | `commands_read` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Read command | not set |
 | `commands_read_format` | [TypeString](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\n]*)$/` or base64 `/^(?<key>[^=]+)=(?<value_base64>[^\n]*)$/`.  | `raw` |

@@ -79,17 +79,23 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: "Command building resource id",
 			},
-			"commands_should_update": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: defaultEmptyString,
-				Description: "Command indicating whether resource should be updated, non-zero exit code to force update",
-			},
 			"commands_interpreter": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				Description: "Interpreter and it's arguments, can be template with `command` variable.",
+			},
+			"commands_modify_prefix": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				DefaultFunc: defaultEmptyString,
+				Description: "Modification (create and update) commands prefix",
+			},
+			"commands_should_update": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				DefaultFunc: defaultEmptyString,
+				Description: "Command indicating whether resource should be updated, non-zero exit code to force update",
 			},
 			"commands_prefix": {
 				Type:        schema.TypeString,
@@ -305,6 +311,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			},
 			Templates: &CommandTemplates{
 				Interpreter:  interpreter,
+				ModifyPrefix: d.Get("commands_modify_prefix").(string),
 				Prefix:       d.Get("commands_prefix").(string),
 				Create:       d.Get("commands_create").(string),
 				Delete:       d.Get("commands_delete").(string),
