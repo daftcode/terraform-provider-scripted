@@ -13,6 +13,7 @@
 | `commands_environment_prefix_new` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | New environment prefix (skip if empty) | not set |
 | `commands_environment_prefix_old` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Old environment prefix (skip if empty) | not set |
 | `commands_exists` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exists command | not set |
+| `commands_exists_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_exists` to trigger not-exists behaviour.  | `$TF_SCRIPTED_COMMANDS_EXISTS_TRIGGER_OUTPUT` or `false` |
 | `commands_id` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command building resource id | not set |
 | `commands_interpreter` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | Interpreter and it's arguments, can be a template with `command` variable. | not set |
 | `commands_modify_prefix` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Modification (create and update) commands prefix | not set |
@@ -21,12 +22,12 @@
 | `commands_read` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Read command | not set |
 | `commands_read_format` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\n]*)$/` or base64 `/^(?<key>[^=]+)=(?<value_base64>[^\n]*)$/`.  | `$TF_SCRIPTED_COMMANDS_READ_FORMAT` or `raw` |
 | `commands_read_line_prefix` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Ignore lines in read command without this prefix.  | `$TF_SCRIPTED_COMMANDS_READ_LINE_PREFIX` or not set |
-| `commands_separator` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Format for joining 2 commands together without isolating them.  | `$TF_SCRIPTED_COMMANDS_SEPARATOR` or `%s\n%s` |
+| `commands_separator` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Format for joining 2 commands together without isolating them.  | `$TF_SCRIPTED_COMMANDS_SEPARATOR` or %s\n%s |
 | `commands_should_update` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command indicating whether resource should be updated, non-zero exit code to force update | not set |
 | `commands_should_update_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_should_update` to trigger an update.  | `$TF_SCRIPTED_COMMANDS_SHOULD_UPDATE_TRIGGER_OUTPUT` or `true` |
 | `commands_state_format` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Ignore lines in read command without this prefix.  | `$TF_SCRIPTED_COMMANDS_STATE_FORMAT` or `commands_read_format` |
 | `commands_update` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Update command. Runs destroy then create by default. | not set |
-| `commands_working_directory` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Working directory to run commands in | not set |
+| `commands_working_directory` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Working directory to run commands in  | `$TF_SCRIPTED_COMMANDS_WORKING_DIRECTORY` or not set |
 | `dependencies` | [map](https://www.terraform.io/docs/extend/schemas/schema-types.html#typemap) | Dependencies purely for provider graph walking, otherwise ignored. | not set |
 | `logging_buffer_size` | [int](https://www.terraform.io/docs/extend/schemas/schema-types.html#typeint) | stdout and stderr buffer sizes | `8192` |
 | `logging_jsonformat` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | should logs be json instead of plain text?  | `$TF_SCRIPTED_LOGGING_JSONFORMAT` or `$TF_SCRIPTED_LOGGING_JSONFORMAT` != `""` |

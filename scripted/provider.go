@@ -168,8 +168,8 @@ func Provider() terraform.ResourceProvider {
 			"commands_exists_trigger_output": stringDefaultSchema(
 				nil,
 				"commands_exists_trigger_output",
-				"Exact output expected from `commands_exists` to trigger an update.",
-				"true",
+				"Exact output expected from `commands_exists` to trigger not-exists behaviour.",
+				"false",
 			),
 			"commands_id": {
 				Type:        schema.TypeString,
@@ -212,10 +212,11 @@ func Provider() terraform.ResourceProvider {
 				"commands_prefix_fromenv",
 				"Command prefix shared between all commands (added before `commands_prefix`)",
 			),
-			"commands_separator": stringDefaultSchema(
+			"commands_separator": stringDefaultSchemaBase(
 				nil,
 				"commands_separator",
 				"Format for joining 2 commands together without isolating them.",
+				"%s\n%s",
 				"%s\\n%s",
 			),
 			"commands_read": {
@@ -251,12 +252,11 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: "Update command. Runs destroy then create by default.",
 			},
-			"commands_working_directory": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: schema.EnvDefaultFunc("PWD", nil),
-				Description: "Working directory to run commands in",
-			},
+			"commands_working_directory": stringDefaultSchemaEmpty(
+				nil,
+				"commands_working_directory",
+				"Working directory to run commands in",
+			),
 			"dependencies": {
 				Type:        schema.TypeMap,
 				Optional:    true,
@@ -384,7 +384,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		if runtime.GOOS == "windows" {
 			interpreterI = []interface{}{"cmd", "/C"}
 		}
-		interpreterI = []interface{}{"bash", "-Eeo", "pipefail", "-c", "{{ .command }}"}
+		interpreterI = []interface{}{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
 	}
 	interpreter := make([]string, len(interpreterI))
 	for i, vI := range interpreterI {

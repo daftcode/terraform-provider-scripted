@@ -36,6 +36,32 @@ func TestAccScriptedResource_BasicCRD(t *testing.T) {
 	})
 }
 
+func TestAccScriptedResource_Prefix(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+		commands_prefix = "true"
+		commands_create = "echo -n \"hi\" > test_file"
+		commands_read = "echo -n \"out=$(cat test_file)\""
+		commands_delete = "rm test_file"
+	}
+	resource "scripted_resource" "test" {
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResource_ShouldUpdate(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
@@ -805,7 +831,7 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "[ -f '{{.New.file}}' ] && echo -n true"
+		commands_exists = "[ -f '{{.New.file}}' ] || echo -n false"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}
@@ -820,7 +846,22 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "[ -f '{{.New.file}}' ] && echo -n true"
+		commands_exists = "[ -f '{{.New.file}}' ] || echo -n false"
+		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_delete = "rm {{.Old.file}}"
+	}
+	resource "scripted_resource" "test" {
+		context {
+			output = "hi all"
+			file = "testfileU2"
+		}
+	}
+`
+	const testConfig3 = `
+	provider "scripted" {
+		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
+		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
+		commands_exists = "echo -n false"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}
@@ -841,6 +882,22 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
+			},
+			{
+				Config: testConfig2,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
+				),
+			},
+			{
+				Config:             testConfig2,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				Config:             testConfig3,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
 			},
 			{
 				Config: testConfig2,

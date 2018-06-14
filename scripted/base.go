@@ -326,7 +326,9 @@ func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error
 	command := s.joinCommands(commands...)
 	interpreter, args, err := s.getInterpreter(command)
 	cmd := exec.Command(interpreter, args...)
-	cmd.Dir = s.pc.Commands.WorkingDirectory
+	if isSet(s.pc.Commands.WorkingDirectory) {
+		cmd.Dir = s.pc.Commands.WorkingDirectory
+	}
 	cmd.Env = mapToEnv(env.Cur)
 
 	output, err := circbuf.NewBuffer(8 * 1024)
@@ -377,10 +379,10 @@ func (s *Scripted) execute(commands ...string) (string, error) {
 func (s *Scripted) joinCommands(commands ...string) string {
 	out := ""
 	for _, cmd := range commands {
-		isSet := isSet(cmd)
-		if out == "" && isSet {
+		isEmpty := isSet(cmd)
+		if out == "" && isEmpty {
 			out = cmd
-		} else if isSet {
+		} else if isEmpty {
 			out = fmt.Sprintf(s.pc.Commands.Separator, out, cmd)
 		}
 	}
@@ -399,8 +401,8 @@ func (s *Scripted) ensureId() error {
 	if isSet(s.pc.Commands.Templates.Id) {
 		defer s.logging.PopIf(s.logging.Push("id", true))
 		command, err := s.template(
-			"commands_prefix+commands_id",
-			s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Id),
+			"commands_prefix_fromenv+commands_prefix+commands_id",
+			s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Id),
 		)
 		if err != nil {
 			return err

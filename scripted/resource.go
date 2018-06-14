@@ -14,9 +14,11 @@ func getScriptedResource() *schema.Resource {
 		Exists: resourceScriptedExists,
 
 		CustomizeDiff: func(diff *schema.ResourceDiff, i interface{}) error {
-			diff.Clear("needs_update")
 			if diff.Get("needs_update").(bool) {
 				diff.SetNewComputed("needs_update")
+			} else {
+
+				diff.Clear("needs_update")
 			}
 			return nil
 		},
@@ -250,7 +252,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	if err != nil {
 		s.log(hclog.Warn, "exists returned error", "error", err)
 	}
-	exists := err == nil && output == s.pc.Commands.ExistsExpectedOutput
+	exists := err == nil && output != s.pc.Commands.ExistsExpectedOutput
 	if !exists && s.pc.Commands.DeleteOnNotExists {
 		s.clear()
 	}
