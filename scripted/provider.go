@@ -105,10 +105,13 @@ func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *
 		prefix = "!"
 	}
 	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s` %s= `\"\"`", key, prefix))
-	defaultFunc := s.DefaultFunc
 	s.DefaultFunc = func() (interface{}, error) {
-		ret, _ := defaultFunc()
-		return (ret != EmptyString && ret != "") == defVal, nil
+		ret, ok := getEnv(key, EmptyString)
+		value := ret != EmptyString && ret != ""
+		if !ok {
+			value = defVal
+		}
+		return value, nil
 	}
 	s.Type = schema.TypeBool
 	return s
