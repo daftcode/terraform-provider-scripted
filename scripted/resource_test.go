@@ -805,7 +805,7 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "[ -f '{{.New.file}}' ] && exit 0 || exit 1"
+		commands_exists = "[ -f '{{.New.file}}' ] && echo -n true"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}
@@ -820,7 +820,7 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "[ -f '{{.New.file}}' ] && exit 0 || exit 1"
+		commands_exists = "[ -f '{{.New.file}}' ] && echo -n true"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}

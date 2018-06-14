@@ -246,15 +246,15 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return false, err
 	}
 	s.log(hclog.Debug, "resource exists")
-	_, err = s.execute(command)
+	output, err := s.execute(command)
 	if err != nil {
 		s.log(hclog.Warn, "exists returned error", "error", err)
 	}
-	exists := err == nil
+	exists := err == nil && output == s.pc.Commands.ExistsExpectedOutput
 	if !exists && s.pc.Commands.DeleteOnNotExists {
 		s.clear()
 	}
-	return exists, nil
+	return exists, err
 }
 
 func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {

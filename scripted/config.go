@@ -39,6 +39,7 @@ type CommandsConfig struct {
 	Separator                  string
 	WorkingDirectory           string
 	ShouldUpdateExpectedOutput string
+	ExistsExpectedOutput       string
 }
 
 type TemplatesConfig struct {

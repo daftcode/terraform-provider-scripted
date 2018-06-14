@@ -165,6 +165,12 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: "Exists command",
 			},
+			"commands_exists_trigger_output": stringDefaultSchema(
+				nil,
+				"commands_exists_trigger_output",
+				"Exact output expected from `commands_exists` to trigger an update.",
+				"true",
+			),
 			"commands_id": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -435,6 +441,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			DeleteOnNotExists:          d.Get("commands_delete_on_not_exists").(bool),
 			DeleteOnReadFailure:        d.Get("commands_delete_on_read_failure").(bool),
 			ShouldUpdateExpectedOutput: d.Get("commands_should_update_trigger_output").(string),
+			ExistsExpectedOutput:       d.Get("commands_exists_trigger_output").(string),
 			Separator:                  d.Get("commands_separator").(string),
 			WorkingDirectory:           d.Get("commands_working_directory").(string),
 		},
