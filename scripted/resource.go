@@ -14,10 +14,9 @@ func getScriptedResource() *schema.Resource {
 		Exists: resourceScriptedExists,
 
 		CustomizeDiff: func(diff *schema.ResourceDiff, i interface{}) error {
+			diff.Clear("needs_update")
 			if diff.Get("needs_update").(bool) {
 				diff.SetNewComputed("needs_update")
-			} else {
-				diff.Clear("needs_update")
 			}
 			return nil
 		},
@@ -78,7 +77,7 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 
 func resourceScriptedCreateBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("create", true))
-	if !s.isSet(s.pc.Commands.Templates.Create) {
+	if !isSet(s.pc.Commands.Templates.Create) {
 		s.log(hclog.Debug, `"commands_create" is empty, exiting.`)
 		if err := s.ensureId(); err != nil {
 			return err
@@ -87,8 +86,8 @@ func resourceScriptedCreateBase(s *Scripted) error {
 		return resourceScriptedReadBase(s)
 	}
 	command, err := s.template(
-		"commands_prefix+commands_modify_prefix+commands_create",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ModifyPrefix, s.pc.Commands.Templates.Create))
+		"commands_prefix_fromenv+commands_prefix+commands_modify_prefix+commands_create",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ModifyPrefix, s.pc.Commands.Templates.Create))
 	if err != nil {
 		return err
 	}
@@ -116,18 +115,18 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedReadBase(s *Scripted) error {
-	if err := resourceScriptedNeedsUpdate(s); err != nil {
+	if err := resourceScriptedShouldUpdate(s); err != nil {
 		return err
 	}
 	defer s.logging.PopIf(s.logging.Push("read", true))
-	if !s.isSet(s.pc.Commands.Templates.Read) {
+	if !isSet(s.pc.Commands.Templates.Read) {
 		s.log(hclog.Debug, `"commands_read" is not set, exiting.`)
 		s.d.Set("output", map[string]string{})
 		return nil
 	}
 	command, err := s.template(
-		"commands_prefix+commands_read",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Read))
+		"commands_prefix_fromenv+commands_prefix+commands_read",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Read))
 	if err != nil {
 		return err
 	}
@@ -158,7 +157,7 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	shouldUpdate := s.isSet(s.pc.Commands.Templates.Update)
+	shouldUpdate := isSet(s.pc.Commands.Templates.Update)
 
 	if !shouldUpdate {
 		if err := resourceScriptedDeleteBase(s); err != nil {
@@ -187,8 +186,8 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 func resourceScriptedUpdateBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("update", true))
 	command, err := s.template(
-		"commands_prefix+commands_modify_prefix+commands_update",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ModifyPrefix, s.pc.Commands.Templates.Update))
+		"commands_prefix_fromenv+commands_prefix+commands_modify_prefix+commands_update",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ModifyPrefix, s.pc.Commands.Templates.Update))
 	if err != nil {
 		return err
 	}
@@ -203,23 +202,31 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	return nil
 }
 
-func resourceScriptedNeedsUpdate(s *Scripted) error {
+func resourceScriptedShouldUpdate(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("should_update", true))
-	if !s.isSet(s.pc.Commands.Templates.ShouldUpdate) {
+	if !isSet(s.pc.Commands.Templates.ShouldUpdate) {
 		s.log(hclog.Debug, `"commands_should_update" is empty, exiting.`)
 		s.setNeedsUpdate(false)
 		return nil
 	}
 	command, err := s.template(
-		"commands_prefix+commands_should_update",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ShouldUpdate))
+		"commands_prefix_fromenv+commands_prefix+commands_should_update",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.ShouldUpdate))
 	if err != nil {
 		return err
 	}
 	s.log(hclog.Debug, "resource should_update")
-	_, err = s.execute(command)
-	s.setNeedsUpdate(err != nil)
-	return nil
+	output, err := s.execute(command)
+	shouldUpdate := err == nil && output == s.pc.Commands.ShouldUpdateExpectedOutput
+	s.log(hclog.Trace, "should_update result",
+		"result", shouldUpdate,
+		"err", err,
+		"output", output,
+		"expected", s.pc.Commands.ShouldUpdateExpectedOutput,
+		"output_eq_expected", output == s.pc.Commands.ShouldUpdateExpectedOutput,
+	)
+	s.setNeedsUpdate(shouldUpdate)
+	return err
 }
 
 func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
@@ -228,13 +235,13 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	if err != nil {
 		return false, err
 	}
-	if !s.isSet(s.pc.Commands.Templates.Exists) {
+	if !isSet(s.pc.Commands.Templates.Exists) {
 		s.log(hclog.Debug, `"commands_exists" is empty, exiting.`)
 		return true, nil
 	}
 	command, err := s.template(
-		"commands_prefix+commands_exists",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Exists))
+		"commands_prefix_fromenv+commands_prefix+commands_exists",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Exists))
 	if err != nil {
 		return false, err
 	}
@@ -260,7 +267,7 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 
 func resourceScriptedDeleteBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("delete", true))
-	if !s.isSet(s.pc.Commands.Templates.Delete) {
+	if !isSet(s.pc.Commands.Templates.Delete) {
 		s.log(hclog.Debug, `"commands_delete" is empty, exiting.`)
 		s.clear()
 		return nil
@@ -268,8 +275,8 @@ func resourceScriptedDeleteBase(s *Scripted) error {
 	s.addOld(true)
 	defer s.removeOld()
 	command, err := s.template(
-		"commands_prefix+commands_delete",
-		s.joinCommands(s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Delete))
+		"commands_prefix_fromenv+commands_prefix+commands_delete",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Delete))
 	if err != nil {
 		return err
 	}

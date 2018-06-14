@@ -70,13 +70,13 @@ const readme = `# {{ .name }} {{ .version }}
 var description = makeBackticks(`
 # {{ .name }}
 
-# Argument reference
+# Arguments reference
 
 | Argument | Type | Description | Default |
 |:---      | ---  | ---         | ---     |
 {{- range $arg, $data := .config }}
 | \'{{ $arg }}\' | 
-{{- "" }} [{{ $data.Type }}](https://www.terraform.io/docs/extend/schemas/schema-types.html#{{ $data.Type | lower }}) | 
+{{- "" }} [{{ $data.Type | replace "Type" "" | lower }}](https://www.terraform.io/docs/extend/schemas/schema-types.html#{{ $data.Type | lower }}) | 
 {{- "" }} {{ $data.Description }} | 
 {{- "" }} {{ if hasKey $data.Default "Value" }}{{ $default := default "" $data.Default.Value -}}
 	{{ if contains "\'" $default | not }}\'{{ end }}

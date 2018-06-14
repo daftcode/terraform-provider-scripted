@@ -9,16 +9,17 @@ type EnvironmentConfig struct {
 }
 
 type CommandTemplates struct {
-	Create       string
-	Delete       string
-	Exists       string
-	Id           string
-	Interpreter  []string
-	ModifyPrefix string
-	Prefix       string
-	Read         string
-	ShouldUpdate string
-	Update       string
+	Create        string
+	Delete        string
+	Exists        string
+	Id            string
+	Interpreter   []string
+	ModifyPrefix  string
+	Prefix        string
+	PrefixFromEnv string
+	Read          string
+	ShouldUpdate  string
+	Update        string
 }
 
 type OutputConfig struct {
@@ -28,15 +29,16 @@ type OutputConfig struct {
 }
 
 type CommandsConfig struct {
-	Environment         *EnvironmentConfig
-	Templates           *CommandTemplates
-	Output              *OutputConfig
-	CreateAfterUpdate   bool
-	DeleteBeforeUpdate  bool
-	DeleteOnNotExists   bool
-	DeleteOnReadFailure bool
-	Separator           string
-	WorkingDirectory    string
+	Environment                *EnvironmentConfig
+	Templates                  *CommandTemplates
+	Output                     *OutputConfig
+	CreateAfterUpdate          bool
+	DeleteBeforeUpdate         bool
+	DeleteOnNotExists          bool
+	DeleteOnReadFailure        bool
+	Separator                  string
+	WorkingDirectory           string
+	ShouldUpdateExpectedOutput string
 }
 
 type TemplatesConfig struct {

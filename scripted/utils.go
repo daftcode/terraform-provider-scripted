@@ -78,3 +78,7 @@ func getMapHash(data map[string]interface{}) []string {
 	}
 	return entries
 }
+
+func isSet(str string) bool {
+	return str != EmptyString
+}

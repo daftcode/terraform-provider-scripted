@@ -40,11 +40,10 @@ func TestAccScriptedResource_ShouldUpdate(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		alias = "file"
-		commands_prefix = "set -xEeo pipefail"
 		commands_should_update = <<EOF
-[ "$(cat '{{ .Cur.path }}')" == '{{ .Cur.content }}' ] || exit 1
+[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n true
 EOF
-		commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"
+		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
 		commands_delete = "rm '{{ .Cur.path }}'"
 	}
@@ -59,9 +58,8 @@ EOF
 	const testConfigNotCurrent = `
 	provider "scripted" {
 		alias = "file"
-		commands_prefix = "set -xEeo pipefail"
-		commands_should_update = "exit 1"
-		commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"
+		commands_should_update = "echo -n true"
+		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
 		commands_delete = "rm '{{ .Cur.path }}'"
 	}

@@ -15,12 +15,103 @@ import (
 // Store original os.Stderr and os.Stdout, because it gets overwritten by go-plugin/server:Serve()
 var Stderr = os.Stderr
 var Stdout = os.Stdout
-var ValidLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
+var ValidLogLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
-var EmptyString = `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ` // String representing empty value, can be set to anything (eg. generate random each time)
+var DefaultEnvPrefix = "TF_SCRIPTED_"
+var EnvPrefix = envDefault("TF_SCRIPTED_ENV_PREFIX", DefaultEnvPrefix)
+var debugLogging = false
+
+// String representing empty value, can be set to anything
+var EmptyString, _ = getEnv("EMPTY_STRING", `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`)
 
 func defaultEmptyString() (interface{}, error) {
 	return EmptyString, nil
+}
+
+func defaultMsg(msg, defVal string) string {
+	defVal = strings.Replace(defVal, "$", "$"+EnvPrefix, -1)
+	return fmt.Sprintf("%s Defaults to: %s", msg, defVal)
+}
+
+func envKey(key string) (ret string) {
+	if strings.HasPrefix(key, EnvPrefix) {
+		ret = key
+	} else {
+		ret = EnvPrefix + key
+	}
+	if debugLogging {
+		Stderr.WriteString(fmt.Sprintf(`envKey("%s") -> ("%s")`+"\n", key, ret))
+	}
+	return ret
+}
+
+func envDefaultFunc(key, defVal string) schema.SchemaDefaultFunc {
+	return func() (interface{}, error) {
+		ret, _ := getEnv(key, defVal)
+		return ret, nil
+	}
+}
+
+func getEnv(key, defValue string) (value string, ok bool) {
+	return envDefaultOk(envKey(key), defValue)
+}
+
+func envDefault(key, defValue string) string {
+	ret, _ := envDefaultOk(key, defValue)
+	return ret
+}
+
+func envDefaultOk(key, defValue string) (value string, ok bool) {
+	value, ok = os.LookupEnv(key)
+	if !ok {
+		value = defValue
+	}
+	if debugLogging {
+		Stderr.WriteString(fmt.Sprintf(`envDefaultOk("%s", "%s") -> ("%s", %v)`+"\n", key, defValue, value, ok))
+	}
+	return value, ok
+}
+
+func stringDefaultSchemaEmpty(schema *schema.Schema, key, description string) *schema.Schema {
+	return stringDefaultSchemaMsgVal(schema, key, description, "not set")
+}
+
+func stringDefaultSchemaEmptyMsgVal(s *schema.Schema, key, description, msgVal string) *schema.Schema {
+	return stringDefaultSchemaBase(s, key, description, EmptyString, msgVal)
+}
+func stringDefaultSchema(s *schema.Schema, key, description, defVal string) *schema.Schema {
+	return stringDefaultSchemaBase(s, key, description, defVal, fmt.Sprintf("`%s`", defVal))
+}
+func stringDefaultSchemaBase(s *schema.Schema, key, description, defVal, msgVal string) *schema.Schema {
+	if s == nil {
+		s = &schema.Schema{}
+	}
+	key = strings.ToUpper(key)
+	s.Type = schema.TypeString
+	s.Optional = true
+	s.DefaultFunc = envDefaultFunc(key, defVal)
+	s.Description = defaultMsg(description, fmt.Sprintf("`$%s` or %s", key, msgVal))
+	return s
+}
+
+func stringDefaultSchemaMsgVal(s *schema.Schema, key, description, msgVal string) *schema.Schema {
+	return stringDefaultSchemaBase(s, key, description, EmptyString, msgVal)
+}
+
+func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *schema.Schema {
+	key = strings.ToUpper(key)
+	prefix := "="
+	if defVal {
+		prefix = "!"
+	}
+	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s` %s= `\"\"`", key, prefix))
+	defaultFunc := s.DefaultFunc
+	s.DefaultFunc = func() (interface{}, error) {
+		ret, _ := defaultFunc()
+		return (ret != EmptyString && ret != "") == defVal, nil
+	}
+	s.Type = schema.TypeBool
+	return s
 }
 
 func Provider() terraform.ResourceProvider {
@@ -29,6 +120,7 @@ func Provider() terraform.ResourceProvider {
 			"commands_create": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				DefaultFunc: defaultEmptyString,
 				Description: "Create command",
 			},
 			"commands_delete": {
@@ -83,7 +175,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
-				Description: "Interpreter and it's arguments, can be template with `command` variable.",
+				Description: "Interpreter and it's arguments, can be a template with `command` variable.",
 			},
 			"commands_modify_prefix": {
 				Type:        schema.TypeString,
@@ -97,44 +189,56 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: "Command indicating whether resource should be updated, non-zero exit code to force update",
 			},
+			"commands_should_update_trigger_output": stringDefaultSchema(
+				nil,
+				"commands_should_update_trigger_output",
+				"Exact output expected from `commands_should_update` to trigger an update.",
+				"true",
+			),
 			"commands_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: "Command prefix shared between all commands",
 			},
-			"commands_separator": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "%s\n%s",
-				Description: "Format for joining 2 commands together without isolating them. Defaults to: `%s\\n%s`",
-			},
+			"commands_prefix_fromenv": stringDefaultSchemaEmpty(
+				nil,
+				"commands_prefix_fromenv",
+				"Command prefix shared between all commands (added before `commands_prefix`)",
+			),
+			"commands_separator": stringDefaultSchema(
+				nil,
+				"commands_separator",
+				"Format for joining 2 commands together without isolating them.",
+				"%s\\n%s",
+			),
 			"commands_read": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: "Read command",
 			},
-			"commands_read_format": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "raw",
-				ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
-				Description:  "Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/` or base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/`. Defaults to: `raw`",
-			},
-			"commands_read_line_prefix": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: defaultEmptyString,
-				Description: "Ignore lines in read command without this prefix.",
-			},
-			"commands_state_format": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				DefaultFunc:  defaultEmptyString,
-				ValidateFunc: validation.StringInSlice([]string{"raw", "base64", EmptyString}, false),
-				Description:  "State format type. Defaults to: `commands_read_format`",
-			},
+			"commands_read_format": stringDefaultSchema(
+				&schema.Schema{
+					ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
+				},
+				"commands_read_format",
+				"Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/` or base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/`.",
+				"raw",
+			),
+			"commands_read_line_prefix": stringDefaultSchemaEmpty(
+				nil,
+				"commands_read_line_prefix",
+				"Ignore lines in read command without this prefix.",
+			),
+			"commands_state_format": stringDefaultSchemaEmptyMsgVal(
+				&schema.Schema{
+					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", EmptyString}, false),
+				},
+				"commands_state_format",
+				"Ignore lines in read command without this prefix.",
+				"`commands_read_format`",
+			),
 			"commands_update": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -155,73 +259,70 @@ func Provider() terraform.ResourceProvider {
 			"logging_buffer_size": {
 				Type:        schema.TypeInt,
 				Optional:    true,
-				Default:     1 * 1024 * 1024,
+				Default:     8 * 1024,
 				Description: "stdout and stderr buffer sizes",
 			},
-			"logging_jsonformat": {
-				Type: schema.TypeBool,
-				DefaultFunc: func() (interface{}, error) {
-					return os.Getenv("TF_SCRIPTED_LOGGING_JSONFORMAT") != "", nil
+			"logging_jsonformat": boolDefaultSchema(
+				nil,
+				"logging_jsonformat",
+				"should logs be json instead of plain text?",
+				true,
+			),
+			"logging_log_level": stringDefaultSchema(
+				&schema.Schema{
+					ValidateFunc: validation.StringInSlice(ValidLogLevelsStrings, true),
 				},
-				Optional:    true,
-				Description: "should logs be json instead of plain text? Defaults to: `$TF_SCRIPTED_LOGGING_JSONFORMAT` != \"\"",
-			},
-			"logging_log_level": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				DefaultFunc:  schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_LEVEL", "INFO"),
-				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
-				Description:  fmt.Sprintf("Logging level: %s. Defaults to: `$TF_SCRIPTED_LOGGING_LOG_LEVEL`", strings.Join(ValidLevelsStrings, ", ")),
-			},
+				"logging_log_level",
+				fmt.Sprintf("Logging level: %s.", strings.Join(ValidLogLevelsStrings, ", ")),
+				"INFO",
+			),
 			"logging_log_path": {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_LOG_PATH", EmptyString),
+				DefaultFunc: envDefaultFunc("LOGGING_LOG_PATH", EmptyString),
 				Optional:    true,
-				Description: "Extra logs output path. Defaults to: `$TF_SCRIPTED_LOGGING_LOG_PATH`",
+				Description: defaultMsg("Extra logs output path.", "`$LOGGING_LOG_PATH`"),
 			},
 			"logging_output_logging_log_level": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				DefaultFunc:  schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_OUTPUT_LOG_LEVEL", "INFO"),
-				ValidateFunc: validation.StringInSlice(ValidLevelsStrings, true),
-				Description:  fmt.Sprintf("Command stdout/stderr log level: %s. Defaults to: `$TF_SCRIPTED_LOGGING_OUTPUT_LOG_LEVEL`", strings.Join(ValidLevelsStrings, ", ")),
+				DefaultFunc:  envDefaultFunc("LOGGING_OUTPUT_LOG_LEVEL", "INFO"),
+				ValidateFunc: validation.StringInSlice(ValidLogLevelsStrings, true),
+				Description:  fmt.Sprintf("Command stdout/stderr log level: %s. Defaults to: `$LOGGING_OUTPUT_LOG_LEVEL`", strings.Join(ValidLogLevelsStrings, ", ")),
 			},
 			"logging_output_line_width": {
 				Type:        schema.TypeInt,
 				Optional:    true,
-				Description: "Width of command's line to use during formatting. Defaults to: `$TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH`",
+				Description: defaultMsg("Width of command's line to use during formatting.", "`$LOGGING_OUTPUT_LINE_WIDTH`"),
 				DefaultFunc: func() (interface{}, error) {
-					env, _ := schema.EnvDefaultFunc("TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH", "1")()
+					env, _ := envDefaultFunc("LOGGING_OUTPUT_LINE_WIDTH", "1")()
 					val, err := strconv.Atoi(env.(string))
 					return val, err
 				},
 			},
-			"logging_output_pids": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "Should output lines contain `ppid` and `pid`? Defaults to: `$TF_SCRIPTED_LOGGING_OUTPUT_PIDS`",
-				DefaultFunc: func() (interface{}, error) {
-					return os.Getenv("TF_SCRIPTED_LOGGING_OUTPUT_PIDS") != "", nil
-				},
-			},
+			"logging_output_pids": boolDefaultSchema(
+				nil,
+				"logging_output_pids",
+				"Should output lines contain `ppid` and `pid`?",
+				false,
+			),
 			"logging_provider_name": {
 				Type:        schema.TypeString,
 				DefaultFunc: defaultEmptyString,
 				Optional:    true,
 				Description: "Name to display in log entries for this provider",
 			},
-			"templates_left_delim": {
-				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_TEMPLATES_LEFT_DELIM", "{{"),
-				Optional:    true,
-				Description: "Left delimiter for templates. Defaults to: `$TF_SCRIPTED_TEMPLATES_LEFT_DELIM` or `{{`",
-			},
-			"templates_right_delim": {
-				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("TF_SCRIPTED_TEMPLATES_RIGHT_DELIM", "}}"),
-				Optional:    true,
-				Description: "Right delimiter for templates. Defaults to: `$TF_SCRIPTED_TEMPLATES_RIGHT_DELIM` or `{{`",
-			},
+			"templates_left_delim": stringDefaultSchema(
+				nil,
+				"templates_left_delim",
+				"Left delimiter for templates.",
+				"{{",
+			),
+			"templates_right_delim": stringDefaultSchema(
+				nil,
+				"templates_right_delim",
+				"Right delimiter for templates.",
+				"}}",
+			),
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
@@ -270,13 +371,14 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 }
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
+	debugLogging = envDefault("TF_SCRIPTED_DEBUG_LOGGING", "") != ""
 	// For some reason setting this via DefaultFunc results in an error
 	interpreterI := d.Get("commands_interpreter").([]interface{})
 	if len(interpreterI) == 0 {
 		if runtime.GOOS == "windows" {
 			interpreterI = []interface{}{"cmd", "/C"}
 		}
-		interpreterI = []interface{}{"/bin/sh", "-c"}
+		interpreterI = []interface{}{"bash", "-Eeo", "pipefail", "-c", "{{ .command }}"}
 	}
 	interpreter := make([]string, len(interpreterI))
 	for i, vI := range interpreterI {
@@ -302,6 +404,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	if sf == EmptyString {
 		sf = of
 	}
+
 	config := ProviderConfig{
 		Commands: &CommandsConfig{
 			Environment: &EnvironmentConfig{
@@ -310,28 +413,30 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 				IncludeParent: d.Get("commands_environment_include_parent").(bool),
 			},
 			Templates: &CommandTemplates{
-				Interpreter:  interpreter,
-				ModifyPrefix: d.Get("commands_modify_prefix").(string),
-				Prefix:       d.Get("commands_prefix").(string),
-				Create:       d.Get("commands_create").(string),
-				Delete:       d.Get("commands_delete").(string),
-				Exists:       d.Get("commands_exists").(string),
-				Id:           d.Get("commands_id").(string),
-				ShouldUpdate: d.Get("commands_should_update").(string),
-				Read:         d.Get("commands_read").(string),
-				Update:       update,
+				Interpreter:   interpreter,
+				ModifyPrefix:  d.Get("commands_modify_prefix").(string),
+				Prefix:        d.Get("commands_prefix").(string),
+				PrefixFromEnv: d.Get("commands_prefix_fromenv").(string),
+				Create:        d.Get("commands_create").(string),
+				Delete:        d.Get("commands_delete").(string),
+				Exists:        d.Get("commands_exists").(string),
+				Id:            d.Get("commands_id").(string),
+				ShouldUpdate:  d.Get("commands_should_update").(string),
+				Read:          d.Get("commands_read").(string),
+				Update:        update,
 			},
 			Output: &OutputConfig{
 				LogLevel:  hclog.LevelFromString(d.Get("logging_output_logging_log_level").(string)),
 				LineWidth: d.Get("logging_output_line_width").(int),
 				LogPids:   d.Get("logging_output_pids").(bool),
 			},
-			CreateAfterUpdate:   cau,
-			DeleteBeforeUpdate:  dbu,
-			DeleteOnNotExists:   d.Get("commands_delete_on_not_exists").(bool),
-			DeleteOnReadFailure: d.Get("commands_delete_on_read_failure").(bool),
-			Separator:           d.Get("commands_separator").(string),
-			WorkingDirectory:    d.Get("commands_working_directory").(string),
+			CreateAfterUpdate:          cau,
+			DeleteBeforeUpdate:         dbu,
+			DeleteOnNotExists:          d.Get("commands_delete_on_not_exists").(bool),
+			DeleteOnReadFailure:        d.Get("commands_delete_on_read_failure").(bool),
+			ShouldUpdateExpectedOutput: d.Get("commands_should_update_trigger_output").(string),
+			Separator:                  d.Get("commands_separator").(string),
+			WorkingDirectory:           d.Get("commands_working_directory").(string),
 		},
 		Templates: &TemplatesConfig{
 			LeftDelim:  d.Get("templates_left_delim").(string),

@@ -151,14 +151,14 @@ func (s *Scripted) Environment() (*ChangeMap, error) {
 
 		extra := map[string]string{}
 
-		if s.isSet(s.pc.Commands.Environment.PrefixOld) {
+		if isSet(s.pc.Commands.Environment.PrefixOld) {
 			for k, v := range env.Old {
 				key := fmt.Sprintf("%s%s", s.pc.Commands.Environment.PrefixOld, k)
 				extra[key] = v
 			}
 		}
 
-		if s.isSet(s.pc.Commands.Environment.PrefixNew) {
+		if isSet(s.pc.Commands.Environment.PrefixNew) {
 			for k, v := range env.New {
 				key := fmt.Sprintf("%s%s", s.pc.Commands.Environment.PrefixNew, k)
 				extra[key] = v
@@ -205,8 +205,8 @@ func (s *Scripted) removeOld() {
 
 func (s *Scripted) outputsText(output string, prefix, exceptPrefix string, outputs map[string]string) map[string]string {
 	split := strings.Split(output, "\n")
-	hasPrefix := s.isSet(prefix)
-	hasExceptPrefix := s.isSet(exceptPrefix)
+	hasPrefix := isSet(prefix)
+	hasExceptPrefix := isSet(exceptPrefix)
 
 	for _, varline := range split {
 		s.log(hclog.Trace, "reading output line", "line", varline)
@@ -377,7 +377,7 @@ func (s *Scripted) execute(commands ...string) (string, error) {
 func (s *Scripted) joinCommands(commands ...string) string {
 	out := ""
 	for _, cmd := range commands {
-		isSet := s.isSet(cmd)
+		isSet := isSet(cmd)
 		if out == "" && isSet {
 			out = cmd
 		} else if isSet {
@@ -395,12 +395,8 @@ func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
 	s.logging.Log(level, msg, args...)
 }
 
-func (s *Scripted) isSet(str string) bool {
-	return str != s.pc.EmptyString
-}
-
 func (s *Scripted) ensureId() error {
-	if s.isSet(s.pc.Commands.Templates.Id) {
+	if isSet(s.pc.Commands.Templates.Id) {
 		defer s.logging.PopIf(s.logging.Push("id", true))
 		command, err := s.template(
 			"commands_prefix+commands_id",
