@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+var nextProviderId = 1
+
 // Store original os.Stderr and os.Stdout, because it gets overwritten by go-plugin/server:Serve()
 var Stderr = os.Stderr
 var Stdout = os.Stdout
@@ -168,6 +170,18 @@ func Provider() terraform.ResourceProvider {
 				Default:     true,
 				Description: "Delete resource when exists fails",
 			},
+			"commands_dependencies": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				DefaultFunc: defaultEmptyString,
+				Description: "Command determining whether dependencies are met",
+			},
+			"commands_dependencies_trigger_output": stringDefaultSchema(
+				nil,
+				"commands_exists_trigger_output",
+				"Exact output expected from `commands_dependencies` to pass the check.",
+				"true",
+			),
 			"commands_environment_include_parent": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -216,16 +230,16 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: "Modification (create and update) commands prefix",
 			},
-			"commands_should_update": {
+			"commands_needs_update": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: "Command indicating whether resource should be updated, non-zero exit code to force update",
 			},
-			"commands_should_update_trigger_output": stringDefaultSchema(
+			"commands_needs_update_trigger_output": stringDefaultSchema(
 				nil,
-				"commands_should_update_trigger_output",
-				"Exact output expected from `commands_should_update` to trigger an update.",
+				"commands_needs_update_trigger_output",
+				"Exact output expected from `commands_needs_update` to trigger an update.",
 				"true",
 			),
 			"commands_prefix": {
@@ -332,10 +346,16 @@ func Provider() terraform.ResourceProvider {
 					return val, err
 				},
 			},
-			"logging_output_pids": boolDefaultSchema(
+			"logging_pids": boolDefaultSchema(
 				nil,
-				"logging_output_pids",
+				"logging_pids",
 				"Should output lines contain `ppid` and `pid`?",
+				false,
+			),
+			"logging_iids": boolDefaultSchema(
+				nil,
+				"logging_iids",
+				"Should output lines contain `piid` (provider instance id) and `riid` (resource instance id?",
 				false,
 			),
 			"logging_provider_name": {
@@ -397,6 +417,10 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	}
 
 	logging := newLogging(hcloggers)
+	if d.Get("logging_iids").(bool) {
+		logging.Push("piid", nextProviderId)
+	}
+	nextProviderId++
 	if logProviderName != EmptyString {
 		logging.Push("provider_name", logProviderName)
 	}
@@ -452,6 +476,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			},
 			Templates: &CommandTemplates{
 				Interpreter:   interpreter,
+				Dependencies:  d.Get("commands_dependencies").(string),
 				ModifyPrefix:  d.Get("commands_modify_prefix").(string),
 				Prefix:        d.Get("commands_prefix").(string),
 				PrefixFromEnv: d.Get("commands_prefix_fromenv").(string),
@@ -459,23 +484,25 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 				Delete:        d.Get("commands_delete").(string),
 				Exists:        d.Get("commands_exists").(string),
 				Id:            d.Get("commands_id").(string),
-				ShouldUpdate:  d.Get("commands_should_update").(string),
+				NeedsUpdate:   d.Get("commands_needs_update").(string),
 				Read:          d.Get("commands_read").(string),
 				Update:        update,
 			},
 			Output: &OutputConfig{
 				LogLevel:  hclog.LevelFromString(d.Get("logging_output_logging_log_level").(string)),
 				LineWidth: d.Get("logging_output_line_width").(int),
-				LogPids:   d.Get("logging_output_pids").(bool),
+				LogPids:   d.Get("logging_pids").(bool),
+				LogIids:   d.Get("logging_iids").(bool),
 			},
-			CreateAfterUpdate:          cau,
-			DeleteBeforeUpdate:         dbu,
-			DeleteOnNotExists:          d.Get("commands_delete_on_not_exists").(bool),
-			DeleteOnReadFailure:        d.Get("commands_delete_on_read_failure").(bool),
-			ShouldUpdateExpectedOutput: d.Get("commands_should_update_trigger_output").(string),
-			ExistsExpectedOutput:       d.Get("commands_exists_trigger_output").(string),
-			Separator:                  d.Get("commands_separator").(string),
-			WorkingDirectory:           d.Get("commands_working_directory").(string),
+			CreateAfterUpdate:         cau,
+			DependenciesTriggerOutput: d.Get("commands_dependencies_trigger_output").(string),
+			DeleteBeforeUpdate:        dbu,
+			DeleteOnNotExists:         d.Get("commands_delete_on_not_exists").(bool),
+			DeleteOnReadFailure:       d.Get("commands_delete_on_read_failure").(bool),
+			NeedsUpdateExpectedOutput: d.Get("commands_needs_update_trigger_output").(string),
+			ExistsExpectedOutput:      d.Get("commands_exists_trigger_output").(string),
+			Separator:                 d.Get("commands_separator").(string),
+			WorkingDirectory:          d.Get("commands_working_directory").(string),
 		},
 		Templates: &TemplatesConfig{
 			LeftDelim:  d.Get("templates_left_delim").(string),

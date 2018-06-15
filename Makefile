@@ -25,7 +25,8 @@ schema: build_cmds
 	"${OUT}/generate-schema" "${TF_NAME}" "${VERSION}" "${OUT}"
 
 docs: schema
-	"${OUT}/generate-docs" "${OUT}/${TF_NAME}.json"
+	mkdir -p "docs/api"
+	"${OUT}/generate-docs" "${OUT}/${TF_NAME}.json" "docs/api"
 
 build_provider:
 	echo -n "${VERSION}" > "${OUT}/VERSION"

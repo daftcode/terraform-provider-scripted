@@ -52,7 +52,7 @@ resource "scripted_resource" "test" {
 }
 ```
 
-Parameters can be used to change the resources. More info in [docs](docs/README.md)
+Parameters can be used to change the resources. More info in [docs](docs/README.md) and [examples](docs/examples).
 
 ## Building from source
 

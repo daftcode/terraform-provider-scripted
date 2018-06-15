@@ -16,6 +16,8 @@ import (
 
 type Operation string
 
+var nextResourceId = 1
+
 const (
 	Create Operation = "create"
 	Read   Operation = "read"
@@ -72,17 +74,23 @@ func New(d *schema.ResourceData, meta interface{}, operation Operation, old bool
 	s.setOld(old)
 	s.log(hclog.Trace, "resource initialized")
 	s.log(hclog.Trace, "initialized state", "old", s.rc.state.Old, "new", s.rc.state.New)
+
 	return s, nil
 }
 
 func (s *Scripted) ensureLogging() *Scripted {
+	s.logging = s.pc.Logging.Clone()
+
 	args := []interface{}{
 		"operation", s.op,
 	}
+	if s.pc.Commands.Output.LogIids {
+		args = append(args, "riid", nextResourceId)
+	}
+	nextResourceId++
 	if s.rc.LogName != "" {
 		args = append(args, "resource", s.rc.LogName)
 	}
-	s.logging = s.pc.Logging.Clone()
 	s.logging.Push(args...)
 	return s
 }
@@ -350,7 +358,11 @@ func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error
 		logArgs = append(logArgs, fmt.Sprintf("args[%d]", i), v)
 	}
 	// Output what we're about to run
-	s.log(hclog.Debug, "executing", logArgs...)
+	if s.pc.Commands.Output.LogLevel >= hclog.Debug {
+		s.log(hclog.Debug, "executing command", "command", command)
+	} else {
+		s.log(hclog.Trace, "executing", logArgs...)
+	}
 
 	// Start the command
 	err = cmd.Start()
@@ -390,10 +402,6 @@ func (s *Scripted) joinCommands(commands ...string) string {
 }
 
 func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
-	resourceName := s.d.Get("log_name").(string)
-	if resourceName != "" {
-		args = append(args, "resource", resourceName)
-	}
 	s.logging.Log(level, msg, args...)
 }
 
@@ -484,7 +492,59 @@ func (s *Scripted) readLines(data, prefix, format, exceptPrefix string, outputs 
 	return outputs
 }
 
+func (s *Scripted) checkNeedsUpdate() error {
+	defer s.logging.PopIf(s.logging.Push("needs_update", true))
+	if !isSet(s.pc.Commands.Templates.NeedsUpdate) {
+		s.log(hclog.Debug, `"commands_needs_update" is empty, exiting.`)
+		s.setNeedsUpdate(false)
+		return nil
+	}
+	command, err := s.template(
+		"commands_prefix_fromenv+commands_prefix+commands_needs_update",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.NeedsUpdate))
+	if err != nil {
+		return err
+	}
+	s.log(hclog.Debug, "resource needs_update")
+	output, err := s.execute(command)
+	s.setNeedsUpdate(err == nil && output == s.pc.Commands.NeedsUpdateExpectedOutput)
+	return err
+}
+
+func (s *Scripted) needsUpdate() bool {
+	v, ok := s.d.GetOk("needs_update")
+	return !ok || v.(bool)
+}
+
 func (s *Scripted) setNeedsUpdate(value bool) {
 	s.log(hclog.Debug, "setting `needs_update`", "value", value)
 	s.d.Set("needs_update", value)
+}
+
+func (s *Scripted) checkDependenciesMet() error {
+	defer s.logging.PopIf(s.logging.Push("dependencies", true))
+	if !isSet(s.pc.Commands.Templates.Dependencies) {
+		s.log(hclog.Debug, `"commands_dependencies" is empty, exiting.`)
+		s.setDependenciesMet(true)
+		return nil
+	}
+	command, err := s.template(
+		"commands_prefix_fromenv+commands_prefix+commands_dependencies",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Dependencies))
+	if err != nil {
+		return err
+	}
+	output, err := s.execute(command)
+	s.setDependenciesMet(err == nil && output == s.pc.Commands.DependenciesTriggerOutput)
+	return err
+}
+
+func (s *Scripted) dependenciesMet() bool {
+	v, ok := s.d.GetOk("dependencies_met")
+	return ok && v.(bool)
+}
+
+func (s *Scripted) setDependenciesMet(value bool) {
+	s.log(hclog.Debug, "setting `dependencies_met`", "value", value)
+	s.d.Set("dependencies_met", value)
 }

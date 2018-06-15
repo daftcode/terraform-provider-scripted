@@ -11,6 +11,7 @@ type EnvironmentConfig struct {
 type CommandTemplates struct {
 	Create        string
 	Delete        string
+	Dependencies  string
 	Exists        string
 	Id            string
 	Interpreter   []string
@@ -18,7 +19,7 @@ type CommandTemplates struct {
 	Prefix        string
 	PrefixFromEnv string
 	Read          string
-	ShouldUpdate  string
+	NeedsUpdate   string
 	Update        string
 }
 
@@ -26,20 +27,22 @@ type OutputConfig struct {
 	LogLevel  hclog.Level
 	LineWidth int
 	LogPids   bool
+	LogIids   bool
 }
 
 type CommandsConfig struct {
-	Environment                *EnvironmentConfig
-	Templates                  *CommandTemplates
-	Output                     *OutputConfig
-	CreateAfterUpdate          bool
-	DeleteBeforeUpdate         bool
-	DeleteOnNotExists          bool
-	DeleteOnReadFailure        bool
-	Separator                  string
-	WorkingDirectory           string
-	ShouldUpdateExpectedOutput string
-	ExistsExpectedOutput       string
+	Environment               *EnvironmentConfig
+	Templates                 *CommandTemplates
+	Output                    *OutputConfig
+	CreateAfterUpdate         bool
+	DeleteBeforeUpdate        bool
+	DeleteOnNotExists         bool
+	DeleteOnReadFailure       bool
+	Separator                 string
+	WorkingDirectory          string
+	NeedsUpdateExpectedOutput string
+	ExistsExpectedOutput      string
+	DependenciesTriggerOutput string
 }
 
 type TemplatesConfig struct {

@@ -62,11 +62,64 @@ func TestAccScriptedResource_Prefix(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResource_ShouldUpdate(t *testing.T) {
+func TestAccScriptedResource_TwoStageApply(t *testing.T) {
+	const testConfig = `
+provider "scripted" {
+	commands_dependencies = <<EOF
+{{- if .Cur.dependency_path -}}
+[ -f {{ .Cur.dependency_path | quote }} ] && echo -n true || echo -n false
+{{- else -}}
+echo -n true
+{{- end -}}
+EOF
+	commands_create = "echo -n {{ .Cur.content | quote }} > {{ .Cur.path }}"
+	commands_read = "echo \"out=$(cat {{ .Cur.path | quote }})\""
+	commands_delete = "rm {{ .Cur.path | quote }}"
+}
+resource "scripted_resource" "dependency" {
+	log_name = "dependency"
+	context {
+		path = "dependency"
+		content = "dependency"
+	}
+}
+resource "scripted_resource" "test" {
+	log_name = "test"
+	context {
+		path = "test_file"
+		content = "hi"
+		dependency_path = "dependency"
+	}
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.dependency", "out", "dependency"),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+				),
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func TestAccScriptedResource_NeedsUpdate(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
 		alias = "file"
-		commands_should_update = <<EOF
+		commands_needs_update = <<EOF
 [ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n true
 EOF
 		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
@@ -84,7 +137,7 @@ EOF
 	const testConfigNotCurrent = `
 	provider "scripted" {
 		alias = "file"
-		commands_should_update = "echo -n true"
+		commands_needs_update = "echo -n true"
 		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
 		commands_delete = "rm '{{ .Cur.path }}'"
