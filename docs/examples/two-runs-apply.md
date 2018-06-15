@@ -18,14 +18,12 @@ EOF
 	commands_delete = "rm {{ .Cur.path | quote }}"
 }
 resource "scripted_resource" "dependency" {
-	log_name = "dependency"
 	context {
 		path = "dependency"
 		content = "dependency"
 	}
 }
 resource "scripted_resource" "test" {
-	log_name = "test"
 	context {
 		path = "test_file"
 		content = "hi"

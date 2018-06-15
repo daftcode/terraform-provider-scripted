@@ -138,27 +138,33 @@ variable "stage1" {
 		CheckDestroy: testAccCheckScriptedDestroy,
 		Steps: []resource.TestStep{
 			{
-				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 0\n") },
-				Config:    fmt.Sprintf(testConfig, "hi", "0"),
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 0\n") },
+				Config:             fmt.Sprintf(testConfig, "hi", ""),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 1\n") },
+				Config:    fmt.Sprintf(testConfig, "hi", "1"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.stage1", "out", "hi"),
 				),
 				ExpectNonEmptyPlan: false,
 			},
 			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 1\n") },
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 2\n") },
 				Config:             fmt.Sprintf(testConfig, "hi", "1"),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 2\n") },
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 3\n") },
 				Config:             fmt.Sprintf(testConfig, "hi2", "1"),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 			{
-				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 3\n") },
+				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 4\n") },
 				Config:    fmt.Sprintf(testConfig, "hi2", ""),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceMissing("scripted_resource.stage1"),
@@ -166,13 +172,13 @@ variable "stage1" {
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 4\n") },
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 5\n") },
 				Config:             fmt.Sprintf(testConfig, "hi", ""),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 5\n") },
+				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 6\n") },
 				Config:    fmt.Sprintf(testConfig, "hi", "5"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.stage1", "out", "hi"),
@@ -180,7 +186,7 @@ variable "stage1" {
 				ExpectNonEmptyPlan: false,
 			},
 			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 6\n") },
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 7\n") },
 				Config:             fmt.Sprintf(testConfig, "hi", "6"),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
