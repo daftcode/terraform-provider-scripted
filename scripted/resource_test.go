@@ -77,14 +77,12 @@ EOF
 	commands_delete = "rm {{ .Cur.path | quote }}"
 }
 resource "scripted_resource" "dependency" {
-	log_name = "dependency"
 	context {
 		path = "dependency"
 		content = "dependency"
 	}
 }
 resource "scripted_resource" "test" {
-	log_name = "test"
 	context {
 		path = "test_file"
 		content = "hi"
@@ -109,6 +107,82 @@ resource "scripted_resource" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func TestAccScriptedResource_StagedDeployment(t *testing.T) {
+	const testConfig = `
+resource "scripted_resource" "stage1" {
+	context {
+		path = "test_file"
+	}
+}
+
+provider "scripted" {
+	commands_needs_delete = "[ -n '${var.stage1}' ] || echo -n true"
+	commands_create = "echo -n '%s' > {{ .Cur.path }}"
+	commands_read = "echo \"out=$(cat {{ .Cur.path | quote }})\""
+	commands_delete = "rm {{ .Cur.path | quote }}"
+}
+
+variable "stage1" {
+	default = "%s"
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 0\n") },
+				Config:    fmt.Sprintf(testConfig, "hi", "0"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.stage1", "out", "hi"),
+				),
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 1\n") },
+				Config:             fmt.Sprintf(testConfig, "hi", "1"),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 2\n") },
+				Config:             fmt.Sprintf(testConfig, "hi2", "1"),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 3\n") },
+				Config:    fmt.Sprintf(testConfig, "hi2", ""),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceMissing("scripted_resource.stage1"),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 4\n") },
+				Config:             fmt.Sprintf(testConfig, "hi", ""),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 5\n") },
+				Config:    fmt.Sprintf(testConfig, "hi", "5"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.stage1", "out", "hi"),
+				),
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 6\n") },
+				Config:             fmt.Sprintf(testConfig, "hi", "6"),
+				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 		},
@@ -741,7 +815,7 @@ func testAccCheckResourceStateMissing(name string, outparam string) resource.Tes
 			return fmt.Errorf("no Record ID is set")
 		}
 		if _, ok := rs.Primary.Attributes["state."+outparam]; ok {
-			return fmt.Errorf("state key `%s` is present", outparam)
+			return fmt.Errorf("state key `%s` should not be present", outparam)
 		}
 		return nil
 	}
@@ -759,6 +833,32 @@ func testAccCheckResourceOutput(name string, outparam string, value string) reso
 
 		if expected, got := value, rs.Primary.Attributes["output."+outparam]; got != expected {
 			return fmt.Errorf("wrong value in output '%s=%s', expected '%s'", outparam, got, expected)
+		}
+		return nil
+	}
+}
+func testAccCheckResourceMissing(name string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		_, ok := s.RootModule().Resources[name]
+		if ok {
+			return fmt.Errorf("resource should not be found: %s", name)
+		}
+		return nil
+	}
+}
+
+func testAccCheckResourceOutputMissing(name string, outparam string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("resource not found: %s, found: %s", name, s.RootModule().Resources)
+		}
+		if rs.Primary.ID == "" {
+			return fmt.Errorf("no Record ID is set")
+		}
+
+		if _, ok := rs.Primary.Attributes["output."+outparam]; ok {
+			return fmt.Errorf("output key `%s` should not be present\n%s", outparam, rs.Primary)
 		}
 		return nil
 	}

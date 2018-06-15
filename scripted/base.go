@@ -53,7 +53,7 @@ type TemplateContext struct {
 }
 
 type ResourceConfig struct {
-	LogName              string
+	// LogName              string
 	EnvironmentTemplates []string
 	Context              *ChangeMap
 	state                *ChangeMap
@@ -65,7 +65,7 @@ func New(d *schema.ResourceData, meta interface{}, operation Operation, old bool
 		pc: meta.(*ProviderConfig),
 		d:  d,
 		rc: &ResourceConfig{
-			LogName: d.Get("log_name").(string),
+			// LogName: d.Get("log_name").(string),
 			Context: castConfigChangeMap(d.GetChange("context")),
 			state:   castConfigChangeMap(d.GetChange("state")),
 		},
@@ -88,9 +88,9 @@ func (s *Scripted) ensureLogging() *Scripted {
 		args = append(args, "riid", nextResourceId)
 	}
 	nextResourceId++
-	if s.rc.LogName != "" {
-		args = append(args, "resource", s.rc.LogName)
-	}
+	// if s.rc.LogName != "" {
+	// 	args = append(args, "resource", s.rc.LogName)
+	// }
 	s.logging.Push(args...)
 	return s
 }
@@ -473,7 +473,6 @@ func (s *Scripted) clear() {
 	s.log(hclog.Debug, "clearing resource")
 	s.d.SetId("")
 	s.d.Set("output", map[string]string{})
-	s.d.Set("needs_update", nil)
 	s.clearState()
 }
 
@@ -521,22 +520,22 @@ func (s *Scripted) setNeedsUpdate(value bool) {
 	s.d.Set("needs_update", value)
 }
 
-func (s *Scripted) checkDependenciesMet() error {
+func (s *Scripted) checkDependenciesMet() (bool, error) {
 	defer s.logging.PopIf(s.logging.Push("dependencies", true))
 	if !isSet(s.pc.Commands.Templates.Dependencies) {
 		s.log(hclog.Debug, `"commands_dependencies" is empty, exiting.`)
 		s.setDependenciesMet(true)
-		return nil
+		return true, nil
 	}
 	command, err := s.template(
 		"commands_prefix_fromenv+commands_prefix+commands_dependencies",
 		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Dependencies))
 	if err != nil {
-		return err
+		return false, err
 	}
 	output, err := s.execute(command)
 	s.setDependenciesMet(err == nil && output == s.pc.Commands.DependenciesTriggerOutput)
-	return err
+	return s.dependenciesMet(), err
 }
 
 func (s *Scripted) dependenciesMet() bool {
@@ -547,4 +546,32 @@ func (s *Scripted) dependenciesMet() bool {
 func (s *Scripted) setDependenciesMet(value bool) {
 	s.log(hclog.Debug, "setting `dependencies_met`", "value", value)
 	s.d.Set("dependencies_met", value)
+}
+
+func (s *Scripted) checkNeedsDelete() (bool, error) {
+	defer s.logging.PopIf(s.logging.Push("needs_delete", true))
+	if !isSet(s.pc.Commands.Templates.NeedsDelete) {
+		s.log(hclog.Debug, `"commands_needs_delete" is empty, exiting.`)
+		s.setNeedsDelete(false)
+		return false, nil
+	}
+	command, err := s.template(
+		"commands_prefix_fromenv+commands_prefix+commands_needs_delete",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.NeedsDelete))
+	if err != nil {
+		return false, err
+	}
+	output, err := s.execute(command)
+	s.setNeedsDelete(err == nil && output == s.pc.Commands.NeedsDeleteExpectedOutput)
+	return s.needsDelete(), err
+}
+
+func (s *Scripted) needsDelete() bool {
+	v, ok := s.d.GetOk("needs_delete")
+	return ok && v.(bool)
+}
+
+func (s *Scripted) setNeedsDelete(value bool) {
+	s.log(hclog.Debug, "setting `needs_delete`", "value", value)
+	s.d.Set("needs_delete", value)
 }

@@ -19,6 +19,7 @@ type CommandTemplates struct {
 	Prefix        string
 	PrefixFromEnv string
 	Read          string
+	NeedsDelete   string
 	NeedsUpdate   string
 	Update        string
 }
@@ -43,6 +44,7 @@ type CommandsConfig struct {
 	NeedsUpdateExpectedOutput string
 	ExistsExpectedOutput      string
 	DependenciesTriggerOutput string
+	NeedsDeleteExpectedOutput string
 }
 
 type TemplatesConfig struct {

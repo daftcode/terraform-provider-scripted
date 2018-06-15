@@ -19,6 +19,8 @@
 | `commands_id` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command building resource id | not set |
 | `commands_interpreter` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | Interpreter and it's arguments, can be a template with `command` variable. | not set |
 | `commands_modify_prefix` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Modification (create and update) commands prefix | not set |
+| `commands_needs_delete` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command indicating whether resource should be deleted, non-zero exit code to force update | not set |
+| `commands_needs_delete_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_needs_delete` to trigger delete.  | `$TF_SCRIPTED_COMMANDS_NEEDS_DELETE_TRIGGER_OUTPUT` or `true` |
 | `commands_needs_update` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command indicating whether resource should be updated, non-zero exit code to force update | not set |
 | `commands_needs_update_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_needs_update` to trigger an update.  | `$TF_SCRIPTED_COMMANDS_NEEDS_UPDATE_TRIGGER_OUTPUT` or `true` |
 | `commands_prefix` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command prefix shared between all commands | not set |

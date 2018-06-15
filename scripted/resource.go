@@ -14,12 +14,11 @@ func getScriptedResource() *schema.Resource {
 		Exists: resourceScriptedExists,
 
 		Schema: map[string]*schema.Schema{
-			"log_name": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
-				Description: "Resource name to display in log messages",
-			},
+			// "log_name": {
+			// 	Type:        schema.TypeString,
+			// 	Computed: true,
+			// 	Description: "Resource name to display in log messages",
+			// },
 			"context": {
 				Type:        schema.TypeMap,
 				Optional:    true,
@@ -44,6 +43,11 @@ func getScriptedResource() *schema.Resource {
 				Description: "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
 				Sensitive:   true,
 			},
+			"needs_delete": {
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "Helper indicating whether resource should be deleted, ignore this.",
+			},
 			"needs_update": {
 				Type:        schema.TypeBool,
 				Computed:    true,
@@ -52,28 +56,30 @@ func getScriptedResource() *schema.Resource {
 			"dependencies_met": {
 				Type:        schema.TypeBool,
 				Computed:    true,
+				Optional:    true,
 				Description: "Helper indicating whether resource dependencies are met, ignore this.",
 			},
 		},
 
-		CustomizeDiff: func(diff *schema.ResourceDiff, i interface{}) error {
-			diff.Clear("log_name")
-			if met, ok := diff.GetOk("dependencies_met"); ok && !met.(bool) {
-				for _, key := range diff.UpdatedKeys() {
-					diff.Clear(key)
-				}
-				return nil
-			}
-			if diff.Get("needs_update").(bool) {
-				diff.SetNewComputed("needs_update")
-			} else {
-
-				diff.Clear("needs_update")
-			}
-			return nil
-		},
+		CustomizeDiff: resourceScriptedCustomizeDiff,
 	}
 	return ret
+}
+
+func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) error {
+	diff.Clear("needs_delete")
+	if met, ok := diff.GetOk("dependencies_met"); ok && !met.(bool) {
+		for _, key := range diff.UpdatedKeys() {
+			diff.Clear(key)
+		}
+		return nil
+	}
+	if diff.Get("needs_update").(bool) {
+		diff.SetNewComputed("needs_update")
+	} else {
+		diff.Clear("needs_update")
+	}
+	return nil
 }
 
 func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
@@ -81,15 +87,133 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	if err := s.checkDependenciesMet(); err != nil {
+	met, err := s.checkDependenciesMet()
+	if err != nil {
 		return err
 	}
-	if !s.dependenciesMet() {
+	if !met {
 		s.log(hclog.Warn, "dependencies not met, exiting")
-		s.d.SetId("")
+		s.clear()
 		return nil
 	}
+	if needsDelete, err := s.checkNeedsDelete(); err != nil || needsDelete {
+		s.d.SetId("")
+		return err
+	}
 	return resourceScriptedCreateBase(s)
+}
+
+func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
+	s, err := New(d, meta, Read, false)
+	if err != nil {
+		return err
+	}
+	met, err := s.checkDependenciesMet()
+	if err != nil {
+		return err
+	}
+	if !met {
+		return nil
+	}
+
+	return resourceScriptedReadBase(s)
+}
+
+func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
+	s, err := New(d, meta, Update, false)
+	if err != nil {
+		return err
+	}
+	if s.needsDelete() {
+		s.log(hclog.Debug, `needsDelete == true, exiting update.`)
+		s.clear()
+		return nil
+	}
+	met, err := s.checkDependenciesMet()
+	if err != nil {
+		return err
+	}
+	if !met {
+		return nil
+	}
+	shouldUpdate := isSet(s.pc.Commands.Templates.Update)
+
+	if !shouldUpdate {
+		if err := resourceScriptedDeleteBase(s); err != nil {
+			return err
+		}
+	}
+
+	if shouldUpdate {
+		err = resourceScriptedUpdateBase(s)
+		if err != nil {
+			return err
+		}
+	} else {
+		s.log(hclog.Debug, `"commands_update" is empty, skipping`)
+	}
+
+	if !shouldUpdate {
+		if err := resourceScriptedCreateBase(s); err != nil {
+			return err
+		}
+	}
+
+	return resourceScriptedReadBase(s)
+}
+
+func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
+	s, err := New(d, meta, Exists, false)
+	if err != nil {
+		return true, err
+	}
+	met, err := s.checkDependenciesMet()
+	if err != nil {
+		return true, err
+	}
+	if !met {
+		return true, nil
+	}
+	defer s.logging.PopIf(s.logging.Push("exists", true))
+	if needsDelete, err := s.checkNeedsDelete(); err != nil || needsDelete {
+		s.d.SetId("")
+		return false, err
+	}
+	if !isSet(s.pc.Commands.Templates.Exists) {
+		s.log(hclog.Debug, `"commands_exists" is empty, exiting.`)
+		return true, nil
+	}
+	command, err := s.template(
+		"commands_prefix_fromenv+commands_prefix+commands_exists",
+		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Exists))
+	if err != nil {
+		return false, err
+	}
+	s.log(hclog.Debug, "resource exists")
+	output, err := s.execute(command)
+	if err != nil {
+		s.log(hclog.Warn, "exists returned error", "error", err)
+	}
+	exists := err == nil && output != s.pc.Commands.ExistsExpectedOutput
+	if !exists && s.pc.Commands.DeleteOnNotExists {
+		s.clear()
+	}
+	return exists, err
+}
+
+func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
+	s, err := New(d, meta, Delete, true)
+	if err != nil {
+		return err
+	}
+	met, err := s.checkDependenciesMet()
+	if err != nil {
+		return err
+	}
+	if !met {
+		return nil
+	}
+	return resourceScriptedDeleteBase(s)
 }
 
 func resourceScriptedCreateBase(s *Scripted) error {
@@ -123,18 +247,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	return resourceScriptedReadBase(s)
 }
 
-func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
-	s, err := New(d, meta, Read, false)
-	if err != nil {
-		return err
-	}
-	return resourceScriptedReadBase(s)
-}
-
 func resourceScriptedReadBase(s *Scripted) error {
-	if err := s.checkDependenciesMet(); err != nil {
-		return err
-	}
 	if err := s.checkNeedsUpdate(); err != nil {
 		return err
 	}
@@ -172,37 +285,6 @@ func resourceScriptedReadBase(s *Scripted) error {
 	return nil
 }
 
-func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
-	s, err := New(d, meta, Update, false)
-	if err != nil {
-		return err
-	}
-	shouldUpdate := isSet(s.pc.Commands.Templates.Update)
-
-	if !shouldUpdate {
-		if err := resourceScriptedDeleteBase(s); err != nil {
-			return err
-		}
-	}
-
-	if shouldUpdate {
-		err = resourceScriptedUpdateBase(s)
-		if err != nil {
-			return err
-		}
-	} else {
-		s.log(hclog.Debug, `"commands_update" is empty, skipping`)
-	}
-
-	if !shouldUpdate {
-		if err := resourceScriptedCreateBase(s); err != nil {
-			return err
-		}
-	}
-
-	return resourceScriptedReadBase(s)
-}
-
 func resourceScriptedUpdateBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("update", true))
 	command, err := s.template(
@@ -220,42 +302,6 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	s.ensureId()
 	s.updateState(stdout)
 	return nil
-}
-
-func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
-	s, err := New(d, meta, Exists, false)
-	if err != nil {
-		return true, err
-	}
-	defer s.logging.PopIf(s.logging.Push("exists", true))
-	if !isSet(s.pc.Commands.Templates.Exists) {
-		s.log(hclog.Debug, `"commands_exists" is empty, exiting.`)
-		return true, nil
-	}
-	command, err := s.template(
-		"commands_prefix_fromenv+commands_prefix+commands_exists",
-		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Exists))
-	if err != nil {
-		return false, err
-	}
-	s.log(hclog.Debug, "resource exists")
-	output, err := s.execute(command)
-	if err != nil {
-		s.log(hclog.Warn, "exists returned error", "error", err)
-	}
-	exists := err == nil && output != s.pc.Commands.ExistsExpectedOutput
-	if !exists && s.pc.Commands.DeleteOnNotExists {
-		s.clear()
-	}
-	return exists, err
-}
-
-func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
-	s, err := New(d, meta, Delete, true)
-	if err != nil {
-		return err
-	}
-	return resourceScriptedDeleteBase(s)
 }
 
 func resourceScriptedDeleteBase(s *Scripted) error {
