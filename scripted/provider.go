@@ -56,6 +56,31 @@ func getEnv(key, defValue string) (value string, ok bool) {
 	return envDefaultOk(envKey(key), defValue)
 }
 
+func getEnvBoolOk(key string, defVal bool) (value, ok bool) {
+	str, ok := getEnv(key, EmptyString)
+	if str == EmptyString {
+		return defVal, false
+	}
+	value, err := strconv.ParseBool(str)
+	if err != nil {
+		ok = false
+	}
+	return value, ok
+}
+
+func getEnvBool(key string, defVal bool) (value bool) {
+	value, _ = getEnvBoolOk(key, defVal)
+	return value
+}
+
+func getEnvBoolFalse(key string) bool {
+	return getEnvBool(key, false)
+}
+
+func getEnvBoolTrue(key string) bool {
+	return getEnvBool(key, true)
+}
+
 func envDefault(key, defValue string) string {
 	ret, _ := envDefaultOk(key, defValue)
 	return ret
@@ -106,8 +131,7 @@ func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *
 	}
 	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s` %s= `\"\"`", key, prefix))
 	s.DefaultFunc = func() (interface{}, error) {
-		ret, ok := getEnv(key, EmptyString)
-		value := ret != EmptyString && ret != ""
+		value, ok := getEnvBoolOk(key, defVal)
 		if !ok {
 			value = defVal
 		}
@@ -381,13 +405,18 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	debugLogging = envDefault("TF_SCRIPTED_DEBUG_LOGGING", "") != ""
+	debugInterpreter := getEnvBoolFalse("INTERPRETER_DEBUG")
 	// For some reason setting this via DefaultFunc results in an error
 	interpreterI := d.Get("commands_interpreter").([]interface{})
 	if len(interpreterI) == 0 {
 		if runtime.GOOS == "windows" {
 			interpreterI = []interface{}{"cmd", "/C"}
+		} else {
+			interpreterI = []interface{}{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
+			if debugInterpreter {
+				interpreterI = append(interpreterI, "-x")
+			}
 		}
-		interpreterI = []interface{}{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
 	}
 	interpreter := make([]string, len(interpreterI))
 	for i, vI := range interpreterI {
