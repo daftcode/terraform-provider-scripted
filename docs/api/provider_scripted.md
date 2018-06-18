@@ -5,7 +5,7 @@
 
 | Argument | Type | Description | Default |
 |:---      | ---  | ---         | ---     |
-| `commands_create` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Create command | not set |
+| `commands_create` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Create command, defaults to `update_command` | not set |
 | `commands_delete` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Delete command | not set |
 | `commands_delete_on_not_exists` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when exists fails | `true` |
 | `commands_delete_on_read_failure` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when read fails | `false` |

@@ -219,6 +219,10 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 func resourceScriptedCreateBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("create", true))
 	if !isSet(s.pc.Commands.Templates.Create) {
+		if isSet(s.pc.Commands.Templates.Update) {
+			s.log(hclog.Debug, `"commands_create" is empty, running "commands_update".`)
+			return resourceScriptedUpdateBase(s)
+		}
 		s.log(hclog.Debug, `"commands_create" is empty, exiting.`)
 		if err := s.ensureId(); err != nil {
 			return err

@@ -33,7 +33,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Create command",
+				Description: "Create command, defaults to `update_command`",
 			},
 			"commands_delete": {
 				Type:        schema.TypeString,
