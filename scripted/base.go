@@ -60,6 +60,11 @@ type ResourceConfig struct {
 	environment          *ChangeMap
 }
 
+type TemplateArg struct {
+	name     string
+	template string
+}
+
 func New(d *schema.ResourceData, meta interface{}, operation Operation, old bool) (*Scripted, error) {
 	s := (&Scripted{
 		pc: meta.(*ProviderConfig),
@@ -301,6 +306,26 @@ func (s *Scripted) template(name, tpl string) (string, error) {
 	return s.templateExtra(name, tpl, map[string]string{})
 }
 
+func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, error) {
+	var names []string
+	var templates []string
+	if isFilled(s.pc.Commands.Templates.PrefixFromEnv) {
+		names = append(names, "commands_prefix_fromenv")
+		templates = append(templates, s.pc.Commands.Templates.PrefixFromEnv)
+	}
+	if isFilled(s.pc.Commands.Templates.Prefix) {
+		names = append(names, "commands_prefix")
+		templates = append(templates, s.pc.Commands.Templates.Prefix)
+	}
+	for _, arg := range args {
+		if isFilled(arg.template) {
+			names = append(names, arg.name)
+			templates = append(templates, arg.template)
+		}
+	}
+	return s.template(strings.Join(names, "+"), s.joinCommands(templates...))
+}
+
 func (s *Scripted) getInterpreter(command string) (string, []string, error) {
 	var args []string
 	hadTemplate := false
@@ -408,10 +433,7 @@ func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
 func (s *Scripted) ensureId() error {
 	if isSet(s.pc.Commands.Templates.Id) {
 		defer s.logging.PopIf(s.logging.Push("id", true))
-		command, err := s.template(
-			"commands_prefix_fromenv+commands_prefix+commands_id",
-			s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Id),
-		)
+		command, err := s.prefixedTemplate(&TemplateArg{"commands_id", s.pc.Commands.Templates.Id})
 		if err != nil {
 			return err
 		}
@@ -498,9 +520,7 @@ func (s *Scripted) checkNeedsUpdate() error {
 		s.setNeedsUpdate(false)
 		return nil
 	}
-	command, err := s.template(
-		"commands_prefix_fromenv+commands_prefix+commands_needs_update",
-		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.NeedsUpdate))
+	command, err := s.prefixedTemplate(&TemplateArg{"commands_needs_update", s.pc.Commands.Templates.NeedsUpdate})
 	if err != nil {
 		return err
 	}
@@ -527,9 +547,7 @@ func (s *Scripted) checkDependenciesMet() (bool, error) {
 		s.setDependenciesMet(true)
 		return true, nil
 	}
-	command, err := s.template(
-		"commands_prefix_fromenv+commands_prefix+commands_dependencies",
-		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.Dependencies))
+	command, err := s.prefixedTemplate(&TemplateArg{"commands_dependencies", s.pc.Commands.Templates.Dependencies})
 	if err != nil {
 		return false, err
 	}
@@ -555,9 +573,7 @@ func (s *Scripted) checkNeedsDelete() (bool, error) {
 		s.setNeedsDelete(false)
 		return false, nil
 	}
-	command, err := s.template(
-		"commands_prefix_fromenv+commands_prefix+commands_needs_delete",
-		s.joinCommands(s.pc.Commands.Templates.PrefixFromEnv, s.pc.Commands.Templates.Prefix, s.pc.Commands.Templates.NeedsDelete))
+	command, err := s.prefixedTemplate(&TemplateArg{"commands_needs_delete", s.pc.Commands.Templates.NeedsDelete})
 	if err != nil {
 		return false, err
 	}
