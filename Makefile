@@ -13,7 +13,7 @@ TEST ?= $$(go list ./...)
 all: fmt test build
 
 fmt:
-	go fmt ${NAME}/*
+	go fmt ./${NAME} ./cmd/*
 
 test: fmtcheck
 	TF_ACC=1 TF_SCRIPTED_LOGGING_LOG_LEVEL=WARN go test -v ./${NAME}

@@ -8,7 +8,8 @@ import (
 )
 
 var TemplateFuncs = getTemplateFuncs()
-var templateFuncs = template.FuncMap{
+var SprigTemplateFuncs = getSprigTemplateFuncs()
+var ExtraTemplateFuncs = template.FuncMap{
 	"toYaml": func(value interface{}) (string, error) {
 		ret, err := yaml.Marshal(value)
 		return string(ret[:]), err
@@ -31,14 +32,24 @@ var templateFuncs = template.FuncMap{
 		err := json.Unmarshal([]byte(value), &ret)
 		return ret, err
 	},
+	"is":       is,
+	"isSet":    isSet,
+	"isFilled": isFilled,
 }
 
-func getTemplateFuncs() template.FuncMap {
+func getSprigTemplateFuncs() template.FuncMap {
 	ret := sprig.TxtFuncMap()
 	delete(ret, "env")
 	delete(ret, "expandenv")
+	return ret
+}
 
-	for k, v := range templateFuncs {
+func getTemplateFuncs() template.FuncMap {
+	ret := template.FuncMap{}
+	for k, v := range SprigTemplateFuncs {
+		ret[k] = v
+	}
+	for k, v := range ExtraTemplateFuncs {
 		ret[k] = v
 	}
 	return ret

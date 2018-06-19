@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 	"text/template"
 )
@@ -65,6 +66,7 @@ const readme = `# {{ .name }} {{ .version }}
 {{- range $name, $data := (index . "data-sources") }}
 - [{{ $name }}]({{ $name }}.md)
 {{- end }}
+- [templates functions](templates_functions.md)
 `
 
 var description = makeBackticks(`
@@ -84,6 +86,32 @@ var description = makeBackticks(`
  	{{ if contains "\'" $default | not }}\'{{ end }}
 {{- else }}not set{{ end }} | 
 {{- end }}
+`)
+
+var templateFunctions = makeBackticks(`{{- $g := . -}}
+# Template functions listing
+
+## Scripted functions
+
+| Name | Type | Overrides sprig? |
+|:--- | --- | --- |
+{{- range $k, $v := .ScriptedFuncs }}
+| \'{{ $k }}\' | \'{{ $v }}\' | {{ if hasKey $g.SprigFuncs $k }}yes{{ end }} | 
+{{- end }}
+
+## Sprig functions
+
+Sprig docs are available at [http://masterminds.github.io/sprig/](http://masterminds.github.io/sprig/)
+
+| Name | Type | Is overriden? | 
+|:--- | --- | --- | --- |
+{{- range $k, $v := .SprigFuncs }}
+| \'{{ $k }}\' | \'{{ $v }}\' | {{ if hasKey $g.ScriptedFuncs $k }}yes{{ end }} |
+{{- end }}
+
+## Builtin functions
+
+Available in the [official docs](https://golang.org/pkg/text/template/#hdr-Functions)
 `)
 
 func (t *Templates) set(name, content string, context interface{}) {
@@ -109,7 +137,7 @@ func (t *Template) write(path string) {
 	exitIf(ioutil.WriteFile(path, buf.Bytes(), 0644))
 }
 
-func get(data interface{}, path ... string) interface{} {
+func get(data interface{}, path ...string) interface{} {
 	cur := data.(map[string]interface{})
 	var ok bool
 	for _, key := range path {
@@ -120,23 +148,35 @@ func get(data interface{}, path ... string) interface{} {
 	return cur
 }
 
+func toTypes(funcs template.FuncMap) (ret map[string]interface{}) {
+	ret = map[string]interface{}{}
+	for k, v := range funcs {
+		ret[k] = reflect.TypeOf(v)
+	}
+	return ret
+}
+
 func main() {
 	t := &Templates{templates: map[string]*Template{}}
 	data := getJson(arg(1))
 	t.set("README.md", readme, data)
 	t.set("provider_scripted.md", description, map[string]interface{}{
-		"name": "provider scripted",
+		"name":   "provider scripted",
 		"config": get(data, "provider"),
+	})
+	t.set("template_functions.md", templateFunctions, map[string]interface{}{
+		"ScriptedFuncs": toTypes(scripted.ExtraTemplateFuncs),
+		"SprigFuncs":    toTypes(scripted.SprigTemplateFuncs),
 	})
 	for name, values := range get(data, "resources").(map[string]interface{}) {
 		t.set(name+".md", description, map[string]interface{}{
-			"name": name,
+			"name":   name,
 			"config": values,
 		})
 	}
 	for name, values := range get(data, "data-sources").(map[string]interface{}) {
 		t.set(name+".md", description, map[string]interface{}{
-			"name": name,
+			"name":   name,
 			"config": values,
 		})
 	}
