@@ -91,27 +91,15 @@ var description = makeBackticks(`
 var templateFunctions = makeBackticks(`{{- $g := . -}}
 # Template functions listing
 
-## Scripted functions
-
-| Name | Type | Overrides sprig? |
-|:--- | --- | --- |
-{{- range $k, $v := .ScriptedFuncs }}
-| \'{{ $k }}\' | \'{{ $v }}\' | {{ if hasKey $g.SprigFuncs $k }}yes{{ end }} | 
-{{- end }}
-
-## Sprig functions
-
 Sprig docs are available at [http://masterminds.github.io/sprig/](http://masterminds.github.io/sprig/)
 
-| Name | Type | Is overriden? | 
-|:--- | --- | --- | --- |
-{{- range $k, $v := .SprigFuncs }}
-| \'{{ $k }}\' | \'{{ $v }}\' | {{ if hasKey $g.ScriptedFuncs $k }}yes{{ end }} |
+Builtin go template functions are available at the [official docs](https://golang.org/pkg/text/template/#hdr-Functions)
+
+| Name | Source | Type |
+|:--- | --- | --- |
+{{- range $k, $v := .Funcs }}
+| \'{{ $k }}\' | \'{{ $v.source }}\' | \'{{ $v.type }}\' |
 {{- end }}
-
-## Builtin functions
-
-Available in the [official docs](https://golang.org/pkg/text/template/#hdr-Functions)
 `)
 
 func (t *Templates) set(name, content string, context interface{}) {
@@ -148,10 +136,19 @@ func get(data interface{}, path ...string) interface{} {
 	return cur
 }
 
-func toTypes(funcs template.FuncMap) (ret map[string]interface{}) {
+func mapFuncs(funcs template.FuncMap) (ret map[string]interface{}) {
 	ret = map[string]interface{}{}
 	for k, v := range funcs {
-		ret[k] = reflect.TypeOf(v)
+		var source string
+		if _, ok := scripted.ExtraTemplateFuncs[k]; ok {
+			source = "scripted"
+		} else {
+			source = "sprig"
+		}
+		ret[k] = map[string]interface{}{
+			"type":   reflect.TypeOf(v),
+			"source": source,
+		}
 	}
 	return ret
 }
@@ -165,8 +162,9 @@ func main() {
 		"config": get(data, "provider"),
 	})
 	t.set("template_functions.md", templateFunctions, map[string]interface{}{
-		"ScriptedFuncs": toTypes(scripted.ExtraTemplateFuncs),
-		"SprigFuncs":    toTypes(scripted.SprigTemplateFuncs),
+		"Funcs":         mapFuncs(scripted.TemplateFuncs),
+		"ScriptedFuncs": scripted.ExtraTemplateFuncs,
+		"SprigFuncs":    scripted.SprigTemplateFuncs,
 	})
 	for name, values := range get(data, "resources").(map[string]interface{}) {
 		t.set(name+".md", description, map[string]interface{}{
