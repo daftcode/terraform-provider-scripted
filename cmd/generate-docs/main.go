@@ -66,7 +66,7 @@ const readme = `# {{ .name }} {{ .version }}
 {{- range $name, $data := (index . "data-sources") }}
 - [{{ $name }}]({{ $name }}.md)
 {{- end }}
-- [templates functions](templates_functions.md)
+- [template functions](template_functions.md)
 `
 
 var description = makeBackticks(`
