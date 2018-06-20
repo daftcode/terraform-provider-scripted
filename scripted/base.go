@@ -1,6 +1,7 @@
 package scripted
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -63,6 +64,12 @@ type ResourceConfig struct {
 type TemplateArg struct {
 	name     string
 	template string
+}
+
+type KVEntry struct {
+	key   string
+	value string
+	err   error
 }
 
 func New(d *schema.ResourceData, meta interface{}, operation Operation, old bool) (*Scripted, error) {
@@ -216,58 +223,101 @@ func (s *Scripted) removeOld() {
 	s.oldLog = s.oldLog[:l-1]
 }
 
-func (s *Scripted) outputsText(output string, prefix, exceptPrefix string, outputs map[string]string) map[string]string {
-	split := strings.Split(output, "\n")
+func (s *Scripted) scanLines(lines chan string, reader io.Reader) {
+	defer close(lines)
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		lines <- scanner.Text()
+	}
+}
+
+func (s *Scripted) filterLines(input chan string, prefix, exceptPrefix string, output chan string) {
+	defer close(output)
 	hasPrefix := isSet(prefix)
 	hasExceptPrefix := isSet(exceptPrefix)
+	for line := range input {
+		s.log(hclog.Trace, "filtering line", "line", line)
 
-	for _, varline := range split {
-		s.log(hclog.Trace, "reading output line", "line", varline)
-
-		if varline == "" {
-			s.log(hclog.Debug, "skipping empty line")
+		if !isFilled(line) {
+			s.log(hclog.Trace, "filtered empty line", "line", line)
 			continue
 		}
 
 		if hasExceptPrefix {
-			if strings.HasPrefix(varline, exceptPrefix) {
-				s.log(hclog.Debug, "ignoring line with prefix", "prefix", exceptPrefix, "line", varline)
+			if strings.HasPrefix(line, exceptPrefix) {
+				s.log(hclog.Trace, "filtered line with prefix", "prefix", exceptPrefix, "line", line)
 				continue
 			}
 		}
 		if hasPrefix {
-			if !strings.HasPrefix(varline, prefix) {
-				s.log(hclog.Debug, "ignoring line without prefix", "prefix", prefix, "line", varline)
+			if !strings.HasPrefix(line, prefix) {
+				s.log(hclog.Trace, "filtered line without prefix", "prefix", prefix, "line", line)
 				continue
 			}
-			varline = strings.TrimPrefix(varline, prefix)
+			line = strings.TrimPrefix(line, prefix)
 		}
-
-		pos := strings.Index(varline, "=")
-		if pos == -1 {
-			s.log(hclog.Debug, "ignoring line without equal sign", "line", varline)
-			continue
-		}
-
-		key := varline[:pos]
-		value := varline[pos+1:]
-		s.log(hclog.Info, "read output", "key", key, "value", value)
-		outputs[key] = value
+		// s.log(hclog.Trace, "filter passed", "line", line)
+		output <- line
+		// s.log(hclog.Trace, "filter sent  ", "line", line)
 	}
-	return outputs
 }
 
-func (s *Scripted) outputsBase64(output, prefix, exceptPrefix string, outputs map[string]string) map[string]string {
-	for key, value := range s.outputsText(output, prefix, exceptPrefix, outputs) {
-		decoded, err := base64.StdEncoding.DecodeString(value)
-		if err != nil {
-			s.log(hclog.Warn, "error decoding base64", "error", err)
+func (s *Scripted) scanText(input chan string, output chan KVEntry) {
+	defer close(output)
+
+	for line := range input {
+		pos := strings.Index(line, "=")
+		if pos == -1 {
+			s.log(hclog.Debug, "ignoring line without equal sign", "line", line)
 			continue
 		}
-		s.log(hclog.Debug, "read output entry (decoded)", "key", key, key, string(decoded[:]), "base64", value)
-		outputs[key] = string(decoded[:])
+
+		key := line[:pos]
+		value := line[pos+1:]
+		s.log(hclog.Trace, "scanned text", "key", key, "value", value)
+		output <- KVEntry{key, value, nil}
 	}
-	return outputs
+}
+
+func (s *Scripted) scanBase64(input chan string, output chan KVEntry) {
+	defer close(output)
+	textEntries := make(chan KVEntry)
+	go s.scanText(input, textEntries)
+
+	for e := range textEntries {
+		decoded, err := base64.StdEncoding.DecodeString(e.value)
+		if err != nil {
+			s.log(hclog.Warn, "error decoding base64", "error", err)
+			output <- KVEntry{e.key, "", err}
+			continue
+		}
+		value := string(decoded[:])
+		output <- KVEntry{e.key, value, e.err}
+	}
+}
+
+func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
+	defer close(output)
+
+	for line := range input {
+		if !strings.HasPrefix(line, "{") {
+			s.log(hclog.Trace, "not a json line, skipping", "line", line)
+			continue
+		}
+		data, err := fromJson(line)
+		if err != nil {
+			s.log(hclog.Warn, "invalid json line", "line", line, "error", err)
+			continue
+		}
+		for key, entry := range data.(map[string]interface{}) {
+			value, ok := entry.(string)
+			err = nil
+			if !ok {
+				err = fmt.Errorf(`failed to convert %v to string`, entry)
+			}
+			output <- KVEntry{key, value, err}
+		}
+	}
 }
 
 func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (string, error) {
@@ -355,7 +405,7 @@ func (s *Scripted) getInterpreter(command string) (string, []string, error) {
 	return s.pc.Commands.Templates.Interpreter[0], args, nil
 }
 
-func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error) {
+func (s *Scripted) executeBase(output chan string, env *ChangeMap, commands ...string) error {
 	command := s.joinCommands(commands...)
 	interpreter, args, err := s.getInterpreter(command)
 	cmd := exec.Command(interpreter, args...)
@@ -364,53 +414,66 @@ func (s *Scripted) executeEnv(env *ChangeMap, commands ...string) (string, error
 	}
 	cmd.Env = mapToEnv(env.Cur)
 
-	output, err := circbuf.NewBuffer(8 * 1024)
+	outBuf, err := circbuf.NewBuffer(s.pc.LoggingBufferSize)
 	if err != nil {
-		return "", fmt.Errorf("failed to initialize redirection buffer: %s", err)
+		return fmt.Errorf("failed to initialize redirection buffer: %s", err)
 	}
 
-	stdout, _ := circbuf.NewBuffer(s.pc.LoggingBufferSize)
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	go s.scanLines(output, pr)
 
-	outLog, err := newLoggedOutput(s, "out")
-	errLog, err := newLoggedOutput(s, "err")
-	cmd.Stdout = io.MultiWriter(output, outLog.Start(), stdout)
-	cmd.Stderr = io.MultiWriter(output, errLog.Start())
+	outLog := newLoggedOutput(s, "out")
+	cmd.Stdout = io.MultiWriter(outBuf, outLog.Start(), pw)
+	defer outLog.Close()
 
-	logArgs := []interface{}{
-		"interpreter", interpreter,
-	}
-	for i, v := range args {
-		logArgs = append(logArgs, fmt.Sprintf("args[%d]", i), v)
-	}
+	errLog := newLoggedOutput(s, "err")
+	cmd.Stderr = io.MultiWriter(outBuf, errLog.Start())
+	defer errLog.Close()
+
 	// Output what we're about to run
-	if s.pc.Commands.Output.LogLevel >= hclog.Debug {
+	if s.pc.Logging.level >= hclog.Debug {
 		s.log(hclog.Debug, "executing command", "command", command)
 	} else {
+		logArgs := []interface{}{
+			"interpreter", interpreter,
+		}
+		for i, v := range args {
+			logArgs = append(logArgs, fmt.Sprintf("args[%d]", i), v)
+		}
 		s.log(hclog.Trace, "executing", logArgs...)
 	}
 
 	// Start the command
 	err = cmd.Start()
+	s.log(hclog.Trace, "command started")
 	if err == nil {
+		s.log(hclog.Trace, "command wait")
 		err = cmd.Wait()
+		s.log(hclog.Trace, "command waited", "err", err)
 	}
-
-	outLog.Close()
-	errLog.Close()
+	s.log(hclog.Trace, "command finished", "err", err)
 
 	if err != nil {
-		return stdout.String(), fmt.Errorf("error running command '%s': %v. output: %s",
-			command, err, output.Bytes())
+		return fmt.Errorf("error running command '%s': %v. outBuf: %s",
+			command, err, outBuf.Bytes())
 	}
-	return stdout.String(), nil
+	return nil
 }
 
-func (s *Scripted) execute(commands ...string) (string, error) {
+func (s *Scripted) executeString(commands ...string) (string, error) {
+	lines := make(chan string)
+	err := s.execute(lines, commands...)
+	return chToString(lines), err
+}
+
+func (s *Scripted) execute(lines chan string, commands ...string) error {
 	env, err := s.Environment()
 	if err != nil {
-		return "", err
+		close(lines)
+		return err
 	}
-	return s.executeEnv(env, commands...)
+	return s.executeBase(lines, env, commands...)
 }
 
 func (s *Scripted) joinCommands(commands ...string) string {
@@ -437,7 +500,7 @@ func (s *Scripted) ensureId() error {
 		if err != nil {
 			return err
 		}
-		stdout, err := s.execute(command)
+		stdout, err := s.executeString(command)
 		if err != nil {
 			return err
 		}
@@ -463,31 +526,78 @@ func (s *Scripted) getId() string {
 	return s.d.Id()
 }
 
-func (s *Scripted) setOutput(stdout string) {
-	output := s.readLines(stdout, s.pc.OutputLinePrefix, s.pc.OutputFormat, s.pc.StateLinePrefix, map[string]string{})
-	s.log(hclog.Debug, "setting output", "output", output)
-	s.d.Set("output", output)
+func (s *Scripted) outputSetter() (input chan string, doneCh chan bool) {
+	input = make(chan string)
+	doneCh = make(chan bool)
+
+	go func() {
+		s.log(hclog.Trace, "outputSetter", "input", input)
+		output := map[string]string{}
+		filtered := make(chan string)
+		go s.filterLines(input, s.pc.OutputLinePrefix, s.pc.StateLinePrefix, filtered)
+		entries := make(chan KVEntry)
+		go s.scanOutput(filtered, s.pc.OutputFormat, entries)
+		for e := range entries {
+			if e.err != nil {
+				s.log(hclog.Error, "failed getting output", "key", e.key, "value", e.value, "err", e.err)
+				continue
+			}
+			if isSet(e.value) {
+				s.log(hclog.Trace, "setting output", "key", e.key, "value", e.value)
+				output[e.key] = e.value
+			} else {
+				s.log(hclog.Trace, "deleting output", "key", e.key)
+				delete(output, e.key)
+			}
+		}
+		s.d.Set("output", output)
+		doneCh <- true
+		close(doneCh)
+	}()
+
+	return input, doneCh
 }
 
-func (s *Scripted) updateState(stdout string) {
-	s.log(hclog.Debug, "updating state")
-	s.readLines(stdout, s.pc.StateLinePrefix, s.pc.StateFormat, s.pc.EmptyString, s.rc.state.New)
-	for key, value := range s.rc.state.New {
-		if value == s.pc.EmptyString {
-			delete(s.rc.state.New, key)
+func (s *Scripted) stateUpdater() (input chan string, doneCh chan bool) {
+	input = make(chan string)
+	doneCh = make(chan bool)
+
+	go func() {
+		s.log(hclog.Trace, "stateUpdater", "input", input)
+		output := s.rc.state.New
+		filtered := make(chan string)
+		go s.filterLines(input, s.pc.StateLinePrefix, s.pc.EmptyString, filtered)
+		entries := make(chan KVEntry)
+		go s.scanOutput(filtered, s.pc.StateFormat, entries)
+		for e := range entries {
+			if e.err != nil {
+				s.log(hclog.Error, "failed getting state", "key", e.key, "value", e.value, "err", e.err)
+				continue
+			}
+			if isSet(e.value) {
+				s.log(hclog.Trace, "setting state", "key", e.key, "value", e.value)
+				output[e.key] = e.value
+			} else {
+				s.log(hclog.Trace, "deleting state", "key", e.key)
+				delete(output, e.key)
+			}
 		}
-	}
-	s.syncState()
+		s.syncState()
+		doneCh <- true
+		close(doneCh)
+	}()
+
+	return input, doneCh
 }
 
 func (s *Scripted) clearState() {
-	s.log(hclog.Debug, "clearing state")
+	s.log(hclog.Trace, "clearing resource.state")
 	s.rc.state.New = map[string]string{}
 	s.syncState()
 }
 
 func (s *Scripted) syncState() {
-	s.log(hclog.Debug, "setting state", "state", s.rc.state.New)
+	s.log(hclog.Debug, "setting resource.state", "state", s.rc.state.New)
 	s.d.Set("state", s.rc.state.New)
 }
 
@@ -498,25 +608,23 @@ func (s *Scripted) clear() {
 	s.clearState()
 }
 
-func (s *Scripted) readLines(data, prefix, format, exceptPrefix string, outputs map[string]string) map[string]string {
-	if data == "" {
-		return outputs
-	}
+func (s *Scripted) scanOutput(input chan string, format string, output chan KVEntry) {
 	switch format {
+	case "json":
+		go s.scanJson(input, output)
 	case "base64":
-		outputs = s.outputsBase64(data, prefix, exceptPrefix, outputs)
+		go s.scanBase64(input, output)
 	default:
 		fallthrough
 	case "raw":
-		outputs = s.outputsText(data, prefix, exceptPrefix, outputs)
+		go s.scanText(input, output)
 	}
-	return outputs
 }
 
 func (s *Scripted) checkNeedsUpdate() error {
 	defer s.logging.PopIf(s.logging.Push("needs_update", true))
 	if !isSet(s.pc.Commands.Templates.NeedsUpdate) {
-		s.log(hclog.Debug, `"commands_needs_update" is empty, exiting.`)
+		s.log(hclog.Trace, `"commands_needs_update" is empty, exiting.`)
 		s.setNeedsUpdate(false)
 		return nil
 	}
@@ -525,7 +633,7 @@ func (s *Scripted) checkNeedsUpdate() error {
 		return err
 	}
 	s.log(hclog.Debug, "resource needs_update")
-	output, err := s.execute(command)
+	output, err := s.executeString(command)
 	s.setNeedsUpdate(err == nil && output == s.pc.Commands.NeedsUpdateExpectedOutput)
 	return err
 }
@@ -543,7 +651,7 @@ func (s *Scripted) setNeedsUpdate(value bool) {
 func (s *Scripted) checkDependenciesMet() (bool, error) {
 	defer s.logging.PopIf(s.logging.Push("dependencies", true))
 	if !isSet(s.pc.Commands.Templates.Dependencies) {
-		s.log(hclog.Debug, `"commands_dependencies" is empty, exiting.`)
+		s.log(hclog.Trace, `"commands_dependencies" is empty, exiting.`)
 		s.setDependenciesMet(true)
 		return true, nil
 	}
@@ -551,7 +659,7 @@ func (s *Scripted) checkDependenciesMet() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	output, err := s.execute(command)
+	output, err := s.executeString(command)
 	s.setDependenciesMet(err == nil && output == s.pc.Commands.DependenciesTriggerOutput)
 	return s.dependenciesMet(), err
 }
@@ -577,7 +685,7 @@ func (s *Scripted) checkNeedsDelete() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	output, err := s.execute(command)
+	output, err := s.executeString(command)
 	s.setNeedsDelete(err == nil && output == s.pc.Commands.NeedsDeleteExpectedOutput)
 	return s.needsDelete(), err
 }

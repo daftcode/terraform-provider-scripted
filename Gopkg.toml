@@ -33,10 +33,6 @@
   name = "github.com/hashicorp/terraform"
   version = "0.11.7"
 
-[[constraint]]
-  branch = "master"
-  name = "github.com/mitchellh/go-linereader"
-
 [prune]
   go-tests = true
   unused-packages = true

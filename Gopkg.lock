@@ -338,12 +338,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/mitchellh/go-linereader"
-  packages = ["."]
-  revision = "07bab5fdd9580500aea6ada0e09df4aa28e68abd"
-
-[[projects]]
-  branch = "master"
   name = "github.com/mitchellh/go-testing-interface"
   packages = ["."]
   revision = "a61a99592b77c9ba629d254a693acffaeb4b7e28"
@@ -523,6 +517,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5bd0ff93329c9ee8c643ddeb7967ee40bc6d1330f2d8698cf9f8dcb46ee2784e"
+  inputs-digest = "fb2b647f0278fb799ac79d212a9e79fa3a1f36a308831844cd635f83c51fd707"
   solver-name = "gps-cdcl"
   solver-version = 1

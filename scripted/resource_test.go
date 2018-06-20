@@ -552,8 +552,8 @@ echo -n "{{ .StatePrefix }}value={{ .Cur.value }}"
 EOF
 		commands_update = ""
 		commands_read = <<EOF
-echo "old={{ .State.Old.value }}"
-echo "new={{ .State.New.value }}"
+echo old={{ .State.Old.value | quote}}
+echo new={{ .State.New.value | quote}}
 EOF
 	}
 	resource "scripted_resource" "test" {
@@ -567,8 +567,8 @@ EOF
   		commands_create = ""
 		commands_update = ""
 		commands_read = <<EOF
-echo "old={{ .State.Old.value }}"
-echo "new={{ .State.New.value }}"
+echo old={{ .State.Old.value | quote}}
+echo new={{ .State.New.value | quote}}
 EOF
 	}
 	resource "scripted_resource" "test" {
@@ -584,8 +584,8 @@ EOF
 echo -n "{{ .StatePrefix }}value={{ .EmptyString }}"
 EOF
 		commands_read = <<EOF
-echo "old={{ .State.Old.value }}"
-echo "new={{ .State.New.value }}"
+echo old={{ .State.Old.value | quote}}
+echo new={{ .State.New.value | quote}}
 EOF
 	}
 	resource "scripted_resource" "test" {
@@ -602,7 +602,7 @@ EOF
 				Config: testConfig,
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
-					testAccCheckResourceOutput("scripted_resource.test", "old", "<no value>"),
+					testAccCheckResourceOutput("scripted_resource.test", "old", ""),
 					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
 				),
 			},
@@ -627,7 +627,7 @@ EOF
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceStateMissing("scripted_resource.test", "value"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
-					testAccCheckResourceOutput("scripted_resource.test", "new", "<no value>"),
+					testAccCheckResourceOutput("scripted_resource.test", "new", ""),
 				),
 			},
 		},

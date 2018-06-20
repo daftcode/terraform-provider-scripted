@@ -2,8 +2,6 @@ package scripted
 
 import (
 	"fmt"
-	"github.com/armon/circbuf"
-	"github.com/mitchellh/go-linereader"
 	"io"
 	"os"
 )
@@ -11,36 +9,23 @@ import (
 type LoggedOutput struct {
 	s      *Scripted
 	tag    string
-	pw     *os.File
-	pr     *os.File
-	tee    io.Reader
-	buf    *circbuf.Buffer
+	pw     *io.PipeWriter
+	pr     *io.PipeReader
 	doneCh chan struct{}
 }
 
-func newLoggedOutput(s *Scripted, tag string) (*LoggedOutput, error) {
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize logging pipe: %s", err)
-	}
-	buf, err := circbuf.NewBuffer(8 * 1024)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize logging buffer: %s", err)
-	}
-	lo := &LoggedOutput{
+func newLoggedOutput(s *Scripted, tag string) *LoggedOutput {
+	pr, pw := io.Pipe()
+	return &LoggedOutput{
 		s:      s,
 		tag:    tag,
 		pw:     pw,
 		pr:     pr,
-		buf:    buf,
-		tee:    io.TeeReader(pr, buf),
 		doneCh: make(chan struct{}),
 	}
-
-	return lo, nil
 }
 
-func (lo *LoggedOutput) Start() *os.File {
+func (lo *LoggedOutput) Start() *io.PipeWriter {
 	go lo.logOutput()
 	return lo.pw
 }
@@ -54,12 +39,13 @@ func (lo *LoggedOutput) Close() {
 
 func (lo *LoggedOutput) logOutput() {
 	defer close(lo.doneCh)
-	lr := linereader.New(lo.tee)
+	lines := make(chan string)
+	go lo.s.scanLines(lines, lo.pr)
 	extra := ""
 	if lo.s.pc.Commands.Output.LogPids {
 		extra += fmt.Sprintf(" ppid=%-5[1]d pid=%-5[2]d", os.Getppid(), os.Getpid())
 	}
-	for line := range lr.Ch {
+	for line := range lines {
 		format := fmt.Sprintf("<%[1]s%[3]s>%%-%[2]ds</%[1]s>", lo.tag, lo.s.pc.Commands.Output.LineWidth, extra)
 
 		lo.s.log(lo.s.pc.Commands.Output.LogLevel, fmt.Sprintf(format, line))

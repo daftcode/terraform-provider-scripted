@@ -163,7 +163,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"commands_read_format": stringDefaultSchema(
 				&schema.Schema{
-					ValidateFunc: validation.StringInSlice([]string{"raw", "base64"}, false),
+					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json"}, false),
 				},
 				"commands_read_format",
 				"Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/` or base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/`.",
@@ -176,7 +176,7 @@ func Provider() terraform.ResourceProvider {
 			),
 			"commands_state_format": stringDefaultSchemaEmptyMsgVal(
 				&schema.Schema{
-					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", EmptyString}, false),
+					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json", EmptyString}, false),
 				},
 				"commands_state_format",
 				"Ignore lines in read command without this prefix.",
@@ -312,6 +312,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	}
 
 	logging := newLogging(hcloggers)
+	logging.level = logLevel
 	if d.Get("logging_iids").(bool) {
 		logging.Push("piid", nextProviderId)
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 )
 
 func mergeMaps(maps ...map[string]string) map[string]string {
@@ -85,4 +86,17 @@ func isSet(str string) bool {
 
 func isFilled(str string) bool {
 	return str != EmptyString && str != ""
+}
+
+func chToString(lines chan string) string {
+	var builder strings.Builder
+	first := true
+	for line := range lines {
+		if !first {
+			builder.WriteString("\n")
+			first = false
+		}
+		builder.WriteString(line)
+	}
+	return builder.String()
 }

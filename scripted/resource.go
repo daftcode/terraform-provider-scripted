@@ -92,8 +92,8 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	if !met {
-		s.log(hclog.Warn, "dependencies not met, exiting")
-		s.clear()
+		s.log(hclog.Warn, "create dependencies not met, clearing state then exiting")
+		s.clearState()
 		return nil
 	}
 	if needsDelete, err := s.checkNeedsDelete(); err != nil || needsDelete {
@@ -188,7 +188,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return false, err
 	}
 	s.log(hclog.Debug, "resource exists")
-	output, err := s.execute(command)
+	output, err := s.executeString(command)
 	if err != nil {
 		s.log(hclog.Warn, "exists returned error", "error", err)
 	}
@@ -225,6 +225,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 		if err := s.ensureId(); err != nil {
 			return err
 		}
+		s.clearState()
 		s.syncState()
 		return resourceScriptedReadBase(s)
 	}
@@ -236,7 +237,10 @@ func resourceScriptedCreateBase(s *Scripted) error {
 		return err
 	}
 	s.log(hclog.Debug, "creating resource")
-	stdout, err := s.execute(command)
+	s.clearState()
+	lines, done := s.stateUpdater()
+	err = s.execute(lines, command)
+	<-done
 	if err != nil {
 		return err
 	}
@@ -244,8 +248,6 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	if err := s.ensureId(); err != nil {
 		return err
 	}
-	s.clearState()
-	s.updateState(stdout)
 	s.log(hclog.Debug, "created resource", "id", s.getId())
 	return resourceScriptedReadBase(s)
 }
@@ -273,16 +275,18 @@ func resourceScriptedReadBase(s *Scripted) error {
 		}
 		return err
 	}
-	stdout, err := s.executeEnv(env, command)
+	s.log(hclog.Trace, "executing read", "command", command)
+	output, doneCh := s.outputSetter()
+	err = s.executeBase(output, env, command)
+	<-doneCh
 	if err != nil {
 		if s.pc.Commands.DeleteOnReadFailure {
-			s.log(hclog.Info, "command returned error, marking resource deleted", "error", err, "stdout", stdout)
+			s.log(hclog.Info, "command returned error, marking resource deleted", "error", err, "output", output)
 			s.clear()
 			return nil
 		}
 		return err
 	}
-	s.setOutput(stdout)
 	return nil
 }
 
@@ -296,13 +300,16 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 		return err
 	}
 	s.log(hclog.Debug, "updating resource", "command", command)
-	stdout, err := s.execute(command)
+	lines, done := s.stateUpdater()
+	err = s.execute(lines, command)
+	<-done
 	if err != nil {
 		s.log(hclog.Warn, "update command returned error", "error", err)
 		return err
 	}
-	s.ensureId()
-	s.updateState(stdout)
+	if err := s.ensureId(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -320,7 +327,7 @@ func resourceScriptedDeleteBase(s *Scripted) error {
 		return err
 	}
 	s.log(hclog.Debug, "deleting resource")
-	_, err = s.execute(command)
+	_, err = s.executeString(command)
 	if err != nil {
 		return err
 	}

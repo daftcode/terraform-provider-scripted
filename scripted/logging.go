@@ -9,6 +9,7 @@ type Logger struct {
 
 type Logging struct {
 	stack []*Logger
+	level hclog.Level
 }
 
 func newLogging(hcloggers []hclog.Logger, args ...interface{}) *Logging {

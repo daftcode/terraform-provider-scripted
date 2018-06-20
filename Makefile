@@ -18,6 +18,10 @@ fmt:
 test: fmtcheck
 	TF_ACC=1 TF_SCRIPTED_LOGGING_LOG_LEVEL=WARN go test -v ./${NAME}
 
+debug_test:
+	TF_ACC=1 TF_SCRIPTED_ENV_PREFIX=TFS_ TFS_LOGGING_LOG_LEVEL=TRACE go test -v ./${NAME}
+
+
 build_cmds:
 	for name in $$(ls ./cmd); do go build -o "${OUT}/$${name}" "./cmd/$${name}"; done
 
