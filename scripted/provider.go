@@ -166,7 +166,7 @@ func Provider() terraform.ResourceProvider {
 					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json"}, false),
 				},
 				"commands_read_format",
-				"Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/` or base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/`.",
+				"Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/`, base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/` or json (one JSON object per line, overriding previous keys).",
 				"raw",
 			),
 			"commands_read_line_prefix": stringDefaultSchemaEmpty(
@@ -179,7 +179,7 @@ func Provider() terraform.ResourceProvider {
 					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json", EmptyString}, false),
 				},
 				"commands_state_format",
-				"Ignore lines in read command without this prefix.",
+				"Create/Update state output format, for more info see `commands_read_format`.",
 				"`commands_read_format`",
 			),
 			"commands_update": {

@@ -309,6 +309,59 @@ func TestAccScriptedResource_Base64(t *testing.T) {
 	})
 }
 
+func TestAccScriptedResource_JsonWithOverride(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+		commands_create = "echo -n \"hi\" > test_file"
+  		commands_read = <<EOF
+	echo -n "{\"out\": \"$(cat test_file)\"}"
+	EOF
+		commands_read_format = "json"
+		commands_delete = "rm test_file"
+	}
+	resource "scripted_resource" "test" {
+	}
+`
+	const testConfig2 = `
+	provider "scripted" {
+		commands_create = "echo -n \"hi\" > test_file"
+  		commands_read = <<EOF
+	echo "{\"out\": \"$(cat test_file)\"}"
+	echo '{"out": "hi2"}'
+	EOF
+		commands_read_format = "json"
+		commands_delete = "rm test_file"
+	}
+	resource "scripted_resource" "test" {
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptedDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+				),
+			},
+			{
+				Config: testConfig2,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi2"),
+				),
+			},
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResource_Prefixed(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
