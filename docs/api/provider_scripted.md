@@ -11,13 +11,13 @@
 | `commands_delete_on_read_failure` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when read fails | `false` |
 | `commands_dependencies` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command determining whether dependencies are met | not set |
 | `commands_dependencies_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_dependencies` to pass the check.  | `$TF_SCRIPTED_COMMANDS_EXISTS_TRIGGER_OUTPUT` or `true` |
-| `commands_environment_include_parent` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Include parent environment in the command? | `true` |
+| `commands_environment_include_parent` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Include parent environment in the command? | `false` |
 | `commands_environment_prefix_new` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | New environment prefix (skip if empty) | not set |
 | `commands_environment_prefix_old` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Old environment prefix (skip if empty) | not set |
 | `commands_exists` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exists command | not set |
 | `commands_exists_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_exists` to trigger not-exists behaviour.  | `$TF_SCRIPTED_COMMANDS_EXISTS_TRIGGER_OUTPUT` or `false` |
 | `commands_id` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command building resource id | not set |
-| `commands_interpreter` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | Interpreter and it's arguments, can be a template with `command` variable. | not set |
+| `commands_interpreter` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | Interpreter and it's arguments, can be a template with `command` variable. Can be passed as JSON array in TF_SCRIPTED_COMMANDS_INTERPRETER environment variable. | not set |
 | `commands_modify_prefix` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Modification (create and update) commands prefix | not set |
 | `commands_needs_delete` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command indicating whether resource should be deleted, non-zero exit code to force update | not set |
 | `commands_needs_delete_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_needs_delete` to trigger delete.  | `$TF_SCRIPTED_COMMANDS_NEEDS_DELETE_TRIGGER_OUTPUT` or `true` |

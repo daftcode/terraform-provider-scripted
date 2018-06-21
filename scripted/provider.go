@@ -68,7 +68,7 @@ func Provider() terraform.ResourceProvider {
 			"commands_environment_include_parent": {
 				Type:        schema.TypeBool,
 				Optional:    true,
-				Default:     true,
+				Default:     false,
 				Description: "Include parent environment in the command?",
 			},
 			"commands_environment_prefix_old": {
@@ -105,7 +105,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
-				Description: "Interpreter and it's arguments, can be a template with `command` variable.",
+				Description: "Interpreter and it's arguments, can be a template with `command` variable. Can be passed as JSON array in TF_SCRIPTED_COMMANDS_INTERPRETER environment variable.",
 			},
 			"commands_modify_prefix": {
 				Type:        schema.TypeString,
@@ -322,28 +322,46 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	}
 	return logging, nil
 }
-
-func providerConfigure(d *schema.ResourceData) (interface{}, error) {
-	debugLogging = envDefault("TF_SCRIPTED_DEBUG_LOGGING", "") != ""
+func interpreterOrDefault(cur []string) ([]string, error) {
+	var interpreter []string
+	var err error
+	if len(cur) > 0 {
+		return cur, nil
+	}
 	debugInterpreter := getEnvBoolFalse("INTERPRETER_DEBUG")
-	// For some reason setting this via DefaultFunc results in an error
-	interpreterI := d.Get("commands_interpreter").([]interface{})
-	if len(interpreterI) == 0 {
+	env, ok := getEnv("COMMANDS_INTERPRETER", "")
+	if ok {
+		json, err := fromJson(env)
+		if err != nil {
+			return nil, err
+		}
+		interpreter = json.([]string)
+	} else {
 		if runtime.GOOS == "windows" {
-			interpreterI = []interface{}{"cmd", "/C"}
+			interpreter = []string{"cmd", "/C"}
 		} else {
-			interpreterI = []interface{}{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
+			interpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
 			if debugInterpreter {
-				interpreterI = append(interpreterI, "-x")
+				interpreter = append(interpreter, "-x")
 			}
 		}
-	}
-	interpreter := make([]string, len(interpreterI))
-	for i, vI := range interpreterI {
-		interpreter[i] = vI.(string)
+		return interpreter, err
 	}
 
+	return interpreter, err
+}
+
+func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	logging, err := providerConfigureLogging(d)
+	debugLogging = envDefault("TF_SCRIPTED_DEBUG_LOGGING", "") != ""
+	interpreter, err := interpreterOrDefault(castConfigList(d.Get("commands_interpreter")))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(interpreter) < 1 {
+		return nil, fmt.Errorf(`invalid interpreter: %s`, interpreter)
+	}
 
 	if err != nil {
 		return nil, err
