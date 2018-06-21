@@ -152,6 +152,16 @@ func (s *Scripted) Environment() (*ChangeMap, error) {
 					env.New[key] = value
 				}
 			}
+		} else if len(s.pc.Commands.Environment.InheritVariables) > 0 {
+			for _, key := range s.pc.Commands.Environment.InheritVariables {
+				value := os.Getenv(key)
+				if _, ok := env.Old[key]; !ok {
+					env.Old[key] = value
+				}
+				if _, ok := env.New[key]; !ok {
+					env.New[key] = value
+				}
+			}
 		}
 		if s.old {
 			env.Cur = env.Old

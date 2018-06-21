@@ -12,6 +12,7 @@
 | `commands_dependencies` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command determining whether dependencies are met | not set |
 | `commands_dependencies_trigger_output` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exact output expected from `commands_dependencies` to pass the check.  | `$TF_SCRIPTED_COMMANDS_EXISTS_TRIGGER_OUTPUT` or `true` |
 | `commands_environment_include_parent` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Include parent environment in the command? | `false` |
+| `commands_environment_inherit_variables` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | List of environment variables to inherit from parent.  | `$TF_SCRIPTED_ENVIRONMENT_INHERIT_VARIABLES` |
 | `commands_environment_prefix_new` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | New environment prefix (skip if empty) | not set |
 | `commands_environment_prefix_old` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Old environment prefix (skip if empty) | not set |
 | `commands_exists` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Exists command | not set |

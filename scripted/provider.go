@@ -71,6 +71,12 @@ func Provider() terraform.ResourceProvider {
 				Default:     false,
 				Description: "Include parent environment in the command?",
 			},
+			"commands_environment_inherit_variables": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "List of environment variables to inherit from parent. Defaults to: `$TF_SCRIPTED_ENVIRONMENT_INHERIT_VARIABLES`",
+			},
 			"commands_environment_prefix_old": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -328,27 +334,28 @@ func interpreterOrDefault(cur []string) ([]string, error) {
 	if len(cur) > 0 {
 		return cur, nil
 	}
+	var defVal []string
 	debugInterpreter := getEnvBoolFalse("INTERPRETER_DEBUG")
-	env, ok := getEnv("COMMANDS_INTERPRETER", "")
-	if ok {
-		json, err := fromJson(env)
-		if err != nil {
-			return nil, err
-		}
-		interpreter = json.([]string)
+
+	if runtime.GOOS == "windows" {
+		defVal = []string{"cmd", "/C"}
 	} else {
-		if runtime.GOOS == "windows" {
-			interpreter = []string{"cmd", "/C"}
-		} else {
-			interpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
-			if debugInterpreter {
-				interpreter = append(interpreter, "-x")
-			}
+		defVal = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
+		if debugInterpreter {
+			interpreter = append(defVal, "-x")
 		}
-		return interpreter, err
 	}
+	interpreter, _, err = getEnvList("COMMANDS_INTERPRETER", defVal)
 
 	return interpreter, err
+}
+
+func inheritVariablesOrDefault(d *schema.ResourceData) []string {
+	inherit := castConfigList(d.Get("commands_environment_inherit_variables"))
+	if len(inherit) < 1 {
+		inherit, _, _ = getEnvList("ENVIRONMENT_INHERIT_VARIABLES", []string{})
+	}
+	return inherit
 }
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
@@ -384,9 +391,10 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	config := ProviderConfig{
 		Commands: &CommandsConfig{
 			Environment: &EnvironmentConfig{
-				PrefixNew:     d.Get("commands_environment_prefix_new").(string),
-				PrefixOld:     d.Get("commands_environment_prefix_old").(string),
-				IncludeParent: d.Get("commands_environment_include_parent").(bool),
+				PrefixNew:        d.Get("commands_environment_prefix_new").(string),
+				PrefixOld:        d.Get("commands_environment_prefix_old").(string),
+				IncludeParent:    d.Get("commands_environment_include_parent").(bool),
+				InheritVariables: inheritVariablesOrDefault(d),
 			},
 			Templates: &CommandTemplates{
 				Interpreter:   interpreter,

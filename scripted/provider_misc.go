@@ -40,6 +40,19 @@ func getEnv(key, defValue string) (value string, ok bool) {
 	return envDefaultOk(envKey(key), defValue)
 }
 
+func getEnvList(key string, defValue []string) (value []string, ok bool, err error) {
+	val, ok := envDefaultOk(envKey(key), EmptyString)
+	if !ok {
+		return defValue, ok, nil
+	}
+	json, err := fromJson(val)
+	if err != nil {
+		return nil, false, err
+	}
+	value = json.([]string)
+	return value, ok, err
+}
+
 func getEnvBoolOk(key string, defVal bool) (value, ok bool) {
 	str, ok := getEnv(key, EmptyString)
 	if str == EmptyString {
