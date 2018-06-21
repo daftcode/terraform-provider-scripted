@@ -190,6 +190,9 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	if err != nil {
 		return false, err
 	}
+	if !isFilled(command) {
+		return true, nil
+	}
 	s.log(hclog.Debug, "resource exists")
 	output, err := s.executeString(command)
 	if err != nil {
@@ -220,18 +223,22 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 
 func resourceScriptedCreateBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("create", true))
-	if !isSet(s.pc.Commands.Templates.Create) {
+	onEmpty := func(msg string) error {
 		if isSet(s.pc.Commands.Templates.Update) {
 			s.log(hclog.Debug, `"commands_create" is empty, running "commands_update".`)
 			return resourceScriptedUpdateBase(s)
 		}
-		s.log(hclog.Debug, `"commands_create" is empty, exiting.`)
+		s.log(hclog.Debug, msg)
 		if err := s.ensureId(); err != nil {
 			return err
 		}
 		s.clearState()
 		s.syncState()
 		return resourceScriptedReadBase(s)
+	}
+
+	if !isSet(s.pc.Commands.Templates.Create) {
+		return onEmpty(`"commands_create" is empty, exiting.`)
 	}
 	command, err := s.prefixedTemplate(
 		&TemplateArg{"commands_modify_prefix", s.pc.Commands.Templates.ModifyPrefix},
@@ -240,6 +247,11 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	if err != nil {
 		return err
 	}
+
+	if !isFilled(command) {
+		return onEmpty(`"commands_create" rendered empty, exiting.`)
+	}
+
 	s.log(hclog.Debug, "creating resource")
 	s.clearState()
 	lines, done := s.stateUpdater()
@@ -260,15 +272,21 @@ func resourceScriptedReadBase(s *Scripted) error {
 	if err := s.checkNeedsUpdate(); err != nil {
 		return err
 	}
-	defer s.logging.PopIf(s.logging.Push("read", true))
-	if !isSet(s.pc.Commands.Templates.Read) {
-		s.log(hclog.Debug, `"commands_read" is not set, exiting.`)
+	onEmpty := func(msg string) error {
+		s.log(hclog.Debug, msg)
 		s.d.Set("output", map[string]string{})
 		return nil
+	}
+	defer s.logging.PopIf(s.logging.Push("read", true))
+	if !isSet(s.pc.Commands.Templates.Read) {
+		return onEmpty(`"commands_read" is not msg, exiting.`)
 	}
 	command, err := s.prefixedTemplate(&TemplateArg{"commands_read", s.pc.Commands.Templates.Read})
 	if err != nil {
 		return err
+	}
+	if !isFilled(command) {
+		return onEmpty(`"commands_read" rendered empty, exiting.`)
 	}
 	s.log(hclog.Debug, "reading resource")
 	env, err := s.Environment()
@@ -303,6 +321,13 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	if err != nil {
 		return err
 	}
+	if !isFilled(command) {
+		s.log(hclog.Warn, `"commands_update" rendered empty, exiting.`)
+		if err := s.ensureId(); err != nil {
+			return err
+		}
+		return nil
+	}
 	s.log(hclog.Debug, "updating resource", "command", command)
 	lines, done := s.stateUpdater()
 	err = s.execute(lines, command)
@@ -319,16 +344,22 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 
 func resourceScriptedDeleteBase(s *Scripted) error {
 	defer s.logging.PopIf(s.logging.Push("delete", true))
-	if !isSet(s.pc.Commands.Templates.Delete) {
-		s.log(hclog.Debug, `"commands_delete" is empty, exiting.`)
+	onEmpty := func(msg string) error {
+		s.log(hclog.Debug, msg)
 		s.clear()
 		return nil
+	}
+	if !isSet(s.pc.Commands.Templates.Delete) {
+		return onEmpty(`"commands_delete" is empty, exiting.`)
 	}
 	s.addOld(true)
 	defer s.removeOld()
 	command, err := s.prefixedTemplate(&TemplateArg{"commands_delete", s.pc.Commands.Templates.Delete})
 	if err != nil {
 		return err
+	}
+	if !isFilled(command) {
+		return onEmpty(`"commands_delete" rendered empty, exiting.`)
 	}
 	s.log(hclog.Debug, "deleting resource")
 	_, err = s.executeString(command)

@@ -35,7 +35,7 @@ To create a more complete example add this to the sample example file
 ```hcl
 provider "scripted" {
   alias = "file"
-  commands_should_update = <<EOF
+  commands_needs_update = <<EOF
 [ "$(cat '{{ .Cur.path }}')" == '{{ .Cur.content }}' ] || exit 1
 EOF
   commands_create = "echo -n '{{ .Cur.content }}' > '{{ .Cur.path }}'"

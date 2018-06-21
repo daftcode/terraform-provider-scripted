@@ -373,6 +373,15 @@ func (s *Scripted) template(name, tpl string) (string, error) {
 func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, error) {
 	var names []string
 	var templates []string
+	hasAny := false
+	for _, arg := range args {
+		if isFilled(arg.template) {
+			hasAny = true
+		}
+	}
+	if !hasAny {
+		return EmptyString, nil
+	}
 	if isFilled(s.pc.Commands.Templates.PrefixFromEnv) {
 		names = append(names, "commands_prefix_fromenv")
 		templates = append(templates, s.pc.Commands.Templates.PrefixFromEnv)
@@ -518,13 +527,15 @@ func (s *Scripted) ensureId() error {
 		if err != nil {
 			return err
 		}
-		stdout, err := s.executeString(command)
-		if err != nil {
-			return err
+		if isFilled(command) {
+			stdout, err := s.executeString(command)
+			if err != nil {
+				return err
+			}
+			s.log(hclog.Debug, "setting resource id", "id", stdout)
+			s.d.SetId(stdout)
+			return nil
 		}
-		s.log(hclog.Debug, "setting resource id", "id", stdout)
-		s.d.SetId(stdout)
-		return nil
 	}
 	env := castConfigMap(s.d.Get("environment"))
 	var entries []string
@@ -641,14 +652,20 @@ func (s *Scripted) scanOutput(input chan string, format string, output chan KVEn
 
 func (s *Scripted) checkNeedsUpdate() error {
 	defer s.logging.PopIf(s.logging.Push("needs_update", true))
-	if !isSet(s.pc.Commands.Templates.NeedsUpdate) {
-		s.log(hclog.Trace, `"commands_needs_update" is empty, exiting.`)
+	onEmpty := func(msg string) error {
+		s.log(hclog.Trace, msg)
 		s.setNeedsUpdate(false)
 		return nil
+	}
+	if !isSet(s.pc.Commands.Templates.NeedsUpdate) {
+		return onEmpty(`"commands_needs_update" is empty, exiting.`)
 	}
 	command, err := s.prefixedTemplate(&TemplateArg{"commands_needs_update", s.pc.Commands.Templates.NeedsUpdate})
 	if err != nil {
 		return err
+	}
+	if !isFilled(command) {
+		return onEmpty(`"commands_needs_update" rendered empty, exiting.`)
 	}
 	s.log(hclog.Debug, "resource needs_update")
 	output, err := s.executeString(command)
@@ -668,14 +685,20 @@ func (s *Scripted) setNeedsUpdate(value bool) {
 
 func (s *Scripted) checkDependenciesMet() (bool, error) {
 	defer s.logging.PopIf(s.logging.Push("dependencies", true))
-	if !isSet(s.pc.Commands.Templates.Dependencies) {
-		s.log(hclog.Trace, `"commands_dependencies" is empty, exiting.`)
+	onEmpty := func(msg string) (bool, error) {
+		s.log(hclog.Trace, msg)
 		s.setDependenciesMet(true)
 		return true, nil
+	}
+	if !isSet(s.pc.Commands.Templates.Dependencies) {
+		return onEmpty(`"commands_dependencies" is empty, exiting.`)
 	}
 	command, err := s.prefixedTemplate(&TemplateArg{"commands_dependencies", s.pc.Commands.Templates.Dependencies})
 	if err != nil {
 		return false, err
+	}
+	if !isFilled(command) {
+		return onEmpty(`"commands_dependencies" rendered empty, exiting.`)
 	}
 	output, err := s.executeString(command)
 	s.setDependenciesMet(err == nil && output == s.pc.Commands.DependenciesTriggerOutput)
@@ -694,14 +717,21 @@ func (s *Scripted) setDependenciesMet(value bool) {
 
 func (s *Scripted) checkNeedsDelete() (bool, error) {
 	defer s.logging.PopIf(s.logging.Push("needs_delete", true))
-	if !isSet(s.pc.Commands.Templates.NeedsDelete) {
-		s.log(hclog.Debug, `"commands_needs_delete" is empty, exiting.`)
+	onEmpty := func(msg string) (bool, error) {
+
+		s.log(hclog.Debug, msg)
 		s.setNeedsDelete(false)
 		return false, nil
+	}
+	if !isSet(s.pc.Commands.Templates.NeedsDelete) {
+		return onEmpty(`"commands_needs_delete" is empty, exiting.`)
 	}
 	command, err := s.prefixedTemplate(&TemplateArg{"commands_needs_delete", s.pc.Commands.Templates.NeedsDelete})
 	if err != nil {
 		return false, err
+	}
+	if !isFilled(command) {
+		return onEmpty(`"commands_needs_delete" rendered empty, exiting.`)
 	}
 	output, err := s.executeString(command)
 	s.setNeedsDelete(err == nil && output == s.pc.Commands.NeedsDeleteExpectedOutput)
