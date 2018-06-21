@@ -54,13 +54,14 @@ type TemplatesConfig struct {
 }
 
 type ProviderConfig struct {
-	Commands          *CommandsConfig
-	Logging           *Logging
-	Templates         *TemplatesConfig
-	EmptyString       string
-	LoggingBufferSize int64
-	OutputLinePrefix  string
-	OutputFormat      string
-	StateFormat       string
-	StateLinePrefix   string
+	Commands               *CommandsConfig
+	Logging                *Logging
+	Templates              *TemplatesConfig
+	RunningMessageInterval float64
+	EmptyString            string
+	LoggingBufferSize      int64
+	OutputLinePrefix       string
+	OutputFormat           string
+	StateFormat            string
+	StateLinePrefix        string
 }

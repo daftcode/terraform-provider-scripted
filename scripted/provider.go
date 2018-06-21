@@ -216,6 +216,12 @@ func Provider() terraform.ResourceProvider {
 				"should logs be json instead of plain text?",
 				true,
 			),
+			"logging_running_messages_interval": floatDefaultSchema(
+				nil,
+				"logging_running_messages_interval",
+				"should resources report still being in a running state? Trigger reports every N seconds.",
+				0,
+			),
 			"logging_log_level": stringDefaultSchema(
 				&schema.Schema{
 					ValidateFunc: validation.StringInSlice(ValidLogLevelsStrings, true),
@@ -328,6 +334,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	}
 	return logging, nil
 }
+
 func interpreterOrDefault(cur []string) ([]string, error) {
 	var interpreter []string
 	var err error
@@ -432,13 +439,14 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			LeftDelim:  d.Get("templates_left_delim").(string),
 			RightDelim: d.Get("templates_right_delim").(string),
 		},
-		EmptyString:       EmptyString,
-		Logging:           logging,
-		LoggingBufferSize: int64(d.Get("logging_buffer_size").(int)),
-		OutputFormat:      of,
-		OutputLinePrefix:  d.Get("commands_read_line_prefix").(string),
-		StateFormat:       sf,
-		StateLinePrefix:   RandomSafeString(32),
+		EmptyString:            EmptyString,
+		Logging:                logging,
+		LoggingBufferSize:      int64(d.Get("logging_buffer_size").(int)),
+		OutputFormat:           of,
+		OutputLinePrefix:       d.Get("commands_read_line_prefix").(string),
+		StateFormat:            sf,
+		StateLinePrefix:        RandomSafeString(32),
+		RunningMessageInterval: d.Get("logging_running_messages_interval").(float64),
 	}
 	logging.Log(hclog.Info, `Provider "scripted" initialized`)
 	return &config, nil

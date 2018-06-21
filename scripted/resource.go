@@ -108,6 +108,7 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
+	defer s.runningMessages()()
 	met, err := s.checkDependenciesMet()
 	if err != nil {
 		return err
@@ -124,6 +125,7 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
+	defer s.runningMessages()()
 	if s.needsDelete() {
 		s.log(hclog.Debug, `needsDelete == true, exiting update.`)
 		s.clear()
@@ -167,6 +169,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	if err != nil {
 		return true, err
 	}
+	defer s.runningMessages()()
 	met, err := s.checkDependenciesMet()
 	if err != nil {
 		return true, err
@@ -204,6 +207,7 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
+	defer s.runningMessages()()
 	met, err := s.checkDependenciesMet()
 	if err != nil {
 		return err

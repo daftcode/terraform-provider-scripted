@@ -88,15 +88,24 @@ func isFilled(str string) bool {
 	return str != EmptyString && str != ""
 }
 
-func chToString(lines chan string) string {
-	var builder strings.Builder
-	first := true
-	for line := range lines {
-		if !first {
-			builder.WriteString("\n")
-			first = false
+func chToString(lines chan string) chan string {
+	output := make(chan string)
+	go func() {
+		var builder strings.Builder
+		first := true
+		for line := range lines {
+			if !first {
+				builder.WriteString("\n")
+				first = false
+			}
+			builder.WriteString(line)
 		}
-		builder.WriteString(line)
-	}
-	return builder.String()
+		output <- builder.String()
+		close(output)
+	}()
+	return output
+}
+
+func ToString(val interface{}) string {
+	return fmt.Sprintf("%s", val)
 }

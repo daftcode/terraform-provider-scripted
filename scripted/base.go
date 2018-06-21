@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"strings"
 	"text/template"
+	"time"
 )
 
 type Operation string
@@ -35,6 +36,8 @@ type Scripted struct {
 	logging *Logging
 	old     bool
 	oldLog  []bool
+	piid    int
+	riid    int
 }
 
 type ChangeMap struct {
@@ -99,6 +102,7 @@ func (s *Scripted) ensureLogging() *Scripted {
 	if s.pc.Commands.Output.LogIids {
 		args = append(args, "riid", nextResourceId)
 	}
+	s.riid = nextResourceId
 	nextResourceId++
 	// if s.rc.LogName != "" {
 	// 	args = append(args, "resource", s.rc.LogName)
@@ -473,8 +477,9 @@ func (s *Scripted) executeBase(output chan string, env *ChangeMap, commands ...s
 
 func (s *Scripted) executeString(commands ...string) (string, error) {
 	lines := make(chan string)
+	output := chToString(lines)
 	err := s.execute(lines, commands...)
-	return chToString(lines), err
+	return <-output, err
 }
 
 func (s *Scripted) execute(lines chan string, commands ...string) error {
@@ -500,6 +505,9 @@ func (s *Scripted) joinCommands(commands ...string) string {
 }
 
 func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
+	if s.pc.Commands.Output.LogIids {
+		args = append(args, "resource_id", s.d.Id())
+	}
 	s.logging.Log(level, msg, args...)
 }
 
@@ -541,7 +549,7 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool) {
 	doneCh = make(chan bool)
 
 	go func() {
-		s.log(hclog.Trace, "outputSetter", "input", input)
+		s.log(hclog.Trace, "outputSetter", "input", ToString(input))
 		output := map[string]string{}
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.OutputLinePrefix, s.pc.StateLinePrefix, filtered)
@@ -573,7 +581,7 @@ func (s *Scripted) stateUpdater() (input chan string, doneCh chan bool) {
 	doneCh = make(chan bool)
 
 	go func() {
-		s.log(hclog.Trace, "stateUpdater", "input", input)
+		s.log(hclog.Trace, "stateUpdater", "input", ToString(input))
 		output := s.rc.state.New
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.StateLinePrefix, s.pc.EmptyString, filtered)
@@ -708,4 +716,25 @@ func (s *Scripted) needsDelete() bool {
 func (s *Scripted) setNeedsDelete(value bool) {
 	s.log(hclog.Debug, "setting `needs_delete`", "value", value)
 	s.d.Set("needs_delete", value)
+}
+
+func (s *Scripted) runningMessages() func() {
+	if s.pc.RunningMessageInterval <= 0 {
+		return func() {}
+	}
+	interval := time.Duration(s.pc.RunningMessageInterval * float64(time.Second))
+	ticker := time.NewTicker(interval)
+	go func() {
+		start := time.Now()
+		for range ticker.C {
+			since := time.Since(start)
+			if since > 3*interval {
+				repr := since.Round(time.Second / 10).String()
+				s.log(hclog.Error, fmt.Sprintf("still runnning after %s...", repr), "duration", repr)
+			}
+		}
+		repr := time.Since(start).Round(time.Second / 10).String()
+		s.log(hclog.Error, fmt.Sprintf("finished after %s", repr), "duration", repr)
+	}()
+	return ticker.Stop
 }

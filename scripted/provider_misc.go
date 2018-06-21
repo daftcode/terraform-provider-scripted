@@ -137,3 +137,37 @@ func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *
 	s.Type = schema.TypeBool
 	return s
 }
+
+func floatDefaultSchema(s *schema.Schema, key, description string, defVal float64) *schema.Schema {
+	key = strings.ToUpper(key)
+	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s`", key))
+	s.DefaultFunc = func() (interface{}, error) {
+		value, ok := getEnv(key, "0")
+		if ok {
+			i, err := strconv.ParseFloat(value, 64)
+			if err == nil {
+				return i, nil
+			}
+		}
+		return defVal, nil
+	}
+	s.Type = schema.TypeFloat
+	return s
+}
+
+func intDefaultSchema(s *schema.Schema, key, description string, defVal int) *schema.Schema {
+	key = strings.ToUpper(key)
+	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s`", key))
+	s.DefaultFunc = func() (interface{}, error) {
+		value, ok := getEnv(key, "0")
+		if ok {
+			i, err := strconv.Atoi(value)
+			if err == nil {
+				return i, nil
+			}
+		}
+		return defVal, nil
+	}
+	s.Type = schema.TypeInt
+	return s
+}
