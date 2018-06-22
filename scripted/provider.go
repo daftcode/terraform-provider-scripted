@@ -26,6 +26,9 @@ var debugLogging = false
 // String representing empty value, can be set to anything
 var EmptyString, _ = getEnv("EMPTY_STRING", `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`)
 
+var defaultWindowsInterpreter = []string{"cmd", "/C", "{{ .command }}"}
+var defaultInterpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
+
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
@@ -33,7 +36,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Create command, defaults to `update_command`",
+				Description: "Create command. Defaults to: `update_command`",
 			},
 			"commands_delete": {
 				Type:        schema.TypeString,
@@ -69,13 +72,13 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeBool,
 				Optional:    true,
 				Default:     false,
-				Description: "Include parent environment in the command?",
+				Description: "Include whole parent environment in the command?",
 			},
 			"commands_environment_inherit_variables": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
-				Description: "List of environment variables to inherit from parent. Defaults to: `$TF_SCRIPTED_ENVIRONMENT_INHERIT_VARIABLES`",
+				Description: "List of environment variables to inherit from parent. Defaults to: `$TF_SCRIPTED_ENVIRONMENT_INHERIT_VARIABLES` (JSON array)",
 			},
 			"commands_environment_prefix_old": {
 				Type:        schema.TypeString,
@@ -98,7 +101,7 @@ func Provider() terraform.ResourceProvider {
 			"commands_exists_trigger_output": stringDefaultSchema(
 				nil,
 				"commands_exists_trigger_output",
-				"Exact output expected from `commands_exists` to trigger not-exists behaviour.",
+				"Exact output expected from `commands_exists` to trigger doesn't exist behaviour.",
 				"false",
 			),
 			"commands_id": {
@@ -108,22 +111,31 @@ func Provider() terraform.ResourceProvider {
 				Description: "Command building resource id",
 			},
 			"commands_interpreter": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Elem:        &schema.Schema{Type: schema.TypeString},
-				Description: "Interpreter and it's arguments, can be a template with `command` variable. Can be passed as JSON array in TF_SCRIPTED_COMMANDS_INTERPRETER environment variable.",
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+				Description: func() string {
+					dWI, _ := toJson(defaultWindowsInterpreter)
+					dI, _ := toJson(defaultInterpreter)
+					return fmt.Sprintf(
+						"Interpreter and it's arguments, can be a template with `command` variable. "+
+							"Defaults to: `$TF_SCRIPTED_COMMANDS_INTERPRETER` (JSON array), `%s` (windows) or `%s`",
+						dWI,
+						dI,
+					)
+				}(),
 			},
 			"commands_modify_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Modification (create and update) commands prefix",
+				Description: "Modification commands (create and update) prefix",
 			},
 			"commands_needs_update": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Command indicating whether resource should be updated, non-zero exit code to force update",
+				Description: "Command indicating whether resource should be updated.",
 			},
 			"commands_needs_update_trigger_output": stringDefaultSchema(
 				nil,
@@ -159,7 +171,7 @@ func Provider() terraform.ResourceProvider {
 				"commands_separator",
 				"Format for joining 2 commands together without isolating them.",
 				"%s\n%s",
-				"%s\\n%s",
+				"`%s\\n%s`",
 			),
 			"commands_read": {
 				Type:        schema.TypeString,
@@ -172,7 +184,10 @@ func Provider() terraform.ResourceProvider {
 					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json"}, false),
 				},
 				"commands_read_format",
-				"Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/`, base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/` or json (one JSON object per line, overriding previous keys).",
+				"Templates output types: "+
+					"raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/`, "+
+					"base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/` or "+
+					"one JSON object per line overriding previous keys.",
 				"raw",
 			),
 			"commands_read_line_prefix": stringDefaultSchemaEmpty(
@@ -192,7 +207,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Update command. Runs destroy then create by default.",
+				Description: "Update command. Deletes then creates if not set. Can be used in place of `create_command`.",
 			},
 			"commands_working_directory": stringDefaultSchemaEmpty(
 				nil,
@@ -208,7 +223,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     8 * 1024,
-				Description: "stdout and stderr buffer sizes",
+				Description: "output (on error) buffer sizes",
 			},
 			"logging_jsonformat": boolDefaultSchema(
 				nil,
@@ -345,9 +360,9 @@ func interpreterOrDefault(cur []string) ([]string, error) {
 	debugInterpreter := getEnvBoolFalse("INTERPRETER_DEBUG")
 
 	if runtime.GOOS == "windows" {
-		defVal = []string{"cmd", "/C"}
+		defVal = defaultWindowsInterpreter
 	} else {
-		defVal = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
+		defVal = defaultInterpreter
 		if debugInterpreter {
 			interpreter = append(defVal, "-x")
 		}

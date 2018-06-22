@@ -112,7 +112,11 @@ func stringDefaultSchemaBase(s *schema.Schema, key, description, defVal, msgVal 
 	s.Type = schema.TypeString
 	s.Optional = true
 	s.DefaultFunc = envDefaultFunc(key, defVal)
-	s.Description = defaultMsg(description, fmt.Sprintf("`$%s` or %s", key, msgVal))
+	msg := fmt.Sprintf("`$%s`", key)
+	if msgVal != "" {
+		msg = fmt.Sprintf(" or %s", msgVal)
+	}
+	s.Description = defaultMsg(description, msg)
 	return s
 }
 
@@ -126,7 +130,7 @@ func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *
 	if defVal {
 		prefix = "!"
 	}
-	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s` %s= `\"\"`", key, prefix))
+	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("%s= `\"\"`", prefix))
 	s.DefaultFunc = func() (interface{}, error) {
 		value, ok := getEnvBoolOk(key, defVal)
 		if !ok {
@@ -140,7 +144,7 @@ func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *
 
 func floatDefaultSchema(s *schema.Schema, key, description string, defVal float64) *schema.Schema {
 	key = strings.ToUpper(key)
-	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s`", key))
+	s = stringDefaultSchemaMsgVal(s, key, description, "")
 	s.DefaultFunc = func() (interface{}, error) {
 		value, ok := getEnv(key, "0")
 		if ok {
@@ -157,7 +161,7 @@ func floatDefaultSchema(s *schema.Schema, key, description string, defVal float6
 
 func intDefaultSchema(s *schema.Schema, key, description string, defVal int) *schema.Schema {
 	key = strings.ToUpper(key)
-	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("`$%s`", key))
+	s = stringDefaultSchemaMsgVal(s, key, description, "")
 	s.DefaultFunc = func() (interface{}, error) {
 		value, ok := getEnv(key, "0")
 		if ok {
