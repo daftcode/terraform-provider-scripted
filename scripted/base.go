@@ -667,8 +667,8 @@ func (s *Scripted) checkNeedsUpdate() error {
 	if !isFilled(command) {
 		return onEmpty(`"commands_needs_update" rendered empty, exiting.`)
 	}
-	s.log(hclog.Debug, "resource needs_update")
 	output, err := s.executeString(command)
+	s.log(hclog.Debug, "resource needs_update", "output", output, "err", err)
 	s.setNeedsUpdate(err == nil && output == s.pc.Commands.NeedsUpdateExpectedOutput)
 	return err
 }

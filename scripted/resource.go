@@ -117,6 +117,10 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 		return nil
 	}
 
+	if err := s.checkNeedsUpdate(); err != nil {
+		return err
+	}
+
 	return resourceScriptedReadBase(s)
 }
 
@@ -269,9 +273,6 @@ func resourceScriptedCreateBase(s *Scripted) error {
 }
 
 func resourceScriptedReadBase(s *Scripted) error {
-	if err := s.checkNeedsUpdate(); err != nil {
-		return err
-	}
 	onEmpty := func(msg string) error {
 		s.log(hclog.Debug, msg)
 		s.d.Set("output", map[string]string{})
@@ -279,7 +280,7 @@ func resourceScriptedReadBase(s *Scripted) error {
 	}
 	defer s.logging.PopIf(s.logging.Push("read", true))
 	if !isSet(s.pc.Commands.Templates.Read) {
-		return onEmpty(`"commands_read" is not msg, exiting.`)
+		return onEmpty(`"commands_read" is empty, exiting.`)
 	}
 	command, err := s.prefixedTemplate(&TemplateArg{"commands_read", s.pc.Commands.Templates.Read})
 	if err != nil {
