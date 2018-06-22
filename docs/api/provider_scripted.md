@@ -38,9 +38,9 @@
 | `logging_iids` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Should output lines contain `piid` (provider instance id) and `riid` (resource instance id?  |  or == `""` |
 | `logging_jsonformat` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | should logs be json instead of plain text?  |  or != `""` |
 | `logging_log_level` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Logging level: TRACE, DEBUG, INFO, WARN, ERROR.  |  or `INFO` |
-| `logging_log_path` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Extra logs output path.  | `$TF_SCRIPTED_LOGGING_LOG_PATH` |
+| `logging_log_path` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Additional logs output path.  | ` or not set` |
 | `logging_output_line_width` | [int](https://www.terraform.io/docs/extend/schemas/schema-types.html#typeint) | Width of command's line to use during formatting.  | `$TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH` |
-| `logging_output_logging_log_level` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command stdout/stderr log level: TRACE, DEBUG, INFO, WARN, ERROR.  | `$LOGGING_OUTPUT_LOG_LEVEL` |
+| `logging_output_logging_log_level` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command stdout/stderr log level: TRACE, DEBUG, INFO, WARN, ERROR.  |  or `INFO` |
 | `logging_pids` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Should output lines contain `ppid` and `pid`?  |  or == `""` |
 | `logging_provider_name` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Name to display in log entries for this provider | not set |
 | `logging_running_messages_interval` | [float](https://www.terraform.io/docs/extend/schemas/schema-types.html#typefloat) | should resources report still being in a running state? Trigger reports every N seconds.  | `$TF_SCRIPTED_LOGGING_RUNNING_MESSAGES_INTERVAL` |

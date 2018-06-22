@@ -241,23 +241,23 @@ func Provider() terraform.ResourceProvider {
 				&schema.Schema{
 					ValidateFunc: validation.StringInSlice(ValidLogLevelsStrings, true),
 				},
-				"logging_log_level",
+				"log_level",
 				fmt.Sprintf("Logging level: %s.", strings.Join(ValidLogLevelsStrings, ", ")),
 				"INFO",
 			),
-			"logging_log_path": {
-				Type:        schema.TypeString,
-				DefaultFunc: envDefaultFunc("LOGGING_LOG_PATH", EmptyString),
-				Optional:    true,
-				Description: defaultMsg("Extra logs output path.", "`$LOGGING_LOG_PATH`"),
-			},
-			"logging_output_logging_log_level": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				DefaultFunc:  envDefaultFunc("LOGGING_OUTPUT_LOG_LEVEL", "INFO"),
-				ValidateFunc: validation.StringInSlice(ValidLogLevelsStrings, true),
-				Description:  fmt.Sprintf("Command stdout/stderr log level: %s. Defaults to: `$LOGGING_OUTPUT_LOG_LEVEL`", strings.Join(ValidLogLevelsStrings, ", ")),
-			},
+			"logging_log_path": stringDefaultSchemaEmpty(
+				nil,
+				"log_path",
+				"Additional logs output path.",
+			),
+			"logging_output_logging_log_level": stringDefaultSchema(
+				&schema.Schema{
+					ValidateFunc: validation.StringInSlice(ValidLogLevelsStrings, true),
+				},
+				"output_log_level",
+				fmt.Sprintf("Command stdout/stderr log level: %s.", strings.Join(ValidLogLevelsStrings, ", ")),
+				"INFO",
+			),
 			"logging_output_line_width": {
 				Type:        schema.TypeInt,
 				Optional:    true,
