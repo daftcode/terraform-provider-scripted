@@ -64,7 +64,7 @@ func Provider() terraform.ResourceProvider {
 			},
 			"commands_dependencies_trigger_output": stringDefaultSchema(
 				nil,
-				"commands_exists_trigger_output",
+				"commands_dependencies_trigger_output",
 				"Exact output expected from `commands_dependencies` to pass the check.",
 				"true",
 			),
@@ -166,7 +166,7 @@ func Provider() terraform.ResourceProvider {
 				"commands_prefix_fromenv",
 				"Command prefix shared between all commands (added before `commands_prefix`)",
 			),
-			"commands_separator": stringDefaultSchemaBase(
+			"commands_separator": stringDefaultSchemaBaseOr(
 				nil,
 				"commands_separator",
 				"Format for joining 2 commands together without isolating them.",
@@ -229,6 +229,12 @@ func Provider() terraform.ResourceProvider {
 				nil,
 				"logging_jsonformat",
 				"should logs be json instead of plain text?",
+				true,
+			),
+			"logging_jsonlist": boolDefaultSchema(
+				nil,
+				"logging_jsonlist",
+				"should json log formatter output lists instead of direct values?",
 				true,
 			),
 			"logging_running_messages_interval": floatDefaultSchema(
@@ -316,8 +322,10 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	var hcloggers []hclog.Logger
 	logProviderName := d.Get("logging_provider_name").(string)
 	logLevel := hclog.LevelFromString(d.Get("logging_log_level").(string))
+	jsonList := d.Get("logging_jsonlist").(bool)
 	logger := hclog.New(&hclog.LoggerOptions{
 		JSONFormat: os.Getenv("TF_ACC") == "", // For logging in tests
+		JSONList:   jsonList,
 		Output:     Stderr,
 		Level:      logLevel,
 	})
@@ -332,6 +340,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 		}
 		fileLogger = hclog.New(&hclog.LoggerOptions{
 			JSONFormat: d.Get("logging_jsonformat").(bool),
+			JSONList:   jsonList,
 			Output:     logFile,
 			Level:      logLevel,
 		})

@@ -99,10 +99,16 @@ func stringDefaultSchemaEmpty(schema *schema.Schema, key, description string) *s
 }
 
 func stringDefaultSchemaEmptyMsgVal(s *schema.Schema, key, description, msgVal string) *schema.Schema {
-	return stringDefaultSchemaBase(s, key, description, EmptyString, msgVal)
+	return stringDefaultSchemaBaseOr(s, key, description, EmptyString, msgVal)
 }
 func stringDefaultSchema(s *schema.Schema, key, description, defVal string) *schema.Schema {
-	return stringDefaultSchemaBase(s, key, description, defVal, fmt.Sprintf("`%s`", defVal))
+	return stringDefaultSchemaBaseOr(s, key, description, defVal, fmt.Sprintf("`%s`", defVal))
+}
+func stringDefaultSchemaBaseOr(s *schema.Schema, key, description, defVal, msgVal string) *schema.Schema {
+	if msgVal != "" {
+		msgVal = " or " + msgVal
+	}
+	return stringDefaultSchemaBase(s, key, description, defVal, msgVal)
 }
 func stringDefaultSchemaBase(s *schema.Schema, key, description, defVal, msgVal string) *schema.Schema {
 	if s == nil {
@@ -112,16 +118,13 @@ func stringDefaultSchemaBase(s *schema.Schema, key, description, defVal, msgVal 
 	s.Type = schema.TypeString
 	s.Optional = true
 	s.DefaultFunc = envDefaultFunc(key, defVal)
-	msg := fmt.Sprintf("`$%s`", key)
-	if msgVal != "" {
-		msg = fmt.Sprintf(" or %s", msgVal)
-	}
+	msg := fmt.Sprintf("`$%s`%s", key, msgVal)
 	s.Description = defaultMsg(description, msg)
 	return s
 }
 
 func stringDefaultSchemaMsgVal(s *schema.Schema, key, description, msgVal string) *schema.Schema {
-	return stringDefaultSchemaBase(s, key, description, EmptyString, msgVal)
+	return stringDefaultSchemaBaseOr(s, key, description, EmptyString, msgVal)
 }
 
 func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *schema.Schema {
@@ -130,7 +133,7 @@ func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *
 	if defVal {
 		prefix = "!"
 	}
-	s = stringDefaultSchemaMsgVal(s, key, description, fmt.Sprintf("%s= `\"\"`", prefix))
+	s = stringDefaultSchemaBase(s, key, description, EmptyString, fmt.Sprintf(" %s= `\"\"`", prefix))
 	s.DefaultFunc = func() (interface{}, error) {
 		value, ok := getEnvBoolOk(key, defVal)
 		if !ok {
