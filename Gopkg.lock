@@ -83,8 +83,8 @@
     "service/s3",
     "service/sts"
   ]
-  revision = "fde4ded7becdeae4d26bf1212916aabba79349b4"
-  version = "v1.14.12"
+  revision = "e79e9fd4ec11ccc242a472f980be78830f9eba80"
+  version = "v1.14.13"
 
 [[projects]]
   branch = "master"
@@ -171,7 +171,7 @@
   branch = "master"
   name = "github.com/hashicorp/go-hclog"
   packages = ["."]
-  revision = "5591dd2aac959f759ce2ed32b8bfaefbb9383944"
+  revision = "b444973f3fd1f959323dfa173546a04e3d1ac183"
   source = "github.com/nazarewk/go-hclog"
 
 [[projects]]

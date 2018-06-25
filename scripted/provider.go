@@ -324,10 +324,11 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	logLevel := hclog.LevelFromString(d.Get("logging_log_level").(string))
 	jsonList := d.Get("logging_jsonlist").(bool)
 	logger := hclog.New(&hclog.LoggerOptions{
-		JSONFormat: os.Getenv("TF_ACC") == "", // For logging in tests
-		JSONList:   jsonList,
-		Output:     Stderr,
-		Level:      logLevel,
+		JSONFormat:      os.Getenv("TF_ACC") == "", // For logging in tests
+		JSONList:        jsonList,
+		JSONListPromote: true,
+		Output:          Stderr,
+		Level:           logLevel,
 	})
 	hcloggers = append(hcloggers, logger)
 
@@ -339,10 +340,11 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 			return nil, err
 		}
 		fileLogger = hclog.New(&hclog.LoggerOptions{
-			JSONFormat: d.Get("logging_jsonformat").(bool),
-			JSONList:   jsonList,
-			Output:     logFile,
-			Level:      logLevel,
+			JSONFormat:      d.Get("logging_jsonformat").(bool),
+			JSONList:        jsonList,
+			JSONListPromote: true,
+			Output:          logFile,
+			Level:           logLevel,
 		})
 		hcloggers = append(hcloggers, fileLogger)
 	}
