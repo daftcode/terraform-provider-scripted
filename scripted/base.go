@@ -712,6 +712,9 @@ func (s *Scripted) dependenciesMet() bool {
 
 func (s *Scripted) setDependenciesMet(value bool) {
 	s.log(hclog.Debug, "setting `dependencies_met`", "value", value)
+	if !value {
+		s.log(hclog.Error, "dependencies not met!")
+	}
 	s.d.Set("dependencies_met", value)
 }
 
