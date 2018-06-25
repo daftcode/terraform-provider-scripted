@@ -235,6 +235,12 @@ func Provider() terraform.ResourceProvider {
 				nil,
 				"logging_jsonlist",
 				"should json log formatter output lists instead of direct values?",
+				false,
+			),
+			"logging_jsonlistpromote": boolDefaultSchema(
+				nil,
+				"logging_jsonlistpromote",
+				"should json log formatter promote single values to lists and append?",
 				true,
 			),
 			"logging_running_messages_interval": floatDefaultSchema(
@@ -323,10 +329,11 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	logProviderName := d.Get("logging_provider_name").(string)
 	logLevel := hclog.LevelFromString(d.Get("logging_log_level").(string))
 	jsonList := d.Get("logging_jsonlist").(bool)
+	jsonListPromote := d.Get("logging_jsonlistpromote").(bool)
 	logger := hclog.New(&hclog.LoggerOptions{
 		JSONFormat:      os.Getenv("TF_ACC") == "", // For logging in tests
 		JSONList:        jsonList,
-		JSONListPromote: true,
+		JSONListPromote: jsonListPromote,
 		Output:          Stderr,
 		Level:           logLevel,
 	})
@@ -342,7 +349,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 		fileLogger = hclog.New(&hclog.LoggerOptions{
 			JSONFormat:      d.Get("logging_jsonformat").(bool),
 			JSONList:        jsonList,
-			JSONListPromote: true,
+			JSONListPromote: jsonListPromote,
 			Output:          logFile,
 			Level:           logLevel,
 		})

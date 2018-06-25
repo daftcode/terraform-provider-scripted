@@ -37,7 +37,8 @@
 | `logging_buffer_size` | [int](https://www.terraform.io/docs/extend/schemas/schema-types.html#typeint) | output (on error) buffer sizes | `8192` |
 | `logging_iids` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Should output lines contain `piid` (provider instance id) and `riid` (resource instance id?  | `$TF_SCRIPTED_LOGGING_IIDS` == `""` |
 | `logging_jsonformat` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | should logs be json instead of plain text?  | `$TF_SCRIPTED_LOGGING_JSONFORMAT` != `""` |
-| `logging_jsonlist` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | should json log formatter output lists instead of direct values?  | `$TF_SCRIPTED_LOGGING_JSONLIST` != `""` |
+| `logging_jsonlist` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | should json log formatter output lists instead of direct values?  | `$TF_SCRIPTED_LOGGING_JSONLIST` == `""` |
+| `logging_jsonlistpromote` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | should json log formatter promote single values to lists and append?  | `$TF_SCRIPTED_LOGGING_JSONLISTPROMOTE` != `""` |
 | `logging_log_level` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Logging level: TRACE, DEBUG, INFO, WARN, ERROR.  | `$TF_SCRIPTED_LOG_LEVEL` or `INFO` |
 | `logging_log_path` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Additional logs output path.  | `$TF_SCRIPTED_LOG_PATH` or not set |
 | `logging_output_line_width` | [int](https://www.terraform.io/docs/extend/schemas/schema-types.html#typeint) | Width of command's line to use during formatting.  | `$TF_SCRIPTED_LOGGING_OUTPUT_LINE_WIDTH` |
