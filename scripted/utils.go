@@ -32,7 +32,11 @@ func castConfigMap(v interface{}) map[string]string {
 	if v == nil {
 		return ret
 	}
-	for k, v := range v.(map[string]interface{}) {
+	valueMap, ok := v.(map[string]interface{})
+	if !ok || valueMap == nil {
+		return ret
+	}
+	for k, v := range valueMap {
 		ret[k] = v.(string)
 	}
 	return ret

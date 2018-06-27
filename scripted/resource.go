@@ -64,7 +64,7 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	}
 	vDiff := make(map[string]map[string]interface{})
 	for _, key := range diff.GetChangedKeysPrefix("") {
-		o, n := diff.GetChange(key)
+		o, n := s.d.GetChange(key)
 		vDiff[key] = map[string]interface{}{"old": o, "new": n}
 	}
 	changed := len(vDiff) > 0
