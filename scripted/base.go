@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/armon/circbuf"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/terraform/helper/schema"
 	"io"
 	"os"
 	"os/exec"
@@ -30,11 +29,10 @@ const (
 
 type Scripted struct {
 	pc      *ProviderConfig
-	d       *schema.ResourceData
+	d       ResourceInterface
 	rc      *ResourceConfig
 	op      Operation
 	logging *Logging
-	old     bool
 	oldLog  []bool
 	piid    int
 	riid    int
@@ -75,7 +73,16 @@ type KVEntry struct {
 	err   error
 }
 
-func New(d *schema.ResourceData, meta interface{}, operation Operation, old bool) (*Scripted, error) {
+type ResourceInterface interface {
+	GetChange(string) (interface{}, interface{})
+	Get(string) interface{}
+	GetOk(string) (interface{}, bool)
+	Id() string
+	Set(string, interface{}) error
+	SetIdErr(string) error
+}
+
+func New(d ResourceInterface, meta interface{}, operation Operation, old bool) (*Scripted, error) {
 	s := (&Scripted{
 		pc: meta.(*ProviderConfig),
 		d:  d,
@@ -86,10 +93,9 @@ func New(d *schema.ResourceData, meta interface{}, operation Operation, old bool
 		},
 	}).setOperation(operation)
 	s.ensureLogging()
-	s.setOld(old)
+	s.syncOld()
 	s.log(hclog.Trace, "resource initialized")
 	s.log(hclog.Trace, "initialized state", "old", s.rc.state.Old, "new", s.rc.state.New)
-
 	return s, nil
 }
 
@@ -117,7 +123,7 @@ func (s *Scripted) renderEnv(old bool) error {
 	env := s.rc.environment.Cur
 
 	var prefix string
-	if s.old {
+	if s.old() {
 		prefix = "old"
 	} else {
 		prefix = "new"
@@ -128,7 +134,7 @@ func (s *Scripted) renderEnv(old bool) error {
 		}
 		rendered, err := s.template(fmt.Sprintf("env.%s.%s", prefix, key), tpl)
 		if err != nil {
-			if !s.old {
+			if !s.old() {
 				return err
 			}
 			rendered = fmt.Sprintf("<ERROR: %s>", err.Error())
@@ -167,7 +173,7 @@ func (s *Scripted) Environment() (*ChangeMap, error) {
 				}
 			}
 		}
-		if s.old {
+		if s.old() {
 			env.Cur = env.Old
 		} else {
 			env.Cur = env.New
@@ -212,8 +218,18 @@ func (s *Scripted) setOperation(operation Operation) *Scripted {
 }
 
 func (s *Scripted) setOld(old bool) {
-	s.old = old
-	if old {
+}
+
+func (s *Scripted) old() bool {
+	l := len(s.oldLog)
+	if l == 0 {
+		return false
+	}
+	return s.oldLog[l-1]
+}
+
+func (s *Scripted) syncOld() {
+	if s.old() {
 		s.rc.Context.Cur = s.rc.Context.Old
 		if s.rc.environment != nil {
 			s.rc.environment.Cur = s.rc.environment.Old
@@ -228,13 +244,13 @@ func (s *Scripted) setOld(old bool) {
 
 func (s *Scripted) addOld(old bool) {
 	s.oldLog = append(s.oldLog, old)
-	s.setOld(old)
+	s.syncOld()
 }
 
 func (s *Scripted) removeOld() {
 	l := len(s.oldLog)
-	s.setOld(s.oldLog[l-1])
 	s.oldLog = s.oldLog[:l-1]
+	s.syncOld()
 }
 
 func (s *Scripted) scanLines(lines chan string, reader io.Reader) {
@@ -522,18 +538,19 @@ func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
 
 func (s *Scripted) ensureId() error {
 	if isSet(s.pc.Commands.Templates.Id) {
-		defer s.logging.PopIf(s.logging.Push("id", true))
+		defer s.logging.PopIf(s.logging.Push("commands", "id"))
 		command, err := s.prefixedTemplate(&TemplateArg{"commands_id", s.pc.Commands.Templates.Id})
 		if err != nil {
 			return err
 		}
 		if isFilled(command) {
+			s.log(hclog.Debug, "getting resource id")
 			stdout, err := s.executeString(command)
 			if err != nil {
 				return err
 			}
 			s.log(hclog.Debug, "setting resource id", "id", stdout)
-			s.d.SetId(stdout)
+			s.d.SetIdErr(stdout)
 			return nil
 		}
 	}
@@ -547,7 +564,7 @@ func (s *Scripted) ensureId() error {
 
 	value := hash(strings.Join(entries, ""))
 	s.log(hclog.Debug, "setting resource id", "id", value)
-	s.d.SetId(value)
+	s.d.SetIdErr(value)
 	return nil
 }
 
@@ -631,8 +648,8 @@ func (s *Scripted) syncState() {
 }
 
 func (s *Scripted) clear() {
-	s.log(hclog.Debug, "clearing resource")
-	s.d.SetId("")
+	s.log(hclog.Info, "clearing resource")
+	s.d.SetIdErr("")
 	s.d.Set("output", map[string]string{})
 	s.clearState()
 }
@@ -651,7 +668,7 @@ func (s *Scripted) scanOutput(input chan string, format string, output chan KVEn
 }
 
 func (s *Scripted) checkNeedsUpdate() error {
-	defer s.logging.PopIf(s.logging.Push("needs_update", true))
+	defer s.logging.PopIf(s.logging.Push("commands", "needs_update"))
 	onEmpty := func(msg string) error {
 		s.log(hclog.Trace, msg)
 		s.setNeedsUpdate(false)
@@ -667,8 +684,8 @@ func (s *Scripted) checkNeedsUpdate() error {
 	if !isFilled(command) {
 		return onEmpty(`"commands_needs_update" rendered empty, exiting.`)
 	}
+	s.log(hclog.Info, "checking resource needs update")
 	output, err := s.executeString(command)
-	s.log(hclog.Debug, "resource needs_update", "output", output, "err", err)
 	s.setNeedsUpdate(err == nil && output == s.pc.Commands.NeedsUpdateExpectedOutput)
 	return err
 }
@@ -684,7 +701,7 @@ func (s *Scripted) setNeedsUpdate(value bool) {
 }
 
 func (s *Scripted) checkDependenciesMet() (bool, error) {
-	defer s.logging.PopIf(s.logging.Push("dependencies", true))
+	defer s.logging.PopIf(s.logging.Push("commands", "dependencies"))
 	onEmpty := func(msg string) (bool, error) {
 		s.log(hclog.Trace, msg)
 		s.setDependenciesMet(true)
@@ -700,6 +717,7 @@ func (s *Scripted) checkDependenciesMet() (bool, error) {
 	if !isFilled(command) {
 		return onEmpty(`"commands_dependencies" rendered empty, exiting.`)
 	}
+	s.log(hclog.Info, "checking resource dependencies met")
 	output, err := s.executeString(command)
 	s.setDependenciesMet(err == nil && output == s.pc.Commands.DependenciesTriggerOutput)
 	return s.dependenciesMet(), err
@@ -716,39 +734,6 @@ func (s *Scripted) setDependenciesMet(value bool) {
 		s.log(hclog.Error, "dependencies not met!")
 	}
 	s.d.Set("dependencies_met", value)
-}
-
-func (s *Scripted) checkNeedsDelete() (bool, error) {
-	defer s.logging.PopIf(s.logging.Push("needs_delete", true))
-	onEmpty := func(msg string) (bool, error) {
-
-		s.log(hclog.Debug, msg)
-		s.setNeedsDelete(false)
-		return false, nil
-	}
-	if !isSet(s.pc.Commands.Templates.NeedsDelete) {
-		return onEmpty(`"commands_needs_delete" is empty, exiting.`)
-	}
-	command, err := s.prefixedTemplate(&TemplateArg{"commands_needs_delete", s.pc.Commands.Templates.NeedsDelete})
-	if err != nil {
-		return false, err
-	}
-	if !isFilled(command) {
-		return onEmpty(`"commands_needs_delete" rendered empty, exiting.`)
-	}
-	output, err := s.executeString(command)
-	s.setNeedsDelete(err == nil && output == s.pc.Commands.NeedsDeleteExpectedOutput)
-	return s.needsDelete(), err
-}
-
-func (s *Scripted) needsDelete() bool {
-	v, ok := s.d.GetOk("needs_delete")
-	return ok && v.(bool)
-}
-
-func (s *Scripted) setNeedsDelete(value bool) {
-	s.log(hclog.Debug, "setting `needs_delete`", "value", value)
-	s.d.Set("needs_delete", value)
 }
 
 func (s *Scripted) runningMessages() func() {

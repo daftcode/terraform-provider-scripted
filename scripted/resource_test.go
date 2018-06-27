@@ -62,139 +62,6 @@ func TestAccScriptedResource_Prefix(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResource_TwoStageApply(t *testing.T) {
-	const testConfig = `
-provider "scripted" {
-	commands_dependencies = <<EOF
-{{- if .Cur.dependency_path -}}
-[ -f {{ .Cur.dependency_path | quote }} ] && echo -n true || echo -n false
-{{- else -}}
-echo -n true
-{{- end -}}
-EOF
-	commands_create = "echo -n {{ .Cur.content | quote }} > {{ .Cur.path }}"
-	commands_read = "echo \"out=$(cat {{ .Cur.path | quote }})\""
-	commands_delete = "rm {{ .Cur.path | quote }}"
-}
-resource "scripted_resource" "dependency" {
-	context {
-		path = "dependency"
-		content = "dependency"
-	}
-}
-resource "scripted_resource" "test" {
-	context {
-		path = "test_file"
-		content = "hi"
-		dependency_path = "dependency"
-	}
-}
-`
-
-	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
-		Steps: []resource.TestStep{
-			{
-				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceOutput("scripted_resource.dependency", "out", "dependency"),
-				),
-				ExpectNonEmptyPlan: true,
-			},
-			{
-				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
-				),
-				ExpectNonEmptyPlan: false,
-			},
-		},
-	})
-}
-
-func TestAccScriptedResource_StagedDeployment(t *testing.T) {
-	const testConfig = `
-resource "scripted_resource" "stage1" {
-	context {
-		path = "test_file"
-	}
-}
-
-provider "scripted" {
-	commands_needs_delete = "[ -n '${var.stage1}' ] || echo -n true"
-	commands_create = "echo -n '%s' > {{ .Cur.path }}"
-	commands_read = "echo \"out=$(cat {{ .Cur.path | quote }})\""
-	commands_delete = "rm {{ .Cur.path | quote }}"
-}
-
-variable "stage1" {
-	default = "%s"
-}
-`
-
-	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
-		Steps: []resource.TestStep{
-			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 0\n") },
-				Config:             fmt.Sprintf(testConfig, "hi", ""),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: true,
-			},
-			{
-				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 1\n") },
-				Config:    fmt.Sprintf(testConfig, "hi", "1"),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceOutput("scripted_resource.stage1", "out", "hi"),
-				),
-				ExpectNonEmptyPlan: false,
-			},
-			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 2\n") },
-				Config:             fmt.Sprintf(testConfig, "hi", "1"),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
-			},
-			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 3\n") },
-				Config:             fmt.Sprintf(testConfig, "hi2", "1"),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
-			},
-			{
-				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 4\n") },
-				Config:    fmt.Sprintf(testConfig, "hi2", ""),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceMissing("scripted_resource.stage1"),
-				),
-				ExpectNonEmptyPlan: true,
-			},
-			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 5\n") },
-				Config:             fmt.Sprintf(testConfig, "hi", ""),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: true,
-			},
-			{
-				PreConfig: func() { Stdout.WriteString(">>>>>>>>>>>> step 6\n") },
-				Config:    fmt.Sprintf(testConfig, "hi", "5"),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceOutput("scripted_resource.stage1", "out", "hi"),
-				),
-				ExpectNonEmptyPlan: false,
-			},
-			{
-				PreConfig:          func() { Stdout.WriteString(">>>>>>>>>>>> step 7\n") },
-				Config:             fmt.Sprintf(testConfig, "hi", "6"),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
-			},
-		},
-	})
-}
-
 func TestAccScriptedResource_NeedsUpdate(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
@@ -214,7 +81,7 @@ EOF
 		}
 	}
 `
-	const testConfigNotCurrent = `
+	const testConfigAlwaysUpdate = `
 	provider "scripted" {
 		alias = "file"
 		commands_needs_update = "echo -n true"
@@ -227,6 +94,24 @@ EOF
 		context {
 			path = "test_file"
 			content = "hi"
+		}
+	}
+`
+	const testConfigHi2 = `
+	provider "scripted" {
+		alias = "file"
+		commands_needs_update = <<EOF
+[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n true
+EOF
+		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
+		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
+		commands_delete = "rm '{{ .Cur.path }}'"
+	}
+	resource "scripted_resource" "test" {
+		provider = "scripted.file"
+		context {
+			path = "test_file"
+			content = "hi2"
 		}
 	}
 `
@@ -247,12 +132,28 @@ EOF
 				ExpectNonEmptyPlan: false,
 			},
 			{
-				Config:             testConfigNotCurrent,
+				Config:             testConfigAlwaysUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			{
 				Config:             testConfig,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				Config:             testConfigHi2,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testConfigHi2,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi2"),
+				),
+			},
+			{
+				Config:             testConfigHi2,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
