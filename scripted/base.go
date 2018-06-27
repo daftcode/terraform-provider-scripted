@@ -604,12 +604,14 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool) {
 	return input, doneCh
 }
 
-func (s *Scripted) stateUpdater() (input chan string, doneCh chan bool) {
+func (s *Scripted) stateSetter() (input chan string, doneCh chan bool) {
 	input = make(chan string)
 	doneCh = make(chan bool)
 
+	s.clearState()
+
 	go func() {
-		s.log(hclog.Trace, "stateUpdater", "input", ToString(input))
+		s.log(hclog.Trace, "stateSetter", "input", ToString(input))
 		output := s.rc.state.New
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.StateLinePrefix, s.pc.EmptyString, filtered)

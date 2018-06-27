@@ -240,8 +240,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	}
 
 	s.log(hclog.Info, "creating resource")
-	s.clearState()
-	lines, done := s.stateUpdater()
+	lines, done := s.stateSetter()
 	err = s.execute(lines, command)
 	<-done
 	if err != nil {
@@ -312,7 +311,7 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 		return nil
 	}
 	s.log(hclog.Info, "updating resource", "command", command)
-	lines, done := s.stateUpdater()
+	lines, done := s.stateSetter()
 	err = s.execute(lines, command)
 	<-done
 	if err != nil {
