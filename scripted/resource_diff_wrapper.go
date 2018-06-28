@@ -34,6 +34,10 @@ func (rd *ResourceDiff) SetIdErr(string) error {
 	return fmt.Errorf("not implemented")
 }
 
+func (rd *ResourceDiff) GetChangedKeysPrefix(prefix string) []string {
+	return rd.ResourceDiff.GetChangedKeysPrefix(prefix)
+}
+
 func WrapResourceDiff(diff *schema.ResourceDiff) ResourceInterface {
 	return &ResourceDiff{diff}
 }

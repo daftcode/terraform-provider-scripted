@@ -36,6 +36,7 @@ type Scripted struct {
 	oldLog  []bool
 	piid    int
 	riid    int
+	oldId   string
 }
 
 type ChangeMap struct {
@@ -80,6 +81,7 @@ type ResourceInterface interface {
 	Id() string
 	Set(string, interface{}) error
 	SetIdErr(string) error
+	GetChangedKeysPrefix(string) []string
 }
 
 func New(d ResourceInterface, meta interface{}, operation Operation, old bool) (*Scripted, error) {
@@ -87,13 +89,13 @@ func New(d ResourceInterface, meta interface{}, operation Operation, old bool) (
 		pc: meta.(*ProviderConfig),
 		d:  d,
 		rc: &ResourceConfig{
-			// LogName: d.Get("log_name").(string),
 			Context: castConfigChangeMap(d.GetChange("context")),
 			state:   castConfigChangeMap(d.GetChange("state")),
 		},
+		oldId: d.Id(),
 	}).setOperation(operation)
 	s.ensureLogging()
-	s.syncOld()
+	s.setOld(old)
 	s.log(hclog.Trace, "resource initialized")
 	s.log(hclog.Trace, "initialized state", "old", s.rc.state.Old, "new", s.rc.state.New)
 	return s, nil
@@ -110,9 +112,6 @@ func (s *Scripted) ensureLogging() *Scripted {
 	}
 	s.riid = nextResourceId
 	nextResourceId++
-	// if s.rc.LogName != "" {
-	// 	args = append(args, "resource", s.rc.LogName)
-	// }
 	s.logging.Push(args...)
 	return s
 }
@@ -218,6 +217,8 @@ func (s *Scripted) setOperation(operation Operation) *Scripted {
 }
 
 func (s *Scripted) setOld(old bool) {
+	s.oldLog = append(s.oldLog, old)
+	s.syncOld()
 }
 
 func (s *Scripted) old() bool {
@@ -351,7 +352,6 @@ func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
 }
 
 func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (string, error) {
-	s.log(hclog.Trace, "rendering template", "name", name, "template", tpl)
 	t := template.New(name)
 	t = t.Delims(s.pc.Templates.LeftDelim, s.pc.Templates.RightDelim)
 	t = t.Funcs(TemplateFuncs)
@@ -373,6 +373,10 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (
 		OutputPrefix: s.pc.OutputLinePrefix,
 		Output:       castConfigMap(s.d.Get("output")),
 		State:        s.rc.state,
+	}
+	if s.pc.Logging.level == hclog.Trace {
+		jsonCtx, _ := toJson(ctx)
+		s.log(hclog.Trace, "rendering template", "name", name, "template", tpl, "context", jsonCtx)
 	}
 	err = t.Execute(&buf, ctx)
 	rendered := buf.String()
@@ -474,13 +478,7 @@ func (s *Scripted) executeBase(output chan string, env *ChangeMap, commands ...s
 	if s.pc.Logging.level >= hclog.Debug {
 		s.log(hclog.Debug, "executing command", "command", command)
 	} else {
-		logArgs := []interface{}{
-			"interpreter", interpreter,
-		}
-		for i, v := range args {
-			logArgs = append(logArgs, fmt.Sprintf("args[%d]", i), v)
-		}
-		s.log(hclog.Trace, "executing", logArgs...)
+		s.log(hclog.Trace, "executing", "interpreter", interpreter, "args", args)
 	}
 
 	// Start the command
@@ -531,14 +529,17 @@ func (s *Scripted) joinCommands(commands ...string) string {
 
 func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
 	if s.pc.Commands.Output.LogIids {
-		args = append(args, "resource_id", s.d.Id())
+		args = append(args, "id", s.d.Id())
+		if s.logging.level <= hclog.Trace {
+			args = append(args, "ppid", os.Getppid(), "pid", os.Getpid(), "gid", getGID())
+		}
 	}
 	s.logging.Log(level, msg, args...)
 }
 
 func (s *Scripted) ensureId() error {
 	if isSet(s.pc.Commands.Templates.Id) {
-		defer s.logging.PopIf(s.logging.Push("commands", "id"))
+		defer s.logging.PushDefer("commands", "id")()
 		command, err := s.prefixedTemplate(&TemplateArg{"commands_id", s.pc.Commands.Templates.Id})
 		if err != nil {
 			return err
@@ -572,12 +573,13 @@ func (s *Scripted) getId() string {
 	return s.d.Id()
 }
 
-func (s *Scripted) outputSetter() (input chan string, doneCh chan bool) {
+func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh chan bool) {
 	input = make(chan string)
 	doneCh = make(chan bool)
+	saveCh = make(chan bool)
 
 	go func() {
-		s.log(hclog.Trace, "outputSetter", "input", ToString(input))
+		defer s.logging.PushDefer("xCtx", "outputSetter")()
 		output := map[string]string{}
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.OutputLinePrefix, s.pc.StateLinePrefix, filtered)
@@ -596,23 +598,27 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool) {
 				delete(output, e.key)
 			}
 		}
-		s.d.Set("output", output)
+		save := <-saveCh
+		close(saveCh)
+		if save {
+			s.log(hclog.Debug, "syncing output", "value", output)
+			s.d.Set("output", output)
+		}
 		doneCh <- true
 		close(doneCh)
 	}()
 
-	return input, doneCh
+	return input, doneCh, saveCh
 }
 
-func (s *Scripted) stateSetter() (input chan string, doneCh chan bool) {
+func (s *Scripted) stateSetter() (input chan string, doneCh chan bool, saveCh chan bool) {
 	input = make(chan string)
 	doneCh = make(chan bool)
-
-	s.clearState()
+	saveCh = make(chan bool)
 
 	go func() {
-		s.log(hclog.Trace, "stateSetter", "input", ToString(input))
-		output := s.rc.state.New
+		defer s.logging.PushDefer("xCtx", "stateSetter")()
+		output := make(map[string]string)
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.StateLinePrefix, s.pc.EmptyString, filtered)
 		entries := make(chan KVEntry)
@@ -630,12 +636,17 @@ func (s *Scripted) stateSetter() (input chan string, doneCh chan bool) {
 				delete(output, e.key)
 			}
 		}
-		s.syncState()
+		save := <-saveCh
+		close(saveCh)
+		if save {
+			s.rc.state.New = output
+			s.syncState()
+		}
 		doneCh <- true
 		close(doneCh)
 	}()
 
-	return input, doneCh
+	return input, doneCh, saveCh
 }
 
 func (s *Scripted) clearState() {
@@ -645,8 +656,11 @@ func (s *Scripted) clearState() {
 }
 
 func (s *Scripted) syncState() {
-	s.log(hclog.Debug, "setting resource.state", "state", s.rc.state.New)
-	s.d.Set("state", s.rc.state.New)
+	s.log(hclog.Debug, "syncing resource.state", "state", s.rc.state.New)
+	err := s.d.Set("state", s.rc.state.New)
+	if err != nil {
+		s.log(hclog.Error, "syncing resource.state failed", "error", err)
+	}
 }
 
 func (s *Scripted) clear() {
@@ -670,7 +684,7 @@ func (s *Scripted) scanOutput(input chan string, format string, output chan KVEn
 }
 
 func (s *Scripted) checkNeedsUpdate() error {
-	defer s.logging.PopIf(s.logging.Push("commands", "needs_update"))
+	defer s.logging.PushDefer("commands", "needs_update")()
 	onEmpty := func(msg string) error {
 		s.log(hclog.Trace, msg)
 		s.setNeedsUpdate(false)
@@ -703,7 +717,7 @@ func (s *Scripted) setNeedsUpdate(value bool) {
 }
 
 func (s *Scripted) checkDependenciesMet() (bool, error) {
-	defer s.logging.PopIf(s.logging.Push("commands", "dependencies"))
+	defer s.logging.PushDefer("commands", "dependencies")()
 	onEmpty := func(msg string) (bool, error) {
 		s.log(hclog.Trace, msg)
 		s.setDependenciesMet(true)
@@ -757,4 +771,18 @@ func (s *Scripted) runningMessages() func() {
 		s.log(hclog.Error, fmt.Sprintf("finished after %s", repr), "duration", repr)
 	}()
 	return ticker.Stop
+}
+
+func (s *Scripted) rollback() {
+	s.log(hclog.Info, "rollback started")
+	for _, key := range s.d.GetChangedKeysPrefix("") {
+		o, n := s.d.GetChange(key)
+		s.log(hclog.Trace, "rolling back value", "key", key, "to", o, "from", n)
+		s.d.Set(key, o)
+	}
+	newId := s.d.Id()
+	if s.oldId != newId {
+		s.log(hclog.Trace, "rolling back id", "to", s.oldId, "from", newId)
+		s.d.SetIdErr(s.oldId)
+	}
 }

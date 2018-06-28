@@ -5,6 +5,49 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
+var resourceSchema = getResourceSchema()
+
+func getResourceSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		"context": {
+			Type:        schema.TypeMap,
+			Optional:    true,
+			Description: "Template context for rendering commands",
+			Sensitive:   true,
+		},
+		"environment": {
+			Type:        schema.TypeMap,
+			Optional:    true,
+			Description: "Environment to run commands in",
+			Sensitive:   true,
+		},
+		"output": {
+			Type:        schema.TypeMap,
+			Computed:    true,
+			Description: "Output from the read command",
+			Sensitive:   true,
+		},
+		"state": {
+			Type:        schema.TypeMap,
+			Computed:    true,
+			Description: "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
+			Sensitive:   true,
+		},
+		"needs_update": {
+			Type:        schema.TypeBool,
+			Description: "Helper indicating whether resource should be updated, ignore this.",
+			Optional:    true,
+			Computed:    true,
+		},
+		"dependencies_met": {
+			Type:        schema.TypeBool,
+			Computed:    true,
+			Optional:    true,
+			Description: "Helper indicating whether resource dependencies are met, ignore this.",
+		},
+	}
+}
+
 func getScriptedResource() *schema.Resource {
 	ret := &schema.Resource{
 		Create: resourceScriptedCreate,
@@ -13,44 +56,7 @@ func getScriptedResource() *schema.Resource {
 		Delete: resourceScriptedDelete,
 		Exists: resourceScriptedExists,
 
-		Schema: map[string]*schema.Schema{
-			"context": {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Description: "Template context for rendering commands",
-				Sensitive:   true,
-			},
-			"environment": {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Description: "Environment to run commands in",
-				Sensitive:   true,
-			},
-			"output": {
-				Type:        schema.TypeMap,
-				Computed:    true,
-				Description: "Output from the read command",
-				Sensitive:   true,
-			},
-			"state": {
-				Type:        schema.TypeMap,
-				Computed:    true,
-				Description: "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
-				Sensitive:   true,
-			},
-			"needs_update": {
-				Type:        schema.TypeBool,
-				Description: "Helper indicating whether resource should be updated, ignore this.",
-				Optional:    true,
-				Computed:    true,
-			},
-			"dependencies_met": {
-				Type:        schema.TypeBool,
-				Computed:    true,
-				Optional:    true,
-				Description: "Helper indicating whether resource dependencies are met, ignore this.",
-			},
-		},
+		Schema: getResourceSchema(),
 
 		CustomizeDiff: resourceScriptedCustomizeDiff,
 	}
@@ -91,16 +97,21 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	met, err := s.checkDependenciesMet()
+	if met, err := s.checkDependenciesMet(); err != nil {
+		return err
+	} else if !met {
+		s.rollback()
+		return nil
+	}
+	err = resourceScriptedCreateBase(s)
 	if err != nil {
 		return err
 	}
-	if !met {
-		s.log(hclog.Warn, "create dependencies not met, clearing state then exiting")
-		s.clearState()
-		return nil
+	if err := resourceScriptedReadBase(s); err != nil {
+		s.rollback()
+		return err
 	}
-	return resourceScriptedCreateBase(s)
+	return nil
 }
 
 func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
@@ -109,19 +120,23 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	defer s.runningMessages()()
-	met, err := s.checkDependenciesMet()
-	if err != nil {
+	if met, err := s.checkDependenciesMet(); err != nil {
 		return err
-	}
-	if !met {
+	} else if !met {
+		s.rollback()
 		return nil
 	}
 
 	if err := s.checkNeedsUpdate(); err != nil {
+		s.rollback()
 		return err
 	}
 
-	return resourceScriptedReadBase(s)
+	if err := resourceScriptedReadBase(s); err != nil {
+		s.rollback()
+		return err
+	}
+	return nil
 }
 
 func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
@@ -129,29 +144,34 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer s.runningMessages()()
-	met, err := s.checkDependenciesMet()
-	if err != nil {
-		return err
-	}
-	if !met {
-		return nil
-	}
-	if isSet(s.pc.Commands.Templates.Update) {
-		err = resourceScriptedUpdateBase(s)
-		if err != nil {
+	err = func() error {
+		defer s.runningMessages()()
+		if met, err := s.checkDependenciesMet(); err != nil {
 			return err
+		} else if !met {
+			s.rollback()
+			return nil
 		}
-	} else {
-		if err := resourceScriptedDeleteBase(s); err != nil {
-			return err
+		if isSet(s.pc.Commands.Templates.Update) {
+			err = resourceScriptedUpdateBase(s)
+			if err != nil {
+				return err
+			}
+		} else {
+			if err := resourceScriptedDeleteBase(s); err != nil {
+				return err
+			}
+			if err := resourceScriptedCreateBase(s); err != nil {
+				return err
+			}
 		}
-		if err := resourceScriptedCreateBase(s); err != nil {
-			return err
-		}
-	}
 
-	return resourceScriptedReadBase(s)
+		return resourceScriptedReadBase(s)
+	}()
+	if err != nil {
+		s.rollback()
+	}
+	return err
 }
 
 func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
@@ -160,14 +180,12 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return true, err
 	}
 	defer s.runningMessages()()
-	met, err := s.checkDependenciesMet()
-	if err != nil {
+	if met, err := s.checkDependenciesMet(); err != nil {
 		return true, err
-	}
-	if !met {
+	} else if !met {
 		return true, nil
 	}
-	defer s.logging.PopIf(s.logging.Push("commands", "exists"))
+	defer s.logging.PushDefer("commands", "exists")()
 
 	if !isSet(s.pc.Commands.Templates.Exists) {
 		s.log(hclog.Debug, `"commands_exists" is empty, exiting.`)
@@ -198,18 +216,21 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	defer s.runningMessages()()
-	met, err := s.checkDependenciesMet()
-	if err != nil {
+	if met, err := s.checkDependenciesMet(); err != nil {
 		return err
-	}
-	if !met {
+	} else if !met {
+		s.rollback()
 		return nil
 	}
-	return resourceScriptedDeleteBase(s)
+	if err := resourceScriptedDeleteBase(s); err != nil {
+		s.rollback()
+		return err
+	}
+	return nil
 }
 
 func resourceScriptedCreateBase(s *Scripted) error {
-	defer s.logging.PopIf(s.logging.Push("commands", "create"))
+	defer s.logging.PushDefer("commands", "create")()
 	onEmpty := func(msg string) error {
 		if isSet(s.pc.Commands.Templates.Update) {
 			s.log(hclog.Debug, `"commands_create" is empty, running "commands_update".`)
@@ -220,8 +241,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 			return err
 		}
 		s.clearState()
-		s.syncState()
-		return resourceScriptedReadBase(s)
+		return nil
 	}
 
 	if !isSet(s.pc.Commands.Templates.Create) {
@@ -240,8 +260,9 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	}
 
 	s.log(hclog.Info, "creating resource")
-	lines, done := s.stateSetter()
+	lines, done, save := s.stateSetter()
 	err = s.execute(lines, command)
+	save <- err == nil
 	<-done
 	if err != nil {
 		return err
@@ -251,7 +272,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 		return err
 	}
 	s.log(hclog.Debug, "created resource", "id", s.getId())
-	return resourceScriptedReadBase(s)
+	return nil
 }
 
 func resourceScriptedReadBase(s *Scripted) error {
@@ -260,7 +281,7 @@ func resourceScriptedReadBase(s *Scripted) error {
 		s.d.Set("output", map[string]string{})
 		return nil
 	}
-	defer s.logging.PopIf(s.logging.Push("commands", "read"))
+	defer s.logging.PushDefer("commands", "read")()
 	if !isSet(s.pc.Commands.Templates.Read) {
 		return onEmpty(`"commands_read" is empty, exiting.`)
 	}
@@ -280,8 +301,9 @@ func resourceScriptedReadBase(s *Scripted) error {
 		return err
 	}
 	s.log(hclog.Info, "reading resource", "command", command)
-	output, doneCh := s.outputSetter()
+	output, doneCh, saveCh := s.outputSetter()
 	err = s.executeBase(output, env, command)
+	saveCh <- err == nil
 	<-doneCh
 	if err != nil {
 		if s.pc.Commands.DeleteOnReadFailure {
@@ -295,7 +317,7 @@ func resourceScriptedReadBase(s *Scripted) error {
 }
 
 func resourceScriptedUpdateBase(s *Scripted) error {
-	defer s.logging.PopIf(s.logging.Push("commands", "update"))
+	defer s.logging.PushDefer("commands", "update")()
 	command, err := s.prefixedTemplate(
 		&TemplateArg{"commands_modify_prefix", s.pc.Commands.Templates.ModifyPrefix},
 		&TemplateArg{"commands_update", s.pc.Commands.Templates.Update},
@@ -311,8 +333,9 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 		return nil
 	}
 	s.log(hclog.Info, "updating resource", "command", command)
-	lines, done := s.stateSetter()
+	lines, done, save := s.stateSetter()
 	err = s.execute(lines, command)
+	save <- err == nil
 	<-done
 	if err != nil {
 		s.log(hclog.Warn, "update command returned error", "error", err)
@@ -325,7 +348,7 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 }
 
 func resourceScriptedDeleteBase(s *Scripted) error {
-	defer s.logging.PopIf(s.logging.Push("commands", "delete"))
+	defer s.logging.PushDefer("commands", "delete")()
 	onEmpty := func(msg string) error {
 		s.log(hclog.Debug, msg)
 		s.clear()

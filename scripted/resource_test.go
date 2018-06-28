@@ -618,6 +618,89 @@ EOF
 	})
 }
 
+func TestAccScriptedResource_RollbackDependenciesMet(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+  		commands_read = <<EOF
+echo out={{ .Cur.val | quote }}
+EOF
+		commands_update = <<EOF
+cat <<EOL | sed 's/^/{{.StatePrefix}}/g'
+out={{ .Cur.val }}
+EOL
+EOF
+	}
+	resource "scripted_resource" "test" {
+		context {
+			val = "%v"
+		}
+	}
+`
+	const testConfigDoNothing = `
+	provider "scripted" {
+  		commands_dependencies = " "
+	}
+	resource "scripted_resource" "test" {
+		context {
+			val = "%v"
+		}
+	}
+`
+	const testConfigErrUpdate = `
+	provider "scripted" {
+  		commands_read = <<EOF
+echo out={{ .Cur.val | quote }}
+EOF
+		commands_update = "exit 1"
+	}
+	resource "scripted_resource" "test" {
+		context {
+			val = "%v"
+		}
+	}
+`
+
+	step := 0
+	printStep := func() {
+		Stderr.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d\n", step))
+		step++
+	}
+	resource.Test(t, resource.TestCase{
+		Providers: testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				PreConfig: printStep,
+				Config:    fmt.Sprintf(testConfig, "1"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", `1`),
+					testAccCheckResourceState("scripted_resource.test", "out", `1`),
+				),
+			},
+			{
+				PreConfig:   printStep,
+				Config:      fmt.Sprintf(testConfigErrUpdate, "2"),
+				ExpectError: regexp.MustCompile(`.*`),
+			},
+			{
+				PreConfig: printStep,
+				Config:    fmt.Sprintf(testConfigDoNothing, "1"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", `1`),
+					testAccCheckResourceState("scripted_resource.test", "out", `1`),
+				),
+			},
+			{
+				PreConfig: printStep,
+				Config:    fmt.Sprintf(testConfig, "2"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", `2`),
+					testAccCheckResourceState("scripted_resource.test", "out", `2`),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResource_JSON_Nested(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
@@ -755,12 +838,15 @@ func testAccCheckResourceState(name string, outparam string, value string) resou
 		if !ok {
 			return fmt.Errorf("resource not found: %s, found: %s", name, s.RootModule().Resources)
 		}
-		if rs.Primary.ID == "" {
+		primary := rs.Primary
+		if primary.ID == "" {
 			return fmt.Errorf("no Record ID is set")
 		}
 
-		if expected, got := value, rs.Primary.Attributes["state."+outparam]; got != expected {
-			return fmt.Errorf("wrong value in state '%s=%s', expected '%s'", outparam, got, expected)
+		if got, ok := primary.Attributes["state."+outparam]; !ok {
+			return fmt.Errorf("state key `%s` is missing\n%v", outparam, rs.Primary)
+		} else if got != value {
+			return fmt.Errorf("wrong value in state '%s=%s', expected '%s'\n%v", outparam, got, value, primary)
 		}
 		return nil
 	}
@@ -771,11 +857,12 @@ func testAccCheckResourceStateMissing(name string, outparam string) resource.Tes
 		if !ok {
 			return fmt.Errorf("resource not found: %s, found: %s", name, s.RootModule().Resources)
 		}
-		if rs.Primary.ID == "" {
+		primary := rs.Primary
+		if primary.ID == "" {
 			return fmt.Errorf("no Record ID is set")
 		}
-		if _, ok := rs.Primary.Attributes["state."+outparam]; ok {
-			return fmt.Errorf("state key `%s` should not be present", outparam)
+		if _, ok := primary.Attributes["state."+outparam]; ok {
+			return fmt.Errorf("state key `%s` should not be present\n%v", outparam, primary)
 		}
 		return nil
 	}
@@ -787,12 +874,15 @@ func testAccCheckResourceOutput(name string, outparam string, value string) reso
 		if !ok {
 			return fmt.Errorf("resource not found: %s, found: %s", name, s.RootModule().Resources)
 		}
-		if rs.Primary.ID == "" {
+		primary := rs.Primary
+		if primary.ID == "" {
 			return fmt.Errorf("no Record ID is set")
 		}
 
-		if expected, got := value, rs.Primary.Attributes["output."+outparam]; got != expected {
-			return fmt.Errorf("wrong value in output '%s=%s', expected '%s'", outparam, got, expected)
+		if got, ok := primary.Attributes["output."+outparam]; !ok {
+			return fmt.Errorf("output key `%s` is missing\n%v", outparam, rs.Primary)
+		} else if got != value {
+			return fmt.Errorf("wrong value in output '%s=%s', expected '%s'\n%v", outparam, got, value, primary)
 		}
 		return nil
 	}

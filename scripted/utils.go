@@ -1,11 +1,14 @@
 package scripted
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -112,4 +115,13 @@ func chToString(lines chan string) chan string {
 
 func ToString(val interface{}) string {
 	return fmt.Sprintf("%s", val)
+}
+
+func getGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
 }

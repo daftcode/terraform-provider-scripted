@@ -26,6 +26,13 @@ func newLogging(hcloggers []hclog.Logger, args ...interface{}) *Logging {
 	return ret
 }
 
+func (ls *Logging) PushDefer(args ...interface{}) func() {
+	logger := ls.Push(args...)
+	return func() {
+		ls.PopIf(logger)
+	}
+}
+
 func (ls *Logging) Push(args ...interface{}) *Logger {
 	l := len(ls.stack)
 	logger := ls.stack[l-1]
