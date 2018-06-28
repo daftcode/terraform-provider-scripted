@@ -24,7 +24,9 @@ var EnvPrefix = envDefault("TF_SCRIPTED_ENV_PREFIX", DefaultEnvPrefix)
 var debugLogging = false
 
 // String representing empty value, can be set to anything
-var EmptyString, _ = getEnv("EMPTY_STRING", `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`)
+var EmptyString = getEnvMust("EMPTY_STRING", `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`)
+var DefaultTriggerString = `ndn4VFxYG489bUmV6xKjKFE0RYQIJdts`
+var TriggerStringEnvKey = envKey("TRIGGER_STRING")
 
 var defaultWindowsInterpreter = []string{"cmd", "/C", "{{ .command }}"}
 var defaultInterpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
@@ -60,14 +62,8 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Command determining whether dependencies are met",
+				Description: fmt.Sprintf("Command determining whether dependencies are met, dependencies met triggered by `%s` or `$%s`", DefaultTriggerString, TriggerStringEnvKey),
 			},
-			"commands_dependencies_trigger_output": stringDefaultSchema(
-				nil,
-				"commands_dependencies_trigger_output",
-				"Exact output expected from `commands_dependencies` to pass the check.",
-				"true",
-			),
 			"commands_environment_include_parent": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -96,14 +92,8 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Exists command",
+				Description: fmt.Sprintf("Exists command, not-exists triggered by `%s` or `$%s`", DefaultTriggerString, TriggerStringEnvKey),
 			},
-			"commands_exists_trigger_output": stringDefaultSchema(
-				nil,
-				"commands_exists_trigger_output",
-				"Exact output expected from `commands_exists` to trigger doesn't exist behaviour.",
-				"false",
-			),
 			"commands_id": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -135,14 +125,8 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: "Command indicating whether resource should be updated.",
+				Description: fmt.Sprintf("Command indicating whether resource should be updated, update triggered by `%s` or `$%s`", DefaultTriggerString, TriggerStringEnvKey),
 			},
-			"commands_needs_update_trigger_output": stringDefaultSchema(
-				nil,
-				"commands_needs_update_trigger_output",
-				"Exact output expected from `commands_needs_update` to trigger an update.",
-				"true",
-			),
 			"commands_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -444,15 +428,13 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 				LogPids:   d.Get("logging_pids").(bool),
 				LogIids:   d.Get("logging_iids").(bool),
 			},
-			CreateAfterUpdate:         cau,
-			DependenciesTriggerOutput: d.Get("commands_dependencies_trigger_output").(string),
-			DeleteBeforeUpdate:        dbu,
-			DeleteOnNotExists:         d.Get("commands_delete_on_not_exists").(bool),
-			DeleteOnReadFailure:       d.Get("commands_delete_on_read_failure").(bool),
-			NeedsUpdateExpectedOutput: d.Get("commands_needs_update_trigger_output").(string),
-			ExistsExpectedOutput:      d.Get("commands_exists_trigger_output").(string),
-			Separator:                 d.Get("commands_separator").(string),
-			WorkingDirectory:          d.Get("commands_working_directory").(string),
+			CreateAfterUpdate:   cau,
+			DeleteBeforeUpdate:  dbu,
+			DeleteOnNotExists:   d.Get("commands_delete_on_not_exists").(bool),
+			DeleteOnReadFailure: d.Get("commands_delete_on_read_failure").(bool),
+			Separator:           d.Get("commands_separator").(string),
+			WorkingDirectory:    d.Get("commands_working_directory").(string),
+			TriggerString:       envDefault(TriggerStringEnvKey, DefaultTriggerString),
 		},
 		Templates: &TemplatesConfig{
 			LeftDelim:  d.Get("templates_left_delim").(string),

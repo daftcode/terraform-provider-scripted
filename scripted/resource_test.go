@@ -67,7 +67,7 @@ func TestAccScriptedResource_NeedsUpdate(t *testing.T) {
 	provider "scripted" {
 		alias = "file"
 		commands_needs_update = <<EOF
-[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n true
+[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n {{ .TriggerString | squote }}
 EOF
 		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
@@ -84,7 +84,7 @@ EOF
 	const testConfigAlwaysUpdate = `
 	provider "scripted" {
 		alias = "file"
-		commands_needs_update = "echo -n true"
+		commands_needs_update = "echo -n {{ .TriggerString | squote }}"
 		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
 		commands_delete = "rm '{{ .Cur.path }}'"
@@ -101,7 +101,7 @@ EOF
 	provider "scripted" {
 		alias = "file"
 		commands_needs_update = <<EOF
-[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n true
+[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n {{ .TriggerString | squote }}
 EOF
 		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
 		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
@@ -1034,7 +1034,7 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "[ -f '{{.New.file}}' ] || echo -n false"
+		commands_exists = "[ -f '{{.New.file}}' ] || echo -n {{ .TriggerString | squote }}"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}
@@ -1049,7 +1049,7 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "[ -f '{{.New.file}}' ] || echo -n false"
+		commands_exists = "[ -f '{{.New.file}}' ] || echo -n {{ .TriggerString | squote }}"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}
@@ -1064,7 +1064,7 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "echo -n false"
+		commands_exists = "echo -n {{ .TriggerString | squote }}"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}

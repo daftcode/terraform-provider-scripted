@@ -36,6 +36,11 @@ func envDefaultFunc(key, defVal string) schema.SchemaDefaultFunc {
 	}
 }
 
+func getEnvMust(key, defValue string) string {
+	val, _ := getEnv(key, defValue)
+	return val
+}
+
 func getEnv(key, defValue string) (value string, ok bool) {
 	return envDefaultOk(envKey(key), defValue)
 }

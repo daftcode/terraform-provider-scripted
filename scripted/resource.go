@@ -199,11 +199,12 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return true, nil
 	}
 	s.log(hclog.Info, "checking resource exists")
-	output, err := s.executeString(command)
+	lines, triggered := s.triggerReader()
+	err = s.execute(lines, command)
+	exists := err == nil && !(<-triggered)
 	if err != nil {
 		s.log(hclog.Warn, "exists returned error", "error", err)
 	}
-	exists := err == nil && output != s.pc.Commands.ExistsExpectedOutput
 	if !exists && s.pc.Commands.DeleteOnNotExists {
 		s.clear()
 	}

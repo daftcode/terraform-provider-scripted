@@ -47,16 +47,16 @@ type ChangeMap struct {
 
 type TemplateContext struct {
 	*ChangeMap
-	Operation    Operation
-	EmptyString  string
-	StatePrefix  string
-	OutputPrefix string
-	Output       map[string]string
-	State        *ChangeMap
+	Operation     Operation
+	EmptyString   string
+	TriggerString string
+	StatePrefix   string
+	OutputPrefix  string
+	Output        map[string]string
+	State         *ChangeMap
 }
 
 type ResourceConfig struct {
-	// LogName              string
 	EnvironmentTemplates []string
 	Context              *ChangeMap
 	state                *ChangeMap
@@ -367,12 +367,13 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (
 			New: s.rc.Context.New,
 			Cur: mergeMaps(s.rc.Context.Cur, extraCtx),
 		},
-		Operation:    s.op,
-		EmptyString:  s.pc.EmptyString,
-		StatePrefix:  s.pc.StateLinePrefix,
-		OutputPrefix: s.pc.OutputLinePrefix,
-		Output:       castConfigMap(s.d.Get("output")),
-		State:        s.rc.state,
+		Operation:     s.op,
+		EmptyString:   s.pc.EmptyString,
+		TriggerString: s.pc.Commands.TriggerString,
+		StatePrefix:   s.pc.StateLinePrefix,
+		OutputPrefix:  s.pc.OutputLinePrefix,
+		Output:        castConfigMap(s.d.Get("output")),
+		State:         s.rc.state,
 	}
 	if s.pc.Logging.level == hclog.Trace {
 		jsonCtx, _ := toJson(ctx)
@@ -611,6 +612,28 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh c
 	return input, doneCh, saveCh
 }
 
+func (s *Scripted) triggerReader() (input chan string, resultCh chan bool) {
+	input = make(chan string)
+	resultCh = make(chan bool)
+
+	go func() {
+		defer s.logging.PushDefer("xCtx", "stateSetter")()
+		filtered := make(chan string)
+		go s.filterLines(input, "", s.pc.EmptyString, filtered)
+		triggered := false
+		for e := range filtered {
+			if e == s.pc.Commands.TriggerString {
+				triggered = true
+				break
+			}
+		}
+		resultCh <- triggered
+		close(resultCh)
+	}()
+
+	return input, resultCh
+}
+
 func (s *Scripted) stateSetter() (input chan string, doneCh chan bool, saveCh chan bool) {
 	input = make(chan string)
 	doneCh = make(chan bool)
@@ -701,8 +724,9 @@ func (s *Scripted) checkNeedsUpdate() error {
 		return onEmpty(`"commands_needs_update" rendered empty, exiting.`)
 	}
 	s.log(hclog.Info, "checking resource needs update")
-	output, err := s.executeString(command)
-	s.setNeedsUpdate(err == nil && output == s.pc.Commands.NeedsUpdateExpectedOutput)
+	lines, triggered := s.triggerReader()
+	err = s.execute(lines, command)
+	s.setNeedsUpdate(err == nil && <-triggered)
 	return err
 }
 
@@ -734,8 +758,9 @@ func (s *Scripted) checkDependenciesMet() (bool, error) {
 		return onEmpty(`"commands_dependencies" rendered empty, exiting.`)
 	}
 	s.log(hclog.Info, "checking resource dependencies met")
-	output, err := s.executeString(command)
-	s.setDependenciesMet(err == nil && output == s.pc.Commands.DependenciesTriggerOutput)
+	lines, triggered := s.triggerReader()
+	err = s.execute(lines, command)
+	s.setDependenciesMet(err == nil && <-triggered)
 	return s.dependenciesMet(), err
 }
 
