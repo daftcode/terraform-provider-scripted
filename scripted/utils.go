@@ -25,7 +25,7 @@ func mergeMaps(maps ...map[string]string) map[string]string {
 func castConfigList(v interface{}) []string {
 	var ret []string
 	for _, v := range v.([]interface{}) {
-		ret = append(ret, v.(string))
+		ret = append(ret, fmt.Sprintf("%v", v))
 	}
 	return ret
 }
@@ -40,7 +40,7 @@ func castConfigMap(v interface{}) map[string]string {
 		return ret
 	}
 	for k, v := range valueMap {
-		ret[k] = v.(string)
+		ret[k] = fmt.Sprintf("%v", v)
 	}
 	return ret
 }

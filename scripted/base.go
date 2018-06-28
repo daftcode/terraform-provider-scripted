@@ -341,12 +341,7 @@ func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
 			continue
 		}
 		for key, entry := range data.(map[string]interface{}) {
-			value, ok := entry.(string)
-			err = nil
-			if !ok {
-				err = fmt.Errorf(`failed to convert %v to string`, entry)
-			}
-			output <- KVEntry{key, value, err}
+			output <- KVEntry{key, fmt.Sprintf("%v", entry), err}
 		}
 	}
 }
