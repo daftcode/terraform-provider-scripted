@@ -27,6 +27,7 @@ var debugLogging = false
 var EmptyString = getEnvMust("EMPTY_STRING", `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`)
 var DefaultTriggerString = `ndn4VFxYG489bUmV6xKjKFE0RYQIJdts`
 var TriggerStringEnvKey = envKey("TRIGGER_STRING")
+var TriggerStringTpl = `{{ .TriggerString }}`
 
 var defaultWindowsInterpreter = []string{"cmd", "/C", "{{ .command }}"}
 var defaultInterpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
@@ -62,7 +63,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: fmt.Sprintf("Command determining whether dependencies are met, dependencies met triggered by `%s` or `$%s`", DefaultTriggerString, TriggerStringEnvKey),
+				Description: fmt.Sprintf("Command determining whether dependencies are met, dependencies met triggered by `%s`", TriggerStringTpl),
 			},
 			"commands_environment_include_parent": {
 				Type:        schema.TypeBool,
@@ -92,7 +93,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: fmt.Sprintf("Exists command, not-exists triggered by `%s` or `$%s`", DefaultTriggerString, TriggerStringEnvKey),
+				Description: fmt.Sprintf("Exists command, not-exists triggered by `%s`", TriggerStringTpl),
 			},
 			"commands_id": {
 				Type:        schema.TypeString,
@@ -125,7 +126,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: fmt.Sprintf("Command indicating whether resource should be updated, update triggered by `%s` or `$%s`", DefaultTriggerString, TriggerStringEnvKey),
+				Description: fmt.Sprintf("Command indicating whether resource should be updated, update triggered by `%s`", TriggerStringTpl),
 			},
 			"commands_prefix": {
 				Type:        schema.TypeString,
