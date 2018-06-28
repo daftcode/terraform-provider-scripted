@@ -40,6 +40,11 @@ type Scripted struct {
 }
 
 type ChangeMap struct {
+	Old map[string]interface{}
+	New map[string]interface{}
+	Cur map[string]interface{}
+}
+type EnvironmentChangeMap struct {
 	Old map[string]string
 	New map[string]string
 	Cur map[string]string
@@ -52,15 +57,14 @@ type TemplateContext struct {
 	TriggerString string
 	StatePrefix   string
 	OutputPrefix  string
-	Output        map[string]string
+	Output        map[string]interface{}
 	State         *ChangeMap
 }
 
 type ResourceConfig struct {
-	EnvironmentTemplates []string
-	Context              *ChangeMap
-	state                *ChangeMap
-	environment          *ChangeMap
+	Context     *ChangeMap
+	state       *ChangeMap
+	environment *EnvironmentChangeMap
 }
 
 type TemplateArg struct {
@@ -70,7 +74,7 @@ type TemplateArg struct {
 
 type KVEntry struct {
 	key   string
-	value string
+	value interface{}
 	err   error
 }
 
@@ -143,9 +147,9 @@ func (s *Scripted) renderEnv(old bool) error {
 	return nil
 }
 
-func (s *Scripted) Environment() (*ChangeMap, error) {
+func (s *Scripted) Environment() (*EnvironmentChangeMap, error) {
 	if s.rc.environment == nil {
-		env := castConfigChangeMap(s.d.GetChange("environment"))
+		env := castEnvironmentChangeMap(s.d.GetChange("environment"))
 		if s.pc.Commands.Environment.IncludeParent {
 			for _, line := range os.Environ() {
 				split := strings.SplitN(line, "=", 1)
@@ -316,14 +320,16 @@ func (s *Scripted) scanBase64(input chan string, output chan KVEntry) {
 	go s.scanText(input, textEntries)
 
 	for e := range textEntries {
-		decoded, err := base64.StdEncoding.DecodeString(e.value)
-		if err != nil {
-			s.log(hclog.Warn, "error decoding base64", "error", err)
-			output <- KVEntry{e.key, "", err}
-			continue
+		if str, ok := e.value.(string); ok {
+			decoded, err := base64.StdEncoding.DecodeString(str)
+			if err != nil {
+				s.log(hclog.Warn, "error decoding base64", "error", err)
+				output <- KVEntry{e.key, "", err}
+				continue
+			}
+			value := string(decoded[:])
+			output <- KVEntry{e.key, value, e.err}
 		}
-		value := string(decoded[:])
-		output <- KVEntry{e.key, value, e.err}
 	}
 }
 
@@ -346,7 +352,7 @@ func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
 	}
 }
 
-func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (string, error) {
+func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]interface{}) (string, error) {
 	t := template.New(name)
 	t = t.Delims(s.pc.Templates.LeftDelim, s.pc.Templates.RightDelim)
 	t = t.Funcs(TemplateFuncs)
@@ -383,7 +389,7 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]string) (
 }
 
 func (s *Scripted) template(name, tpl string) (string, error) {
-	return s.templateExtra(name, tpl, map[string]string{})
+	return s.templateExtra(name, tpl, map[string]interface{}{})
 }
 
 func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, error) {
@@ -444,7 +450,7 @@ func (s *Scripted) getInterpreter(command string) (string, []string, error) {
 	return s.pc.Commands.Templates.Interpreter[0], args, nil
 }
 
-func (s *Scripted) executeBase(output chan string, env *ChangeMap, commands ...string) error {
+func (s *Scripted) executeBase(output chan string, env *EnvironmentChangeMap, commands ...string) error {
 	command := s.joinCommands(commands...)
 	interpreter, args, err := s.getInterpreter(command)
 	cmd := exec.Command(interpreter, args...)
@@ -551,7 +557,7 @@ func (s *Scripted) ensureId() error {
 			return nil
 		}
 	}
-	env := castConfigMap(s.d.Get("environment"))
+	env := castEnvironmentMap(s.d.Get("environment"))
 	var entries []string
 	entries = append(entries, getMapHash(s.d.Get("context").(map[string]interface{}))...)
 	entries = append(entries, getMapHash(s.d.Get("state").(map[string]interface{}))...)
@@ -576,7 +582,7 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh c
 
 	go func() {
 		defer s.logging.PushDefer("xCtx", "outputSetter")()
-		output := map[string]string{}
+		output := map[string]interface{}{}
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.OutputLinePrefix, s.pc.StateLinePrefix, filtered)
 		entries := make(chan KVEntry)
@@ -636,7 +642,7 @@ func (s *Scripted) stateSetter() (input chan string, doneCh chan bool, saveCh ch
 
 	go func() {
 		defer s.logging.PushDefer("xCtx", "stateSetter")()
-		output := make(map[string]string)
+		output := make(map[string]interface{})
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.StateLinePrefix, s.pc.EmptyString, filtered)
 		entries := make(chan KVEntry)
@@ -669,7 +675,7 @@ func (s *Scripted) stateSetter() (input chan string, doneCh chan bool, saveCh ch
 
 func (s *Scripted) clearState() {
 	s.log(hclog.Trace, "clearing resource.state")
-	s.rc.state.New = map[string]string{}
+	s.rc.state.New = map[string]interface{}{}
 	s.syncState()
 }
 

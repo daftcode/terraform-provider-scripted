@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-func mergeMaps(maps ...map[string]string) map[string]string {
-	ctx := map[string]string{}
+func mergeMaps(maps ...map[string]interface{}) map[string]interface{} {
+	ctx := map[string]interface{}{}
 	for _, m := range maps {
 		for k, v := range m {
 			ctx[k] = v
@@ -22,7 +22,7 @@ func mergeMaps(maps ...map[string]string) map[string]string {
 	return ctx
 }
 
-func castConfigList(v interface{}) []string {
+func castConfigListString(v interface{}) []string {
 	var ret []string
 	for _, v := range v.([]interface{}) {
 		ret = append(ret, fmt.Sprintf("%v", v))
@@ -30,8 +30,8 @@ func castConfigList(v interface{}) []string {
 	return ret
 }
 
-func castConfigMap(v interface{}) map[string]string {
-	ret := map[string]string{}
+func castConfigMap(v interface{}) map[string]interface{} {
+	ret := map[string]interface{}{}
 	if v == nil {
 		return ret
 	}
@@ -39,10 +39,7 @@ func castConfigMap(v interface{}) map[string]string {
 	if !ok || valueMap == nil {
 		return ret
 	}
-	for k, v := range valueMap {
-		ret[k] = fmt.Sprintf("%v", v)
-	}
-	return ret
+	return valueMap
 }
 
 func castConfigChangeMap(o, n interface{}) *ChangeMap {
@@ -52,10 +49,32 @@ func castConfigChangeMap(o, n interface{}) *ChangeMap {
 	}
 }
 
+func castEnvironmentMap(v interface{}) map[string]string {
+	ret := map[string]string{}
+	if v == nil {
+		return ret
+	}
+	valueMap, ok := v.(map[string]interface{})
+	if !ok || valueMap == nil {
+		return ret
+	}
+	for k, v := range valueMap {
+		ret[k] = fmt.Sprintf("%s", v)
+	}
+	return ret
+}
+
+func castEnvironmentChangeMap(o, n interface{}) *EnvironmentChangeMap {
+	return &EnvironmentChangeMap{
+		Old: castEnvironmentMap(o),
+		New: castEnvironmentMap(n),
+	}
+}
+
 func mapToEnv(env map[string]string) []string {
 	var ret []string
 	for key, value := range env {
-		ret = append(ret, fmt.Sprintf("%s=%s", key, value))
+		ret = append(ret, fmt.Sprintf("%s=%s", key, fmt.Sprintf("%s", value)))
 	}
 	return ret
 }
@@ -82,17 +101,24 @@ func getMapHash(data map[string]interface{}) []string {
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		entries = append(entries, hash(hash(k)+hash(ctx[k].(string))))
+		v := fmt.Sprintf("%#v", ctx[k])
+		entries = append(entries, hash(hash(k)+hash(v)))
 	}
 	return entries
 }
 
-func isSet(str string) bool {
-	return str != EmptyString
+func isSet(val interface{}) bool {
+	if str, ok := val.(string); ok {
+		return str != EmptyString
+	}
+	return val != nil
 }
 
-func isFilled(str string) bool {
-	return str != EmptyString && str != ""
+func isFilled(val interface{}) bool {
+	if str, ok := val.(string); ok {
+		return str != EmptyString && str != ""
+	}
+	return val != nil
 }
 
 func chToString(lines chan string) chan string {

@@ -364,7 +364,7 @@ func interpreterOrDefault(cur []string) ([]string, error) {
 }
 
 func inheritVariablesOrDefault(d *schema.ResourceData) []string {
-	inherit := castConfigList(d.Get("commands_environment_inherit_variables"))
+	inherit := castConfigListString(d.Get("commands_environment_inherit_variables"))
 	if len(inherit) < 1 {
 		inherit, _, _ = getEnvList("ENVIRONMENT_INHERIT_VARIABLES", []string{})
 	}
@@ -374,7 +374,7 @@ func inheritVariablesOrDefault(d *schema.ResourceData) []string {
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	logging, err := providerConfigureLogging(d)
 	debugLogging = envDefault("TF_SCRIPTED_DEBUG_LOGGING", "") != ""
-	interpreter, err := interpreterOrDefault(castConfigList(d.Get("commands_interpreter")))
+	interpreter, err := interpreterOrDefault(castConfigListString(d.Get("commands_interpreter")))
 	if err != nil {
 		return nil, err
 	}

@@ -54,7 +54,7 @@ func getEnvList(key string, defValue []string) (value []string, ok bool, err err
 	if err != nil {
 		return nil, false, err
 	}
-	value = castConfigList(json)
+	value = castConfigListString(json)
 	return value, ok, err
 }
 

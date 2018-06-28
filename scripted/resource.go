@@ -11,28 +11,24 @@ func getResourceSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"context": {
 			Type:        schema.TypeMap,
-			Elem:        &schema.Schema{Type: schema.TypeString},
 			Optional:    true,
 			Description: "Template context for rendering commands",
 			Sensitive:   true,
 		},
 		"environment": {
 			Type:        schema.TypeMap,
-			Elem:        &schema.Schema{Type: schema.TypeString},
 			Optional:    true,
 			Description: "Environment to run commands in",
 			Sensitive:   true,
 		},
 		"output": {
 			Type:        schema.TypeMap,
-			Elem:        &schema.Schema{Type: schema.TypeString},
 			Computed:    true,
 			Description: "Output from the read command",
 			Sensitive:   true,
 		},
 		"state": {
 			Type:        schema.TypeMap,
-			Elem:        &schema.Schema{Type: schema.TypeString},
 			Computed:    true,
 			Description: "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
 			Sensitive:   true,
