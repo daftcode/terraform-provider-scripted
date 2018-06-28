@@ -617,7 +617,7 @@ func (s *Scripted) triggerReader() (input chan string, resultCh chan bool) {
 	resultCh = make(chan bool)
 
 	go func() {
-		defer s.logging.PushDefer("xCtx", "stateSetter")()
+		defer s.logging.PushDefer("xCtx", "triggerReader")()
 		filtered := make(chan string)
 		go s.filterLines(input, "", s.pc.EmptyString, filtered)
 		triggered := false
