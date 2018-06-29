@@ -27,7 +27,7 @@ func TestAccScriptedResource_BasicCRD(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
@@ -52,7 +52,7 @@ func TestAccScriptedResource_Prefix(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
@@ -119,7 +119,7 @@ EOF
 			},
 			{
 				Config: fmt.Sprintf(testConfig, json),
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					checks...,
 				),
 			},
@@ -191,7 +191,7 @@ func TestAccScriptedResource_IdCommand(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceId("scripted_resource.test", "test-id"),
 				),
 			},
@@ -217,7 +217,7 @@ func TestAccScriptedResource_Base64(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
@@ -258,19 +258,19 @@ func TestAccScriptedResource_JsonWithOverride(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi2"),
 				),
 			},
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
@@ -296,7 +296,7 @@ func TestAccScriptedResource_Prefixed(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
@@ -321,7 +321,7 @@ func TestAccScriptedResource_WeirdOutput(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", " can you = read this"),
 				),
 			},
@@ -350,7 +350,7 @@ func TestAccScriptedResource_Parameters(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
@@ -379,7 +379,7 @@ func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
@@ -407,7 +407,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: config,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
@@ -429,7 +429,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 			},
 			{
 				Config: config,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "param value"),
 				),
 			},
@@ -458,7 +458,7 @@ EOF
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "line1\nline2"),
 				),
 			},
@@ -497,13 +497,13 @@ func TestAccScriptedResource_OldNewEnvironment(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "var", "config1"),
 				),
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "old_var", "config1"),
 					testAccCheckResourceOutput("scripted_resource.test", "new_var", "config2"),
 					testAccCheckResourceOutput("scripted_resource.test", "var", "config2"),
@@ -569,7 +569,7 @@ EOF
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", ""),
 					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
@@ -577,7 +577,7 @@ EOF
 			},
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
@@ -585,7 +585,7 @@ EOF
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
@@ -593,7 +593,7 @@ EOF
 			},
 			{
 				Config: testConfig3,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceStateMissing("scripted_resource.test", "value"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "new", ""),
@@ -625,7 +625,7 @@ EOF
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", `{"a":[1,2],"b":"pc","d":4}`),
 				),
 			},
@@ -693,7 +693,7 @@ EOF
 			{
 				PreConfig: printStep,
 				Config:    fmt.Sprintf(testConfig, "1"),
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", `1`),
 					testAccCheckResourceState("scripted_resource.test", "out", `1`),
 				),
@@ -706,7 +706,7 @@ EOF
 			{
 				PreConfig: printStep,
 				Config:    fmt.Sprintf(testConfigDoNothing, "1"),
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", `1`),
 					testAccCheckResourceState("scripted_resource.test", "out", `1`),
 				),
@@ -714,7 +714,7 @@ EOF
 			{
 				PreConfig: printStep,
 				Config:    fmt.Sprintf(testConfig, "2"),
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", `2`),
 					testAccCheckResourceState("scripted_resource.test", "out", `2`),
 				),
@@ -746,7 +746,7 @@ EOF
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", `[1,2]`),
 				),
 			},
@@ -781,7 +781,7 @@ EOF
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", `a:
 - 1
 - 2
@@ -828,13 +828,13 @@ func TestAccScriptedResourceCRD_Update(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
@@ -971,13 +971,13 @@ func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
@@ -1022,13 +1022,13 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
@@ -1126,13 +1126,13 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
 				),
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
@@ -1148,7 +1148,7 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 			},
 			{
 				Config: testConfig2,
-				Check: resource.ComposeTestCheckFunc(
+				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceOutput("scripted_resource.test", "out", "hi all"),
 				),
 			},
