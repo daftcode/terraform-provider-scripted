@@ -54,9 +54,18 @@ func toJson(value interface{}) (string, error) {
 	return string(ret[:]), err
 }
 
+func toJsonMust(value interface{}) string {
+	ret, _ := toJson(value)
+	return ret
+}
+
 func toPrettyJson(value interface{}) (string, error) {
 	ret, err := json.MarshalIndent(value, "", "  ")
 	return string(ret[:]), err
+}
+func toPrettyJsonMust(value interface{}) string {
+	ret, _ := toPrettyJson(value)
+	return ret
 }
 
 func fromJson(value string) (interface{}, error) {

@@ -21,6 +21,7 @@ var ValidLogLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
 var DefaultEnvPrefix = "TF_SCRIPTED_"
 var EnvPrefix = envDefault("TF_SCRIPTED_ENV_PREFIX", DefaultEnvPrefix)
+var Debug = getEnvBool("DEBUG", false)
 var debugLogging = false
 
 // String representing empty value, can be set to anything

@@ -28,15 +28,16 @@ const (
 )
 
 type Scripted struct {
-	pc      *ProviderConfig
-	d       ResourceInterface
-	rc      *ResourceConfig
-	op      Operation
-	logging *Logging
-	oldLog  []bool
-	piid    int
-	riid    int
-	oldId   string
+	pc             *ProviderConfig
+	d              ResourceInterface
+	rc             *ResourceConfig
+	op             Operation
+	logging        *Logging
+	oldLog         []bool
+	piid           int
+	riid           int
+	oldId          string
+	needsUpdateVal bool
 }
 
 type ChangeMap struct {
@@ -82,8 +83,8 @@ type ResourceInterface interface {
 	GetChange(string) (interface{}, interface{})
 	Get(string) interface{}
 	GetOk(string) (interface{}, bool)
-	Id() string
 	Set(string, interface{}) error
+	Id() string
 	SetIdErr(string) error
 	GetChangedKeysPrefix(string) []string
 }
@@ -271,29 +272,30 @@ func (s *Scripted) filterLines(input chan string, prefix, exceptPrefix string, o
 	hasPrefix := isSet(prefix)
 	hasExceptPrefix := isSet(exceptPrefix)
 	for line := range input {
-		s.log(hclog.Trace, "filtering line", "line", line)
+		s.log(hclog.Trace, "filtering line", "ctx", "filterLines", "line", line)
 
 		if !isFilled(line) {
-			s.log(hclog.Trace, "filtered empty line", "line", line)
+			s.log(hclog.Trace, "filtered empty line", "ctx", "filterLines", "line", line)
 			continue
 		}
 
 		if hasExceptPrefix {
 			if strings.HasPrefix(line, exceptPrefix) {
-				s.log(hclog.Trace, "filtered line with prefix", "prefix", exceptPrefix, "line", line)
+				s.log(hclog.Trace, "filtered line with prefix", "ctx", "filterLines", "prefix", exceptPrefix, "line", line)
 				continue
 			}
 		}
 		if hasPrefix {
 			if !strings.HasPrefix(line, prefix) {
-				s.log(hclog.Trace, "filtered line without prefix", "prefix", prefix, "line", line)
+				s.log(hclog.Trace, "filtered line without prefix", "ctx", "filterLines", "prefix", prefix, "line", line)
 				continue
 			}
 			line = strings.TrimPrefix(line, prefix)
 		}
-		// s.log(hclog.Trace, "filter passed", "line", line)
 		output <- line
-		// s.log(hclog.Trace, "filter sent  ", "line", line)
+		if Debug {
+			s.log(hclog.Trace, "line sent", "ctx", "filterLines", "line", line)
+		}
 	}
 }
 
@@ -347,7 +349,7 @@ func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
 			continue
 		}
 		for key, entry := range data.(map[string]interface{}) {
-			output <- KVEntry{key, fmt.Sprintf("%v", entry), err}
+			output <- KVEntry{key, entry, err}
 		}
 	}
 }
@@ -581,7 +583,7 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh c
 	saveCh = make(chan bool)
 
 	go func() {
-		defer s.logging.PushDefer("xCtx", "outputSetter")()
+		defer s.logging.PushDefer("ctx", "outputSetter")()
 		output := map[string]interface{}{}
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.OutputLinePrefix, s.pc.StateLinePrefix, filtered)
@@ -603,8 +605,9 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh c
 		save := <-saveCh
 		close(saveCh)
 		if save {
-			s.log(hclog.Debug, "syncing output", "value", output)
-			s.d.Set("output", output)
+			setval := terraformify(output)
+			s.log(hclog.Debug, "syncing output", "value", output, "setval", fmt.Sprintf("%#v", setval))
+			s.d.Set("output", setval)
 		}
 		doneCh <- true
 		close(doneCh)
@@ -618,17 +621,21 @@ func (s *Scripted) triggerReader() (input chan string, resultCh chan bool) {
 	resultCh = make(chan bool)
 
 	go func() {
-		defer s.logging.PushDefer("xCtx", "triggerReader")()
+		defer s.logging.PushDefer("ctx", "triggerReader")()
 		filtered := make(chan string)
-		go s.filterLines(input, "", s.pc.EmptyString, filtered)
-		triggered := false
-		for e := range filtered {
-			if e == s.pc.Commands.TriggerString {
-				triggered = true
-				break
+		go s.filterLines(input, s.pc.EmptyString, s.pc.EmptyString, filtered)
+		wasTriggered := false
+		for line := range filtered {
+			trigger := s.pc.Commands.TriggerString
+			s.log(hclog.Trace, "checking trigger", "line", line, "wasTriggered", wasTriggered, "trigger", trigger, "triggered", line == trigger)
+			if wasTriggered {
+				continue
+			} else if line == trigger {
+				wasTriggered = true
+				s.log(hclog.Info, "wasTriggered")
 			}
 		}
-		resultCh <- triggered
+		resultCh <- wasTriggered
 		close(resultCh)
 	}()
 
@@ -641,7 +648,7 @@ func (s *Scripted) stateSetter() (input chan string, doneCh chan bool, saveCh ch
 	saveCh = make(chan bool)
 
 	go func() {
-		defer s.logging.PushDefer("xCtx", "stateSetter")()
+		defer s.logging.PushDefer("ctx", "stateSetter")()
 		output := make(map[string]interface{})
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.StateLinePrefix, s.pc.EmptyString, filtered)
@@ -681,7 +688,7 @@ func (s *Scripted) clearState() {
 
 func (s *Scripted) syncState() {
 	s.log(hclog.Debug, "syncing resource.state", "state", s.rc.state.New)
-	err := s.d.Set("state", s.rc.state.New)
+	err := s.d.Set("state", terraformify(s.rc.state.New))
 	if err != nil {
 		s.log(hclog.Error, "syncing resource.state failed", "error", err)
 	}
@@ -690,7 +697,7 @@ func (s *Scripted) syncState() {
 func (s *Scripted) clear() {
 	s.log(hclog.Info, "clearing resource")
 	s.d.SetIdErr("")
-	s.d.Set("output", map[string]string{})
+	s.d.Set("output", map[string]interface{}{})
 	s.clearState()
 }
 
@@ -707,19 +714,18 @@ func (s *Scripted) scanOutput(input chan string, format string, output chan KVEn
 	}
 }
 
-func (s *Scripted) checkNeedsUpdate() error {
+func (s *Scripted) checkNeedsUpdate() (bool, error) {
 	defer s.logging.PushDefer("commands", "needs_update")()
-	onEmpty := func(msg string) error {
+	onEmpty := func(msg string) (bool, error) {
 		s.log(hclog.Trace, msg)
-		s.setNeedsUpdate(false)
-		return nil
+		return false, nil
 	}
 	if !isSet(s.pc.Commands.Templates.NeedsUpdate) {
 		return onEmpty(`"commands_needs_update" is empty, exiting.`)
 	}
 	command, err := s.prefixedTemplate(&TemplateArg{"commands_needs_update", s.pc.Commands.Templates.NeedsUpdate})
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !isFilled(command) {
 		return onEmpty(`"commands_needs_update" rendered empty, exiting.`)
@@ -727,18 +733,7 @@ func (s *Scripted) checkNeedsUpdate() error {
 	s.log(hclog.Info, "checking resource needs update")
 	lines, triggered := s.triggerReader()
 	err = s.execute(lines, command)
-	s.setNeedsUpdate(err == nil && <-triggered)
-	return err
-}
-
-func (s *Scripted) needsUpdate() bool {
-	v, ok := s.d.GetOk("needs_update")
-	return !ok || v.(bool)
-}
-
-func (s *Scripted) setNeedsUpdate(value bool) {
-	s.log(hclog.Debug, "setting `needs_update`", "value", value)
-	s.d.Set("needs_update", value)
+	return <-triggered, err
 }
 
 func (s *Scripted) checkDependenciesMet() (bool, error) {

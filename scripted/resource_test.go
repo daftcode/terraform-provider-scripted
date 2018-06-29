@@ -1,14 +1,13 @@
 package scripted
 
 import (
+	"os"
 	"regexp"
 	"testing"
 
 	"fmt"
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/terraform"
-	"os"
-	"strings"
 )
 
 func TestAccScriptedResource_BasicCRD(t *testing.T) {
@@ -23,8 +22,8 @@ func TestAccScriptedResource_BasicCRD(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -49,8 +48,7 @@ func TestAccScriptedResource_Prefix(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -62,72 +60,100 @@ func TestAccScriptedResource_Prefix(t *testing.T) {
 	})
 }
 
-func TestAccScriptedResource_NeedsUpdate(t *testing.T) {
+func TestAccScriptedResource_Terraformify(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		alias = "file"
-		commands_needs_update = <<EOF
-[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n {{ .TriggerString | squote }}
+        commands_read_format = "json" 
+		commands_read = <<EOF
+jq -c '{data: .}' <<< "$content"
 EOF
-		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
-		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
-		commands_delete = "rm '{{ .Cur.path }}'"
+		commands_needs_update = <<EOF
+set -x
+content="$(jq -c "." <<< "$content")"
+export output={{ default "" .Output | toJson | squote }}
+if jq -e '. == (env.output | fromjson)' <<< "$content" ; then 
+  echo {{ .TriggerString | squote }}
+fi
+EOF
 	}
 	resource "scripted_resource" "test" {
-		provider = "scripted.file"
-		context {
-			path = "test_file"
-			content = "hi"
-		}
+        environment {
+            content = <<EOF
+%s
+EOF
+        }
 	}
 `
-	const testConfigAlwaysUpdate = `
-	provider "scripted" {
-		alias = "file"
-		commands_needs_update = "echo -n {{ .TriggerString | squote }}"
-		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
-		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
-		commands_delete = "rm '{{ .Cur.path }}'"
-	}
-	resource "scripted_resource" "test" {
-		provider = "scripted.file"
-		context {
-			path = "test_file"
-			content = "hi"
-		}
-	}
-`
-	const testConfigHi2 = `
-	provider "scripted" {
-		alias = "file"
-		commands_needs_update = <<EOF
-[ "$(cat '{{ .Cur.path }}')" == {{ .Cur.content | quote }} ] || echo -n {{ .TriggerString | squote }}
-EOF
-		commands_create = "echo -n {{ .Cur.content | quote }} > '{{ .Cur.path }}'"
-		commands_read = "echo -n \"out=$(cat '{{ .Cur.path }}')\""
-		commands_delete = "rm '{{ .Cur.path }}'"
-	}
-	resource "scripted_resource" "test" {
-		provider = "scripted.file"
-		context {
-			path = "test_file"
-			content = "hi2"
-		}
-	}
+	json := `
+{
+  "id": 1,
+  "person": {
+   "name": "John",
+   "age": 30
+  },
+  "cars": [
+    {"car1": "Ford"},
+    {"car2": "BMW"},
+    {"car3": "Fiat"}
+  ]
+}
 `
 
+	d, _ := fromJson(json)
+	var checks []resource.TestCheckFunc
+	data := terraformify(d)
+	for key, value := range data {
+		checks = append(
+			checks,
+			testAccCheckResourceOutput("scripted_resource.test", fmt.Sprintf("data.%s", key), fmt.Sprintf("%v", value)),
+		)
+	}
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
-				Config: testConfig,
+				Config:             fmt.Sprintf(testConfig, json),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: fmt.Sprintf(testConfig, json),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+					checks...,
 				),
 			},
 			{
-				Config:             testConfig,
+				Config:             fmt.Sprintf(testConfig, json),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func TestAccScriptedResource_NeedsUpdate(t *testing.T) {
+	const testConfigNeverUpdate = `
+	provider "scripted" {
+		commands_needs_update = ""
+	}
+	resource "scripted_resource" "test" {}
+`
+	const testConfigAlwaysUpdate = `
+	provider "scripted" {
+		commands_needs_update = "echo {{ .TriggerString | squote }}"
+	}
+	resource "scripted_resource" "test" {}
+`
+	resource.Test(t, resource.TestCase{
+		Providers: testAccProviders,
+		PreCheck:  stepPrinter(),
+		Steps: []resource.TestStep{
+			{
+				Config: testConfigNeverUpdate,
+			},
+			{
+				Config:             testConfigNeverUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
@@ -137,25 +163,14 @@ EOF
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				Config:             testConfig,
+				Config:             testConfigNeverUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 			{
-				Config:             testConfigHi2,
+				Config:             testConfigAlwaysUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
-			},
-			{
-				Config: testConfigHi2,
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceOutput("scripted_resource.test", "out", "hi2"),
-				),
-			},
-			{
-				Config:             testConfigHi2,
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
 			},
 		},
 	})
@@ -171,8 +186,8 @@ func TestAccScriptedResource_IdCommand(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -197,8 +212,8 @@ func TestAccScriptedResource_Base64(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -238,8 +253,8 @@ func TestAccScriptedResource_JsonWithOverride(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -276,8 +291,8 @@ func TestAccScriptedResource_Prefixed(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -301,8 +316,8 @@ func TestAccScriptedResource_WeirdOutput(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -330,8 +345,8 @@ func TestAccScriptedResource_Parameters(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -359,8 +374,8 @@ func TestAccScriptedResource_EnvironmentTemplate(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -387,8 +402,8 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 	}
 `
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: config,
@@ -438,8 +453,8 @@ EOF
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -477,8 +492,8 @@ func TestAccScriptedResource_OldNewEnvironment(t *testing.T) {
 	}
 `
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -549,8 +564,8 @@ EOF
 	}
 `
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -605,8 +620,8 @@ EOF
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -616,6 +631,17 @@ EOF
 			},
 		},
 	})
+}
+
+func stepPrinter() func() {
+	step := 0
+	os.Stderr.WriteString(fmt.Sprintf(">>>>>>>>>>> stepPrinter initialized with %d\n", step))
+	return func() {
+		if Debug {
+			os.Stderr.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d\n", step))
+		}
+		step++
+	}
 }
 
 func TestAccScriptedResource_RollbackDependenciesMet(t *testing.T) {
@@ -660,11 +686,7 @@ EOF
 	}
 `
 
-	step := 0
-	printStep := func() {
-		Stderr.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d\n", step))
-		step++
-	}
+	printStep := stepPrinter()
 	resource.Test(t, resource.TestCase{
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
@@ -719,8 +741,8 @@ EOF
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -754,8 +776,8 @@ EOF
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig,
@@ -801,8 +823,8 @@ func TestAccScriptedResourceCRD_Update(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
@@ -846,7 +868,7 @@ func testAccCheckResourceState(name string, outparam string, value string) resou
 		if got, ok := primary.Attributes["state."+outparam]; !ok {
 			return fmt.Errorf("state key `%s` is missing\n%v", outparam, rs.Primary)
 		} else if got != value {
-			return fmt.Errorf("wrong value in state '%s=%s', expected '%s'\n%v", outparam, got, value, primary)
+			return fmt.Errorf("wrong value in state `%s`, got %#v instead of %#v\n%v", outparam, got, value, primary)
 		}
 		return nil
 	}
@@ -878,11 +900,10 @@ func testAccCheckResourceOutput(name string, outparam string, value string) reso
 		if primary.ID == "" {
 			return fmt.Errorf("no Record ID is set")
 		}
-
 		if got, ok := primary.Attributes["output."+outparam]; !ok {
 			return fmt.Errorf("output key `%s` is missing\n%v", outparam, rs.Primary)
 		} else if got != value {
-			return fmt.Errorf("wrong value in output '%s=%s', expected '%s'\n%v", outparam, got, value, primary)
+			return fmt.Errorf("wrong value in output `%s`, got %#v instead of %#v\n%v", outparam, got, value, primary)
 		}
 		return nil
 	}
@@ -912,21 +933,6 @@ func testAccCheckResourceOutputMissing(name string, outparam string) resource.Te
 		}
 		return nil
 	}
-}
-
-func testAccCheckScriptedDestroy(s *terraform.State) error {
-	for _, rs := range s.RootModule().Resources {
-		if rs.Type != "scripted_resource" {
-			continue
-		}
-
-		splitted := strings.Split(rs.Primary.Attributes["commands_create"], " ")
-		file := splitted[len(splitted)-1]
-		if _, err := os.Stat(file); err == nil {
-			return fmt.Errorf("file '%s' exists after delete", file)
-		}
-	}
-	return nil
 }
 
 func TestAccScriptedResourceCRUD_Update(t *testing.T) {
@@ -960,8 +966,8 @@ func TestAccScriptedResourceCRUD_Update(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
@@ -1011,8 +1017,8 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,
@@ -1029,12 +1035,50 @@ func TestAccScriptedResourceCRUD_DefaultUpdate(t *testing.T) {
 		},
 	})
 }
+
+func TestAccScriptedResource_Exists(t *testing.T) {
+	const testExists = `
+	provider "scripted" {
+        commands_delete_on_not_exists = false
+		commands_exists = ""
+	}
+	resource "scripted_resource" "test" {}
+`
+	const testNotExists = `
+	provider "scripted" {
+        commands_delete_on_not_exists = false
+		commands_exists = "echo {{ .TriggerString | squote }}"
+	}
+	resource "scripted_resource" "test" {}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers: testAccProviders,
+
+		Steps: []resource.TestStep{
+			{
+				Config: testExists,
+			},
+			{
+				Config:             testExists,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				Config:             testNotExists,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
 func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 	const testConfig1 = `
 	provider "scripted" {
 		commands_create = "echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_read = "echo -n \"out=$(cat '{{.New.file}}')\""
-		commands_exists = "[ -f '{{.New.file}}' ] || echo -n {{ .TriggerString | squote }}"
+		commands_exists = "[ -f '{{.New.file}}' ] || echo {{ .TriggerString | squote }}"
 		commands_update = "rm {{.Old.file}}; echo -n \"{{.New.output}}\" > {{.New.file}}"
 		commands_delete = "rm {{.Old.file}}"
 	}
@@ -1077,8 +1121,8 @@ func TestAccScriptedResourceCRUDE_Exists(t *testing.T) {
 `
 
 	resource.Test(t, resource.TestCase{
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckScriptedDestroy,
+		Providers: testAccProviders,
+
 		Steps: []resource.TestStep{
 			{
 				Config: testConfig1,

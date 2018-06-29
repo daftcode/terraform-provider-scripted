@@ -27,7 +27,7 @@ func (rd *ResourceDiff) GetChange(key string) (o interface{}, n interface{}) {
 }
 
 func (rd *ResourceDiff) Set(key string, value interface{}) error {
-	return fmt.Errorf("not implemented")
+	return rd.ResourceDiff.SetNew(key, value)
 }
 
 func (rd *ResourceDiff) SetIdErr(string) error {

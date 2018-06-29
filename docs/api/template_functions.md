@@ -63,8 +63,8 @@ Builtin go template functions are available at the [official docs](https://golan
 | `int64` | `sprig` | `func(interface {}) int64` |
 | `is` | `scripted` | `func(interface {}, interface {}) bool` |
 | `isAbs` | `sprig` | `func(string) bool` |
-| `isFilled` | `scripted` | `func(string) bool` |
-| `isSet` | `scripted` | `func(string) bool` |
+| `isFilled` | `scripted` | `func(interface {}) bool` |
+| `isSet` | `scripted` | `func(interface {}) bool` |
 | `join` | `sprig` | `func(string, interface {}) string` |
 | `keys` | `sprig` | `func(...map[string]interface {}) []string` |
 | `kindIs` | `sprig` | `func(string, interface {}) bool` |

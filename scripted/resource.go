@@ -33,7 +33,7 @@ func getResourceSchema() map[string]*schema.Schema {
 			Description: "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
 			Sensitive:   true,
 		},
-		"needs_update": {
+		"update_trigger": {
 			Type:        schema.TypeBool,
 			Description: "Helper indicating whether resource should be updated, ignore this.",
 			Optional:    true,
@@ -76,15 +76,20 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	changed := len(vDiff) > 0
 	jsonDiff, _ := toJson(vDiff)
 	s.log(hclog.Debug, "customize diff", "diff", jsonDiff)
-	changed = changed || diff.Get("needs_update").(bool)
+
 	changed = changed || len(diff.UpdatedKeys()) > 0
-	if changed {
-		diff.SetNewComputed("needs_update")
+	if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
+		if met, err := s.checkDependenciesMet(); err != nil {
+			return err
+		} else if met {
+			return err
+		}
+	} else if needsUpdate || changed {
+		s.log(hclog.Debug, "update triggered", "needsUpdate", needsUpdate, "changed", changed)
+		diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
 		for _, key := range diff.GetChangedKeysPrefix("state") {
 			diff.SetNewComputed(key)
 		}
-	} else {
-		diff.Clear("needs_update")
 	}
 	for _, key := range diff.GetChangedKeysPrefix("output") {
 		diff.SetNewComputed(key)
@@ -125,11 +130,6 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 	} else if !met {
 		s.rollback()
 		return nil
-	}
-
-	if err := s.checkNeedsUpdate(); err != nil {
-		s.rollback()
-		return err
 	}
 
 	if err := resourceScriptedReadBase(s); err != nil {
@@ -199,16 +199,19 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return true, nil
 	}
 	s.log(hclog.Info, "checking resource exists")
-	lines, triggered := s.triggerReader()
+	lines, triggerCh := s.triggerReader()
 	err = s.execute(lines, command)
-	exists := err == nil && !(<-triggered)
+	triggered := <-triggerCh
+	missing := triggered
 	if err != nil {
 		s.log(hclog.Warn, "exists returned error", "error", err)
-	}
-	if !exists && s.pc.Commands.DeleteOnNotExists {
+		missing = true
+	} else if missing && s.pc.Commands.DeleteOnNotExists {
 		s.clear()
 	}
-	return exists, err
+
+	s.log(hclog.Debug, "resource exists result", "exists", !missing, "triggered", triggered, "err", err)
+	return !missing, err
 }
 
 func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
