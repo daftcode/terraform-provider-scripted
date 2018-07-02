@@ -10,15 +10,15 @@ import (
 var TemplateFuncs = getTemplateFuncs()
 var SprigTemplateFuncs = getSprigTemplateFuncs()
 var ExtraTemplateFuncs = template.FuncMap{
-	"toYaml":                 toYaml,
-	"fromYaml":               fromYaml,
-	"toJson":                 toJson,
-	"toPrettyJson":           toPrettyJson,
-	"fromJson":               fromJson,
-	"is":                     is,
-	"isSet":                  isSet,
-	"isFilled":               isFilled,
-	"terraformifyPrimitives": terraformifyPrimitives,
+	"toYaml":             toYaml,
+	"fromYaml":           fromYaml,
+	"toJson":             toJson,
+	"toPrettyJson":       toPrettyJson,
+	"fromJson":           fromJson,
+	"is":                 is,
+	"isSet":              isSet,
+	"isFilled":           isFilled,
+	"terraformifyValues": terraformifyPrimitives,
 }
 
 func getSprigTemplateFuncs() template.FuncMap {

@@ -117,7 +117,7 @@ Builtin go template functions are available at the [official docs](https://golan
 | `substr` | `sprig` | `func(int, int, string) string` |
 | `swapcase` | `sprig` | `func(string) string` |
 | `ternary` | `sprig` | `func(interface {}, interface {}, bool) interface {}` |
-| `terraformifyPrimitives` | `scripted` | `func(interface {}) interface {}` |
+| `terraformifyValues` | `scripted` | `func(interface {}) interface {}` |
 | `title` | `sprig` | `func(string) string` |
 | `toDate` | `sprig` | `func(string, string) time.Time` |
 | `toJson` | `scripted` | `func(interface {}) (string, error)` |
