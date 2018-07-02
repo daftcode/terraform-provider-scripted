@@ -87,6 +87,8 @@ EOF
 	json := `
 {
   "id": 1,
+  "true": true,
+  "nil": null,
   "person": {
    "name": "John",
    "age": 30
@@ -105,7 +107,7 @@ EOF
 	for key, value := range data {
 		checks = append(
 			checks,
-			testAccCheckResourceOutput("scripted_resource.test", fmt.Sprintf("data.%s", key), fmt.Sprintf("%v", value)),
+			testAccCheckResourceOutput("scripted_resource.test", fmt.Sprintf("data.%s", key), terraformifyPrimitive(value)),
 		)
 	}
 	resource.Test(t, resource.TestCase{

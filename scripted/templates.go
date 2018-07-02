@@ -2,25 +2,23 @@ package scripted
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/Masterminds/sprig"
 	"github.com/ghodss/yaml"
-	"reflect"
 	"text/template"
 )
 
 var TemplateFuncs = getTemplateFuncs()
 var SprigTemplateFuncs = getSprigTemplateFuncs()
 var ExtraTemplateFuncs = template.FuncMap{
-	"toYaml":              toYaml,
-	"fromYaml":            fromYaml,
-	"toJson":              toJson,
-	"toPrettyJson":        toPrettyJson,
-	"fromJson":            fromJson,
-	"is":                  is,
-	"isSet":               isSet,
-	"isFilled":            isFilled,
-	"stringifyJsonValues": stringifyJsonValues,
+	"toYaml":                 toYaml,
+	"fromYaml":               fromYaml,
+	"toJson":                 toJson,
+	"toPrettyJson":           toPrettyJson,
+	"fromJson":               fromJson,
+	"is":                     is,
+	"isSet":                  isSet,
+	"isFilled":               isFilled,
+	"terraformifyPrimitives": terraformifyPrimitives,
 }
 
 func getSprigTemplateFuncs() template.FuncMap {
@@ -80,30 +78,4 @@ func fromJson(value string) (interface{}, error) {
 func fromJsonMust(value string) interface{} {
 	ret, _ := fromJson(value)
 	return ret
-}
-
-func stringifyJsonValues(value interface{}) interface{} {
-	var inner func(interface{}) interface{}
-	inner = func(cur interface{}) interface{} {
-		curValue := reflect.ValueOf(cur)
-		switch curValue.Kind() {
-		case reflect.Map:
-			mapped := map[string]interface{}{}
-			for _, key := range curValue.MapKeys() {
-				mapped[key.String()] = inner(curValue.MapIndex(key).Interface())
-			}
-			return mapped
-
-		case reflect.Slice, reflect.Array:
-			var list []interface{}
-			for i := 0; i < curValue.Len(); i++ {
-				list = append(list, inner(curValue.Index(i).Interface()))
-			}
-			return list
-
-		default:
-			return fmt.Sprintf("%v", cur)
-		}
-	}
-	return inner(value)
 }

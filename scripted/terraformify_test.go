@@ -11,6 +11,8 @@ func TestTerraformify(t *testing.T) {
 	jsonData := `
 {
   "id": 1,
+  "true": true,
+  "nil": null,
   "person": {
    "name": "John",
    "age": 30
@@ -22,9 +24,27 @@ func TestTerraformify(t *testing.T) {
   ]
 }
 `
+	jsonDataTerraformified := `
+{
+  "id": "1",
+  "true": "1",
+  "nil": "",
+  "person": {
+   "name": "John",
+   "age": "30"
+  },
+  "cars": [
+    {"car1": "Ford"},
+    {"car2": "BMW"},
+    {"car3": "Fiat"}
+  ]
+}
+`
 	expected := map[string]interface{}{
-		"%":           "3",
+		"%":           "5",
 		"id":          "1",
+		"true":        "1",
+		"nil":         "",
 		"person.%":    "2",
 		"person.age":  "30",
 		"person.name": "John",
@@ -72,31 +92,112 @@ func TestTerraformify(t *testing.T) {
 		os.Stderr.WriteString(fmt.Sprintf("backwards: %#v\n", backwards))
 	}
 
-	inputMap := input.(map[string]interface{})
-	inputMap["id"] = fmt.Sprintf("%v", inputMap["id"])
-	person := inputMap["person"].(map[string]interface{})
-	person["age"] = fmt.Sprintf("%v", person["age"])
+	terraformified := fromJsonMust(jsonDataTerraformified).(map[string]interface{})
 
 	keys = map[string]bool{}
 	for key := range backwards {
 		keys[key] = true
 	}
-	for key := range inputMap {
+	for key := range terraformified {
 		keys[key] = true
 	}
 	for key := range keys {
 		this := backwards[key]
-		other := inputMap[key]
+		other := terraformified[key]
 		if !reflect.DeepEqual(this, other) {
-			t, _ := toJson(this)
-			o, _ := toJson(other)
-			os.Stderr.WriteString(fmt.Sprintf("%#v %v != %v\n", key, t, o))
+			os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
 			equal = false
 		}
 	}
 	if !equal {
 		os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(backwards)))
-		os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(inputMap)))
+		os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(terraformified)))
+		t.Fail()
+	}
+}
+
+func Test_TerraformifyPrimitive(t *testing.T) {
+	expects := []interface{}{
+		0, "0",
+		1, "1",
+		false, "0",
+		true, "1",
+		nil, "",
+		1.1, "1.1",
+		[3]interface{}{1, 2, 3}, "[1 2 3]",
+		map[string]int{"1": 1}, "map[1:1]",
+	}
+	for i := 0; i < len(expects); i += 2 {
+		k := expects[i]
+		v := expects[i+1]
+		output := terraformifyPrimitive(k)
+		if output != v {
+			t.Errorf("%#v does not equal %#v", output, v)
+		}
+	}
+}
+
+func Test_TerraformifyPrimitives(t *testing.T) {
+	jsonData := `
+{
+  "id": 1,
+  "true": true,
+  "float": 1.123,
+  "person": {
+   "name": "John",
+   "age": 30
+  },
+  "cars": [
+    {"car1": "Ford"},
+    {"car2": "BMW"},
+    {"car3": "Fiat"}
+  ]
+}
+`
+	stringifiedData := `
+{
+  "id": "1",
+  "true": "1",
+  "float": "1.123",
+  "person": {
+   "name": "John",
+   "age": "30"
+  },
+  "cars": [
+    {"car1": "Ford"},
+    {"car2": "BMW"},
+    {"car3": "Fiat"}
+  ]
+}
+`
+
+	expected := fromJsonMust(stringifiedData).(map[string]interface{})
+	input := fromJsonMust(jsonData)
+	output := terraformifyPrimitives(input).(map[string]interface{})
+	equal := true
+	keys := map[string]bool{}
+	for key := range output {
+		keys[key] = true
+	}
+	for key := range expected {
+		keys[key] = true
+	}
+	for key := range keys {
+		this := output[key]
+		other := expected[key]
+		if !reflect.DeepEqual(this, other) {
+			os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
+			equal = false
+		}
+	}
+	if Debug {
+		os.Stderr.WriteString(fmt.Sprintf("input: %#v\n", input))
+		os.Stderr.WriteString(fmt.Sprintf("output: %#v\n", output))
+		os.Stderr.WriteString(fmt.Sprintf("expected: %#v\n", expected))
+	}
+	if !equal {
+		os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(output)))
+		os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(output)))
 		t.Fail()
 	}
 }
