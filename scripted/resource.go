@@ -39,12 +39,6 @@ func getResourceSchema() map[string]*schema.Schema {
 			Optional:    true,
 			Computed:    true,
 		},
-		"dependencies_met": {
-			Type:        schema.TypeBool,
-			Computed:    true,
-			Optional:    true,
-			Description: "Helper indicating whether resource dependencies are met, ignore this.",
-		},
 	}
 }
 
@@ -78,17 +72,19 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	s.log(hclog.Debug, "customize diff", "diff", jsonDiff)
 
 	changed = changed || len(diff.UpdatedKeys()) > 0
-	if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
-		if met, err := s.checkDependenciesMet(); err != nil {
-			return err
-		} else if met {
-			return err
-		}
-	} else if needsUpdate || changed {
-		s.log(hclog.Debug, "update triggered", "needsUpdate", needsUpdate, "changed", changed)
-		diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
-		for _, key := range diff.GetChangedKeysPrefix("state") {
-			diff.SetNewComputed(key)
+	if diff.Id() != "" {
+		if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
+			if met, e := s.checkDependenciesMet(); e == nil {
+				return e
+			} else if !met {
+				return err
+			}
+		} else if needsUpdate || changed {
+			s.log(hclog.Debug, "update triggered", "needsUpdate", needsUpdate, "changed", changed)
+			diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
+			for _, key := range diff.GetChangedKeysPrefix("state") {
+				diff.SetNewComputed(key)
+			}
 		}
 	}
 	for _, key := range diff.GetChangedKeysPrefix("output") {

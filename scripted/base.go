@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 )
@@ -28,16 +29,18 @@ const (
 )
 
 type Scripted struct {
-	pc             *ProviderConfig
-	d              ResourceInterface
-	rc             *ResourceConfig
-	op             Operation
-	logging        *Logging
-	oldLog         []bool
-	piid           int
-	riid           int
-	oldId          string
-	needsUpdateVal bool
+	pc                  *ProviderConfig
+	d                   ResourceInterface
+	rc                  *ResourceConfig
+	op                  Operation
+	logging             *Logging
+	oldLog              []bool
+	piid                int
+	riid                int
+	oldId               string
+	needsUpdateVal      bool
+	dependenciesMet     bool
+	dependenciesMetOnce sync.Once
 }
 
 type ChangeMap struct {
@@ -45,6 +48,7 @@ type ChangeMap struct {
 	New map[string]interface{}
 	Cur map[string]interface{}
 }
+
 type EnvironmentChangeMap struct {
 	Old map[string]string
 	New map[string]string
@@ -737,40 +741,35 @@ func (s *Scripted) checkNeedsUpdate() (bool, error) {
 }
 
 func (s *Scripted) checkDependenciesMet() (bool, error) {
-	defer s.logging.PushDefer("commands", "dependencies")()
-	onEmpty := func(msg string) (bool, error) {
-		s.log(hclog.Trace, msg)
-		s.setDependenciesMet(true)
-		return true, nil
+	var err error
+	run := func() {
+		defer s.logging.PushDefer("commands", "dependencies")()
+		onEmpty := func(msg string) {
+			s.log(hclog.Trace, msg)
+			s.dependenciesMet = true
+			s.log(hclog.Debug, "setting `dependencies_met`", "value", s.dependenciesMet)
+		}
+		if !isSet(s.pc.Commands.Templates.Dependencies) {
+			onEmpty(`"commands_dependencies" is empty, exiting.`)
+			return
+		}
+		command, e := s.prefixedTemplate(&TemplateArg{"commands_dependencies", s.pc.Commands.Templates.Dependencies})
+		if e != nil {
+			err = e
+			return
+		}
+		if !isFilled(command) {
+			onEmpty(`"commands_dependencies" rendered empty, exiting.`)
+			return
+		}
+		s.log(hclog.Info, "checking resource dependencies met")
+		lines, triggered := s.triggerReader()
+		err = s.execute(lines, command)
+		s.dependenciesMet = err == nil && <-triggered
+		s.log(hclog.Debug, "setting `dependencies_met`", "value", s.dependenciesMet)
 	}
-	if !isSet(s.pc.Commands.Templates.Dependencies) {
-		return onEmpty(`"commands_dependencies" is empty, exiting.`)
-	}
-	command, err := s.prefixedTemplate(&TemplateArg{"commands_dependencies", s.pc.Commands.Templates.Dependencies})
-	if err != nil {
-		return false, err
-	}
-	if !isFilled(command) {
-		return onEmpty(`"commands_dependencies" rendered empty, exiting.`)
-	}
-	s.log(hclog.Info, "checking resource dependencies met")
-	lines, triggered := s.triggerReader()
-	err = s.execute(lines, command)
-	s.setDependenciesMet(err == nil && <-triggered)
-	return s.dependenciesMet(), err
-}
-
-func (s *Scripted) dependenciesMet() bool {
-	v, ok := s.d.GetOk("dependencies_met")
-	return ok && v.(bool)
-}
-
-func (s *Scripted) setDependenciesMet(value bool) {
-	s.log(hclog.Debug, "setting `dependencies_met`", "value", value)
-	if !value {
-		s.log(hclog.Error, "dependencies not met!")
-	}
-	s.d.Set("dependencies_met", value)
+	s.dependenciesMetOnce.Do(run)
+	return s.dependenciesMet, err
 }
 
 func (s *Scripted) runningMessages() func() {
