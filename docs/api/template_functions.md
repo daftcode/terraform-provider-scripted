@@ -113,6 +113,7 @@ Builtin go template functions are available at the [official docs](https://golan
 | `split` | `sprig` | `func(string, string) map[string]string` |
 | `splitList` | `sprig` | `func(string, string) []string` |
 | `squote` | `sprig` | `func(...interface {}) string` |
+| `stringifyJsonValues` | `scripted` | `func(interface {}) interface {}` |
 | `sub` | `sprig` | `func(interface {}, interface {}) int64` |
 | `substr` | `sprig` | `func(int, int, string) string` |
 | `swapcase` | `sprig` | `func(string) string` |
