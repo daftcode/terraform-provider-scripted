@@ -1,6 +1,7 @@
 package scripted
 
 import (
+	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform/helper/schema"
 )
@@ -102,7 +103,7 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	} else if !met {
 		s.rollback()
-		return nil
+		return fmt.Errorf("Dependency not met, create failed.")
 	}
 	err = resourceScriptedCreateBase(s)
 	if err != nil {
@@ -146,7 +147,7 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 			return err
 		} else if !met {
 			s.rollback()
-			return nil
+			return fmt.Errorf("Dependency not met, update failed.")
 		}
 		if isSet(s.pc.Commands.Templates.Update) {
 			err = resourceScriptedUpdateBase(s)
