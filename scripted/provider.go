@@ -27,6 +27,8 @@ var debugLogging = false
 // String representing empty value, can be set to anything
 var EmptyString = getEnvMust("EMPTY_STRING", `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`)
 var DefaultTriggerString = `ndn4VFxYG489bUmV6xKjKFE0RYQIJdts`
+var DefaultStatePrefix = `WViRV1TbGAGehAYFL8g3ZL8o1cg1bxaq`
+var StatePrefixEnvKey = envKey("STATE_PREFIX")
 var TriggerStringEnvKey = envKey("TRIGGER_STRING")
 var TriggerStringTpl = `{{ .TriggerString }}`
 
@@ -448,7 +450,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		OutputFormat:           of,
 		OutputLinePrefix:       d.Get("commands_read_line_prefix").(string),
 		StateFormat:            sf,
-		StateLinePrefix:        RandomSafeString(32),
+		StateLinePrefix:        envDefault(StatePrefixEnvKey, DefaultStatePrefix),
 		RunningMessageInterval: d.Get("logging_running_messages_interval").(float64),
 	}
 	logging.Log(hclog.Info, `Provider "scripted" initialized`)
