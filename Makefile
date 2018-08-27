@@ -9,6 +9,9 @@ TF_NAME := terraform-provider-$(NAME)
 BIN := $(TF_NAME)_$(VERSION)
 BIN_PATH := $(GOPATH)/bin/$(BIN)
 TEST ?= $$(go list ./...)
+GOOS ?= $$(uname -s | tr '[:upper:]' '[:lower:]')
+GOARCH = amd64
+EXEC_NAME= ${TF_NAME}-${GOOS}-${GOARCH}
 
 all: fmt test build
 
@@ -34,13 +37,13 @@ docs: schema
 
 build_provider:
 	echo -n "${VERSION}" > "${OUT}/VERSION"
-	go build -o "${OUT}/${TF_NAME}"
+	go build -o "${OUT}/${EXEC_NAME}"
 
 build: schema docs build_provider
 
 install: build
 	mkdir -p "${TF_PLUGINS}" "${TF_SCHEMAS}"
-	cp "dist/${TF_NAME}" "${BIN_PATH}"
+	cp "dist/${EXEC_NAME}" "${BIN_PATH}"
 	cp "${OUT}/${TF_NAME}.json" "${TF_SCHEMAS}/${BIN}.json"
 	ln -sfT "${BIN_PATH}" "${TF_PLUGINS}/${BIN}"
 
