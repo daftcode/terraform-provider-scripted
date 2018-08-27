@@ -26,7 +26,7 @@ debug_test:
 
 
 build_cmds:
-	for name in $$(ls ./cmd); do go build -o "${OUT}/$${name}" "./cmd/$${name}"; done
+	for name in $$(ls ./cmd); do GOOS="$(uname -s | tr '[:upper:]' '[:lower:]')" go build -o "${OUT}/$${name}" "./cmd/$${name}"; done
 
 schema: build_cmds
 	"${OUT}/generate-schema" "${TF_NAME}" "${VERSION}" "${OUT}"
