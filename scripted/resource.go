@@ -86,7 +86,9 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 			}
 		} else if needsUpdate || changed {
 			s.log(hclog.Debug, "update triggered", "needsUpdate", needsUpdate, "changed", changed)
-			diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
+			if !diff.HasChange("update_trigger") {
+				diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
+			}
 			for _, key := range s.getRecomputeKeysExtra("state", commandComputeKeys) {
 				diff.SetNewComputed(key)
 			}
