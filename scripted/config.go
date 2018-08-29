@@ -10,18 +10,19 @@ type EnvironmentConfig struct {
 }
 
 type CommandTemplates struct {
-	Create        string
-	Delete        string
-	Dependencies  string
-	Exists        string
-	Id            string
-	Interpreter   []string
-	ModifyPrefix  string
-	Prefix        string
-	PrefixFromEnv string
-	Read          string
-	NeedsUpdate   string
-	Update        string
+	Create                   string
+	CustomizeDiffComputeKeys string
+	Delete                   string
+	Dependencies             string
+	Exists                   string
+	Id                       string
+	Interpreter              []string
+	ModifyPrefix             string
+	Prefix                   string
+	PrefixFromEnv            string
+	Read                     string
+	NeedsUpdate              string
+	Update                   string
 }
 
 type OutputConfig struct {
@@ -50,14 +51,25 @@ type TemplatesConfig struct {
 }
 
 type ProviderConfig struct {
-	Commands               *CommandsConfig
-	Logging                *Logging
-	Templates              *TemplatesConfig
-	RunningMessageInterval float64
-	EmptyString            string
-	LoggingBufferSize      int64
-	OutputLinePrefix       string
-	OutputFormat           string
-	StateFormat            string
-	StateLinePrefix        string
+	Commands                   *CommandsConfig
+	ComputeStateKeys           []string
+	ComputeOutputKeys          []string
+	Logging                    *Logging
+	Templates                  *TemplatesConfig
+	RunningMessageInterval     float64
+	EmptyString                string
+	LoggingBufferSize          int64
+	OutputUseDefaultLinePrefix bool
+	outputLinePrefix           string
+	OutputFormat               string
+	StateFormat                string
+	StateLinePrefix            string
+	LinePrefix                 string
+}
+
+func (pc *ProviderConfig) OutputLinePrefix() string {
+	if pc.OutputUseDefaultLinePrefix {
+		return pc.LinePrefix
+	}
+	return pc.outputLinePrefix
 }

@@ -17,23 +17,16 @@ var nextProviderId = 1
 // Store original os.Stderr and os.Stdout, because it gets overwritten by go-plugin/server:Serve()
 var Stderr = os.Stderr
 var Stdout = os.Stdout
-var ValidLogLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 
-var DefaultEnvPrefix = "TF_SCRIPTED_"
 var EnvPrefix = envDefault("TF_SCRIPTED_ENV_PREFIX", DefaultEnvPrefix)
 var Debug = getEnvBool("DEBUG", false)
 var debugLogging = false
 
 // String representing empty value, can be set to anything
-var EmptyString = getEnvMust("EMPTY_STRING", `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`)
-var DefaultTriggerString = `ndn4VFxYG489bUmV6xKjKFE0RYQIJdts`
-var DefaultStatePrefix = `WViRV1TbGAGehAYFL8g3ZL8o1cg1bxaq`
-var StatePrefixEnvKey = envKey("STATE_PREFIX")
-var TriggerStringEnvKey = envKey("TRIGGER_STRING")
-var TriggerStringTpl = `{{ .TriggerString }}`
-
-var defaultWindowsInterpreter = []string{"cmd", "/C", "{{ .command }}"}
-var defaultInterpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
+var EmptyString = getEnvMust("EMPTY_STRING", DefaultEmptyString)
+var StatePrefix = getEnvMust("STATE_PREFIX", DefaultStatePrefix)
+var LinePrefix = getEnvMust("LINE_PREFIX", DefaultLinePrefix)
+var TriggerString = getEnvMust("TRIGGER_STRING", DefaultTriggerString)
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
@@ -43,6 +36,15 @@ func Provider() terraform.ResourceProvider {
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: "Create command. Defaults to: `update_command`",
+			},
+			"commands_customizediff_computekeys": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				DefaultFunc: defaultEmptyString,
+				Description: fmt.Sprintf(
+					"Command printing keys to be forced to recompute. Lines must be prefixed with %s and keys separated by whitespace characters",
+					LinePrefix,
+				),
 			},
 			"commands_delete": {
 				Type:        schema.TypeString,
@@ -109,8 +111,8 @@ func Provider() terraform.ResourceProvider {
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 				Description: func() string {
-					dWI, _ := toJson(defaultWindowsInterpreter)
-					dI, _ := toJson(defaultInterpreter)
+					dWI, _ := toJson(DefaultWindowsInterpreter)
+					dI, _ := toJson(DefaultInterpreter)
 					return fmt.Sprintf(
 						"Interpreter and it's arguments, can be a template with `command` variable. "+
 							"Defaults to: `$TF_SCRIPTED_COMMANDS_INTERPRETER` (JSON array), `%s` (windows) or `%s`",
@@ -163,8 +165,14 @@ func Provider() terraform.ResourceProvider {
 				"Templates output types: "+
 					"raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/`, "+
 					"base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/` or "+
-					"one JSON object per line overriding previous keys.",
+					"one JSON object per line overriding previously existing keys.",
 				"raw",
+			),
+			"commands_read_use_default_line_prefix": boolDefaultSchema(
+				nil,
+				"commands_read_use_default_line_prefix",
+				fmt.Sprintf("Ignore lines in read command without default line prefix (%s).", LinePrefix),
+				false,
 			),
 			"commands_read_line_prefix": stringDefaultSchemaEmpty(
 				nil,
@@ -190,6 +198,18 @@ func Provider() terraform.ResourceProvider {
 				"commands_working_directory",
 				"Working directory to run commands in",
 			),
+			"compute_state_keys": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "List of `state` keys which are forced to be computed on change.",
+			},
+			"compute_output_keys": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "List of `output` keys which are forced to be computed on change.",
+			},
 			"dependencies": {
 				Type:        schema.TypeMap,
 				Optional:    true,
@@ -354,9 +374,9 @@ func interpreterOrDefault(cur []string) ([]string, error) {
 	debugInterpreter := getEnvBoolFalse("INTERPRETER_DEBUG")
 
 	if runtime.GOOS == "windows" {
-		defVal = defaultWindowsInterpreter
+		defVal = DefaultWindowsInterpreter
 	} else {
-		defVal = defaultInterpreter
+		defVal = DefaultInterpreter
 		if debugInterpreter {
 			interpreter = append(defVal, "-x")
 		}
@@ -424,7 +444,8 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 				Id:            d.Get("commands_id").(string),
 				NeedsUpdate:   d.Get("commands_needs_update").(string),
 				Read:          d.Get("commands_read").(string),
-				Update:        update,
+				CustomizeDiffComputeKeys: d.Get("commands_read").(string),
+				Update: update,
 			},
 			Output: &OutputConfig{
 				LogLevel:  hclog.LevelFromString(d.Get("logging_output_logging_log_level").(string)),
@@ -438,20 +459,25 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			DeleteOnReadFailure: d.Get("commands_delete_on_read_failure").(bool),
 			Separator:           d.Get("commands_separator").(string),
 			WorkingDirectory:    d.Get("commands_working_directory").(string),
-			TriggerString:       envDefault(TriggerStringEnvKey, DefaultTriggerString),
+			TriggerString:       TriggerString,
 		},
 		Templates: &TemplatesConfig{
 			LeftDelim:  d.Get("templates_left_delim").(string),
 			RightDelim: d.Get("templates_right_delim").(string),
 		},
-		EmptyString:            EmptyString,
-		Logging:                logging,
-		LoggingBufferSize:      int64(d.Get("logging_buffer_size").(int)),
-		OutputFormat:           of,
-		OutputLinePrefix:       d.Get("commands_read_line_prefix").(string),
-		StateFormat:            sf,
-		StateLinePrefix:        envDefault(StatePrefixEnvKey, DefaultStatePrefix),
-		RunningMessageInterval: d.Get("logging_running_messages_interval").(float64),
+		EmptyString:       EmptyString,
+		Logging:           logging,
+		LoggingBufferSize: int64(d.Get("logging_buffer_size").(int)),
+
+		ComputeStateKeys:           castConfigListString(d.Get("compute_state_keys")),
+		ComputeOutputKeys:          castConfigListString(d.Get("compute_output_keys")),
+		OutputFormat:               of,
+		OutputUseDefaultLinePrefix: d.Get("commands_read_use_default_line_prefix").(bool),
+		outputLinePrefix:           d.Get("commands_read_line_prefix").(string),
+		StateFormat:                sf,
+		LinePrefix:                 LinePrefix,
+		StateLinePrefix:            StatePrefix,
+		RunningMessageInterval:     d.Get("logging_running_messages_interval").(float64),
 	}
 	logging.Log(hclog.Info, `Provider "scripted" initialized`)
 	return &config, nil

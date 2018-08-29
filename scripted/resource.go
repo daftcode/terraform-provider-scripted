@@ -73,6 +73,10 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	s.log(hclog.Debug, "customize diff", "diff", jsonDiff)
 
 	changed = changed || len(diff.UpdatedKeys()) > 0
+	commandComputeKeys, err := s.getComputeKeysFromCommand()
+	if err != nil {
+		return err
+	}
 	if diff.Id() != "" {
 		if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
 			if met, e := s.checkDependenciesMet(); e == nil {
@@ -83,12 +87,16 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 		} else if needsUpdate || changed {
 			s.log(hclog.Debug, "update triggered", "needsUpdate", needsUpdate, "changed", changed)
 			diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
-			for _, key := range diff.GetChangedKeysPrefix("state") {
+			for _, key := range s.getRecomputeKeysExtra("state", commandComputeKeys) {
 				diff.SetNewComputed(key)
 			}
 		}
+	} else {
+		for _, key := range s.getRecomputeKeysExtra("state", commandComputeKeys) {
+			diff.SetNewComputed(key)
+		}
 	}
-	for _, key := range diff.GetChangedKeysPrefix("output") {
+	for _, key := range s.getRecomputeKeysExtra("output", commandComputeKeys) {
 		diff.SetNewComputed(key)
 	}
 	return nil

@@ -114,7 +114,7 @@ func Generate(provider *schema.Provider, name, version, outputPath string) {
 	if !strings.HasPrefix(name, "terraform-provider-") {
 		name = "terraform-provider-" + name
 	}
-	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.json", name))
+	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s_%s.json", name, version))
 
 	if err := DoGenerate(provider, name, version, outputFilePath); err != nil {
 		fmt.Fprintln(os.Stderr, "Error: ", err.Error())

@@ -6,6 +6,7 @@
 | Argument | Type | Description | Default |
 |:---      | ---  | ---         | ---     |
 | `commands_create` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Create command.  | `update_command` |
+| `commands_customizediff_computekeys` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command printing keys to be forced to recompute. Lines must be prefixed with WViRV1TbGAGehAYFL8g3ZL8o1cg1bxaq and keys separated by whitespace characters | not set |
 | `commands_delete` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Delete command | not set |
 | `commands_delete_on_not_exists` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when exists fails | `true` |
 | `commands_delete_on_read_failure` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when read fails | `false` |
@@ -22,12 +23,15 @@
 | `commands_prefix` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command prefix shared between all commands | not set |
 | `commands_prefix_fromenv` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command prefix shared between all commands (added before `commands_prefix`)  | `$TF_SCRIPTED_COMMANDS_PREFIX_FROMENV` or not set |
 | `commands_read` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Read command | not set |
-| `commands_read_format` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\n]*)$/`, base64 `/^(?<key>[^=]+)=(?<value_base64>[^\n]*)$/` or one JSON object per line overriding previous keys.  | `$TF_SCRIPTED_COMMANDS_READ_FORMAT` or `raw` |
+| `commands_read_format` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Templates output types: raw `/^(?<key>[^=]+)=(?<value>[^\n]*)$/`, base64 `/^(?<key>[^=]+)=(?<value_base64>[^\n]*)$/` or one JSON object per line overriding previously existing keys.  | `$TF_SCRIPTED_COMMANDS_READ_FORMAT` or `raw` |
 | `commands_read_line_prefix` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Ignore lines in read command without this prefix.  | `$TF_SCRIPTED_COMMANDS_READ_LINE_PREFIX` or not set |
+| `commands_read_use_default_line_prefix` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Ignore lines in read command without default line prefix (WViRV1TbGAGehAYFL8g3ZL8o1cg1bxaq).  | `$TF_SCRIPTED_COMMANDS_READ_USE_DEFAULT_LINE_PREFIX` == `""` |
 | `commands_separator` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Format for joining 2 commands together without isolating them.  | `$TF_SCRIPTED_COMMANDS_SEPARATOR` or `%s\n%s` |
 | `commands_state_format` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Create/Update state output format, for more info see `commands_read_format`.  | `$TF_SCRIPTED_COMMANDS_STATE_FORMAT` or `commands_read_format` |
 | `commands_update` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Update command. Deletes then creates if not set. Can be used in place of `create_command`. | not set |
 | `commands_working_directory` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Working directory to run commands in  | `$TF_SCRIPTED_COMMANDS_WORKING_DIRECTORY` or not set |
+| `compute_output_keys` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | List of `output` keys which are forced to be computed on change. | not set |
+| `compute_state_keys` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | List of `state` keys which are forced to be computed on change. | not set |
 | `dependencies` | [map](https://www.terraform.io/docs/extend/schemas/schema-types.html#typemap) | Dependencies purely for provider graph walking, otherwise ignored. | not set |
 | `logging_buffer_size` | [int](https://www.terraform.io/docs/extend/schemas/schema-types.html#typeint) | output (on error) buffer sizes | `8192` |
 | `logging_iids` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Should output lines contain `piid` (provider instance id) and `riid` (resource instance id?  | `$TF_SCRIPTED_LOGGING_IIDS` == `""` |

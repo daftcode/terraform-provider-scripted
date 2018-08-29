@@ -378,7 +378,7 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]interface
 		EmptyString:   s.pc.EmptyString,
 		TriggerString: s.pc.Commands.TriggerString,
 		StatePrefix:   s.pc.StateLinePrefix,
-		OutputPrefix:  s.pc.OutputLinePrefix,
+		OutputPrefix:  s.pc.OutputLinePrefix(),
 		Output:        castConfigMap(s.d.Get("output")),
 		State:         s.rc.state,
 	}
@@ -590,7 +590,7 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh c
 		defer s.logging.PushDefer("ctx", "outputSetter")()
 		output := map[string]interface{}{}
 		filtered := make(chan string)
-		go s.filterLines(input, s.pc.OutputLinePrefix, s.pc.StateLinePrefix, filtered)
+		go s.filterLines(input, s.pc.OutputLinePrefix(), s.pc.StateLinePrefix, filtered)
 		entries := make(chan KVEntry)
 		go s.scanOutput(filtered, s.pc.OutputFormat, entries)
 		for e := range entries {
@@ -805,4 +805,89 @@ func (s *Scripted) rollback() {
 		s.log(hclog.Trace, "rolling back id", "to", s.oldId, "from", newId)
 		s.d.SetIdErr(s.oldId)
 	}
+}
+
+func (s *Scripted) getComputeKeysFromCommand() ([]string, error) {
+	var ret []string
+	onEmpty := func(msg string) error {
+		s.log(hclog.Debug, msg)
+		return nil
+	}
+	defer s.logging.PushDefer("commands", "customizediff_computekeys")()
+	if !isSet(s.pc.Commands.Templates.CustomizeDiffComputeKeys) {
+		return ret, onEmpty(`"commands_customizediff_computekeys" is empty, exiting.`)
+	}
+	command, err := s.prefixedTemplate(&TemplateArg{"commands_customizediff_computekeys", s.pc.Commands.Templates.CustomizeDiffComputeKeys})
+	if err != nil {
+		return ret, err
+	}
+	if !isFilled(command) {
+		return ret, onEmpty(`"commands_customizediff_computekeys" rendered empty, exiting.`)
+	}
+	env, err := s.Environment()
+	if err != nil {
+		return ret, err
+	}
+	output := make(chan string)
+	tokens := make(chan string)
+
+	go func() {
+		lines := make(chan string)
+		go s.filterLines(output, s.pc.LinePrefix, EmptyString, lines)
+		for line := range lines {
+			for _, token := range strings.Fields(line) {
+				tokens <- token
+			}
+		}
+		close(tokens)
+	}()
+
+	s.log(hclog.Info, "getting compute keys", "command", command)
+	err = s.executeBase(output, env, command)
+	for token := range tokens {
+		ret = append(ret, token)
+	}
+	return ret, err
+}
+
+func (s *Scripted) getRecomputeKeys(prefix string) []string {
+	var ret []string
+	entries := map[string]bool{}
+
+	for _, key := range s.d.GetChangedKeysPrefix(prefix) {
+		entries[key] = true
+	}
+	for _, key := range s.pc.ComputeOutputKeys {
+		key = fmt.Sprintf("output.%s", key)
+		if strings.HasPrefix(key, prefix) {
+			entries[key] = true
+		}
+	}
+	for _, key := range s.pc.ComputeStateKeys {
+		key = fmt.Sprintf("state.%s", key)
+		if strings.HasPrefix(key, prefix) {
+			entries[key] = true
+		}
+	}
+	for key := range entries {
+		ret = append(ret, key)
+	}
+	return ret
+}
+
+func (s *Scripted) getRecomputeKeysExtra(prefix string, extra []string) []string {
+	entries := map[string]bool{}
+	var ret []string
+	for _, key := range s.getRecomputeKeys(prefix) {
+		entries[key] = true
+	}
+	for _, key := range extra {
+		if strings.HasPrefix(key, prefix) {
+			entries[key] = true
+		}
+	}
+	for key := range entries {
+		ret = append(ret, key)
+	}
+	return ret
 }

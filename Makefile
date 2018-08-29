@@ -11,7 +11,7 @@ BIN_PATH := $(GOPATH)/bin/$(BIN)
 TEST ?= $$(go list ./...)
 GOOS ?= $$(uname -s | tr '[:upper:]' '[:lower:]')
 GOARCH = amd64
-EXEC_NAME= ${TF_NAME}-${GOOS}-${GOARCH}
+EXEC_NAME= $(BIN)-${GOOS}-${GOARCH}
 
 all: fmt test build
 
@@ -33,7 +33,7 @@ schema: build_cmds
 
 docs: schema
 	mkdir -p "docs/api"
-	"${OUT}/generate-docs" "${OUT}/${TF_NAME}.json" "docs/api"
+	"${OUT}/generate-docs" "${OUT}/${BIN}.json" "docs/api"
 
 build_provider:
 	echo -n "${VERSION}" > "${OUT}/VERSION"
@@ -44,7 +44,7 @@ build: schema docs build_provider
 install: build
 	mkdir -p "${TF_PLUGINS}" "${TF_SCHEMAS}"
 	cp "dist/${EXEC_NAME}" "${BIN_PATH}"
-	cp "${OUT}/${TF_NAME}.json" "${TF_SCHEMAS}/${BIN}.json"
+	cp "${OUT}/${BIN}.json" "${TF_SCHEMAS}/${BIN}.json"
 	ln -sfT "${BIN_PATH}" "${TF_PLUGINS}/${BIN}"
 
 release:
