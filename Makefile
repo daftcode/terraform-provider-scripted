@@ -1,4 +1,4 @@
-OUT := ./dist
+OUT := ${PWD}/dist
 VERSION := $$(${OUT}/version)
 TF_DIR := $(HOME)/.terraform.d
 TF_PLUGINS := $(TF_DIR)/plugins
@@ -32,17 +32,16 @@ docs: schema
 	mkdir -p "docs/api"
 	"${OUT}/generate-docs" "${OUT}/${BIN}.json" "docs/api"
 
-build_provider:
+build_provider_cur:
 	echo -n "${VERSION}" > "${OUT}/VERSION"
 	go build -o "${OUT}/${BIN}"
 
-build_provider_all: build_provider
+build_provider_all: build_provider_cur
 	GOOS=linux  GOARCH=amd64 go build -o "${OUT}/${BIN}-linux-amd64"
 	GOOS=darwin GOARCH=amd64 go build -o "${OUT}/${BIN}-darwin-amd64"
 
-build: schema docs build_provider
-
-build_all: schema docs build_provider_all
+build: schema docs build_provider_all
+	(cd dist && sha256sum -b "${BIN}.json" "${BIN}-"* > "${BIN}.sha256sums")
 
 install: build
 	mkdir -p "${TF_PLUGINS}" "${TF_SCHEMAS}"
@@ -55,7 +54,6 @@ release:
 	git diff --quiet
 	git tag -a "${VERSION}"
 	git push --follow-tags
-	(cd dist && sha256sum -b "${BIN}.json" "${BIN}-"*
 
 fmtcheck:
 	l=`gofmt -l ${NAME}`; if [ -n "$$l" ]; then echo "Following needs formatting (gofmt):"; echo "$$l"; exit 1; fi
