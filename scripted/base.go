@@ -65,6 +65,8 @@ type TemplateContext struct {
 	LinePrefix      string
 	Output          map[string]interface{}
 	State           *ChangeMap
+	TemplateName    string
+	TemplateNames   []string
 }
 
 type ResourceConfig struct {
@@ -141,7 +143,7 @@ func (s *Scripted) renderEnv(old bool) error {
 		if !strings.Contains(tpl, s.pc.Templates.LeftDelim) {
 			continue
 		}
-		rendered, err := s.template(fmt.Sprintf("env.%s.%s", prefix, key), tpl)
+		rendered, err := s.template([]string{fmt.Sprintf("env.%s.%s", prefix, key)}, tpl)
 		if err != nil {
 			if !s.old() {
 				return err
@@ -359,7 +361,8 @@ func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
 	}
 }
 
-func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]interface{}) (string, error) {
+func (s *Scripted) templateExtra(names []string, tpl string, extraCtx map[string]interface{}) (string, error) {
+	name := strings.Join(names, "+")
 	t := template.New(name)
 	t = t.Delims(s.pc.Templates.LeftDelim, s.pc.Templates.RightDelim)
 	t = t.Funcs(TemplateFuncs)
@@ -375,6 +378,8 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]interface
 			New: s.rc.Context.New,
 			Cur: mergeMaps(s.rc.Context.Cur, extraCtx),
 		},
+		TemplateName:    name,
+		TemplateNames:   names,
 		Operation:       s.op,
 		ProviderVersion: Version,
 		EmptyString:     s.pc.EmptyString,
@@ -397,8 +402,8 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]interface
 	return rendered, err
 }
 
-func (s *Scripted) template(name, tpl string) (string, error) {
-	return s.templateExtra(name, tpl, map[string]interface{}{})
+func (s *Scripted) template(names []string, tpl string) (string, error) {
+	return s.templateExtra(names, tpl, map[string]interface{}{})
 }
 
 func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, error) {
@@ -427,7 +432,7 @@ func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, error) {
 			templates = append(templates, arg.template)
 		}
 	}
-	return s.template(strings.Join(names, "+"), s.joinCommands(templates...))
+	return s.template(names, s.joinCommands(templates...))
 }
 
 func (s *Scripted) getInterpreter(command string) (string, []string, error) {
