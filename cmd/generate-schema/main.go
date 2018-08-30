@@ -199,11 +199,10 @@ func main() {
 	var provider tf.ResourceProvider
 	provider = scripted.Provider()
 	name := argOrDefault(1, "terraform-provider-scripted")
-	version := argOrDefault(2, "")
-	outPath := argOrDefault(3, "")
+	outPath := argOrDefault(2, "")
 	if outPath == "" {
 		usr, _ := user.Current()
 		outPath = path.Join(usr.HomeDir, ".terraform.d", "schemas")
 	}
-	Generate(provider.(*schema.Provider), name, version, outPath)
+	Generate(provider.(*schema.Provider), name, scripted.Version, outPath)
 }

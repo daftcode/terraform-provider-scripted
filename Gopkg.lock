@@ -281,8 +281,8 @@
     "tfdiags",
     "version"
   ]
-  revision = "41e50bd32a8825a84535e353c3674af8ce799161"
-  version = "v0.11.7"
+  revision = "6dfc4d748de9cda23835bc5704307ed45e839622"
+  version = "v0.11.8"
 
 [[projects]]
   branch = "master"
@@ -519,6 +519,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "849937ca5259587a9add8fd4d2303c043c3d25790337a713ea69ecc32ddb3fdc"
+  inputs-digest = "25fc3464b9061127864702b272fc76d9eacf597c336c1a23081b804aa02834d2"
   solver-name = "gps-cdcl"
   solver-version = 1

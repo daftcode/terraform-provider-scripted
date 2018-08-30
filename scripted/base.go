@@ -38,7 +38,6 @@ type Scripted struct {
 	piid                int
 	riid                int
 	oldId               string
-	needsUpdateVal      bool
 	dependenciesMet     bool
 	dependenciesMetOnce sync.Once
 }
@@ -57,13 +56,15 @@ type EnvironmentChangeMap struct {
 
 type TemplateContext struct {
 	*ChangeMap
-	Operation     Operation
-	EmptyString   string
-	TriggerString string
-	StatePrefix   string
-	OutputPrefix  string
-	Output        map[string]interface{}
-	State         *ChangeMap
+	ProviderVersion string
+	Operation       Operation
+	EmptyString     string
+	TriggerString   string
+	StatePrefix     string
+	OutputPrefix    string
+	LinePrefix      string
+	Output          map[string]interface{}
+	State           *ChangeMap
 }
 
 type ResourceConfig struct {
@@ -374,13 +375,15 @@ func (s *Scripted) templateExtra(name, tpl string, extraCtx map[string]interface
 			New: s.rc.Context.New,
 			Cur: mergeMaps(s.rc.Context.Cur, extraCtx),
 		},
-		Operation:     s.op,
-		EmptyString:   s.pc.EmptyString,
-		TriggerString: s.pc.Commands.TriggerString,
-		StatePrefix:   s.pc.StateLinePrefix,
-		OutputPrefix:  s.pc.OutputLinePrefix(),
-		Output:        castConfigMap(s.d.Get("output")),
-		State:         s.rc.state,
+		Operation:       s.op,
+		ProviderVersion: Version,
+		EmptyString:     s.pc.EmptyString,
+		TriggerString:   s.pc.Commands.TriggerString,
+		StatePrefix:     s.pc.StateLinePrefix,
+		LinePrefix:      s.pc.LinePrefix,
+		OutputPrefix:    s.pc.OutputLinePrefix(),
+		Output:          castConfigMap(s.d.Get("output")),
+		State:           s.rc.state,
 	}
 	if s.pc.Logging.level == hclog.Trace {
 		jsonCtx, _ := toJson(ctx)
