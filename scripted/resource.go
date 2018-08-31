@@ -198,7 +198,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		s.log(hclog.Debug, `"commands_exists" is empty, exiting.`)
 		return true, nil
 	}
-	command, err := s.prefixedTemplate(&TemplateArg{"commands_exists", s.pc.Commands.Templates.Exists})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_exists", s.pc.Commands.Templates.Exists})
 	if err != nil {
 		return false, err
 	}
@@ -207,7 +207,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	}
 	s.log(hclog.Info, "checking resource exists")
 	lines, triggerCh := s.triggerReader()
-	err = s.execute(lines, command)
+	err = s.execute(lines, jsonCtx, command)
 	triggered := <-triggerCh
 	missing := triggered
 	if err != nil {
@@ -258,7 +258,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	if !isSet(s.pc.Commands.Templates.Create) {
 		return onEmpty(`"commands_create" is empty, exiting.`)
 	}
-	command, err := s.prefixedTemplate(
+	command, jsonCtx, err := s.prefixedTemplate(
 		&TemplateArg{"commands_modify_prefix", s.pc.Commands.Templates.ModifyPrefix},
 		&TemplateArg{"commands_create", s.pc.Commands.Templates.Create},
 	)
@@ -272,7 +272,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 
 	s.log(hclog.Info, "creating resource")
 	lines, done, save := s.stateSetter()
-	err = s.execute(lines, command)
+	err = s.execute(lines, jsonCtx, command)
 	save <- err == nil
 	<-done
 	if err != nil {
@@ -296,7 +296,7 @@ func resourceScriptedReadBase(s *Scripted) error {
 	if !isSet(s.pc.Commands.Templates.Read) {
 		return onEmpty(`"commands_read" is empty, exiting.`)
 	}
-	command, err := s.prefixedTemplate(&TemplateArg{"commands_read", s.pc.Commands.Templates.Read})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_read", s.pc.Commands.Templates.Read})
 	if err != nil {
 		return err
 	}
@@ -313,7 +313,7 @@ func resourceScriptedReadBase(s *Scripted) error {
 	}
 	s.log(hclog.Info, "reading resource", "command", command)
 	output, doneCh, saveCh := s.outputSetter()
-	err = s.executeBase(output, env, command)
+	err = s.executeBase(output, env, jsonCtx, command)
 	saveCh <- err == nil
 	<-doneCh
 	if err != nil {
@@ -329,7 +329,7 @@ func resourceScriptedReadBase(s *Scripted) error {
 
 func resourceScriptedUpdateBase(s *Scripted) error {
 	defer s.logging.PushDefer("commands", "update")()
-	command, err := s.prefixedTemplate(
+	command, jsonCtx, err := s.prefixedTemplate(
 		&TemplateArg{"commands_modify_prefix", s.pc.Commands.Templates.ModifyPrefix},
 		&TemplateArg{"commands_update", s.pc.Commands.Templates.Update},
 	)
@@ -345,7 +345,7 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	}
 	s.log(hclog.Info, "updating resource", "command", command)
 	lines, done, save := s.stateSetter()
-	err = s.execute(lines, command)
+	err = s.execute(lines, jsonCtx, command)
 	save <- err == nil
 	<-done
 	if err != nil {
@@ -370,7 +370,7 @@ func resourceScriptedDeleteBase(s *Scripted) error {
 	}
 	s.addOld(true)
 	defer s.removeOld()
-	command, err := s.prefixedTemplate(&TemplateArg{"commands_delete", s.pc.Commands.Templates.Delete})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_delete", s.pc.Commands.Templates.Delete})
 	if err != nil {
 		return err
 	}
@@ -378,7 +378,7 @@ func resourceScriptedDeleteBase(s *Scripted) error {
 		return onEmpty(`"commands_delete" rendered empty, exiting.`)
 	}
 	s.log(hclog.Info, "deleting resource")
-	_, err = s.executeString(command)
+	_, err = s.executeString(jsonCtx, command)
 	if err != nil {
 		return err
 	}

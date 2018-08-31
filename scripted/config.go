@@ -3,10 +3,11 @@ package scripted
 import "github.com/hashicorp/go-hclog"
 
 type EnvironmentConfig struct {
-	PrefixNew        string
-	PrefixOld        string
-	IncludeParent    bool
-	InheritVariables []string
+	PrefixNew          string
+	PrefixOld          string
+	IncludeParent      bool
+	InheritVariables   []string
+	IncludeJsonContext bool
 }
 
 type CommandTemplates struct {

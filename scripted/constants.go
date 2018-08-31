@@ -2,6 +2,7 @@ package scripted
 
 import "github.com/daftcode/terraform-provider-scripted/version"
 
+const JsonContextEnvKey = "TF_SCRIPTED_CONTEXT"
 const DefaultEnvPrefix = "TF_SCRIPTED_"
 const DefaultTriggerString = `ndn4VFxYG489bUmV6xKjKFE0RYQIJdts`
 const DefaultStatePrefix = `WViRV1TbGAGehAYFL8g3ZL8o1cg1bxaq`

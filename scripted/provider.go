@@ -70,6 +70,12 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: fmt.Sprintf("Command determining whether dependencies are met, dependencies met triggered by `%s`", TriggerStringTpl),
 			},
+			"commands_environment_include_json_context": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: fmt.Sprintf("Should whole TemplateContext be passed as JSON serialized %s environment variable to commands?", JsonContextEnvKey),
+			},
 			"commands_environment_include_parent": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -432,10 +438,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	config := ProviderConfig{
 		Commands: &CommandsConfig{
 			Environment: &EnvironmentConfig{
-				PrefixNew:        d.Get("commands_environment_prefix_new").(string),
-				PrefixOld:        d.Get("commands_environment_prefix_old").(string),
-				IncludeParent:    d.Get("commands_environment_include_parent").(bool),
-				InheritVariables: inheritVariablesOrDefault(d),
+				PrefixNew:          d.Get("commands_environment_prefix_new").(string),
+				PrefixOld:          d.Get("commands_environment_prefix_old").(string),
+				IncludeParent:      d.Get("commands_environment_include_parent").(bool),
+				InheritVariables:   inheritVariablesOrDefault(d),
+				IncludeJsonContext: d.Get("commands_environment_include_json_context").(bool),
 			},
 			Templates: &CommandTemplates{
 				Interpreter:   interpreter,
