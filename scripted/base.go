@@ -21,11 +21,12 @@ type Operation string
 var nextResourceId = 1
 
 const (
-	Create Operation = "create"
-	Read   Operation = "read"
-	Exists Operation = "exists"
-	Update Operation = "update"
-	Delete Operation = "delete"
+	Create        Operation = "create"
+	Read          Operation = "read"
+	Exists        Operation = "exists"
+	Update        Operation = "update"
+	Delete        Operation = "delete"
+	CustomizeDiff Operation = "customizediff"
 )
 
 type Scripted struct {

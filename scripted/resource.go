@@ -59,7 +59,7 @@ func getScriptedResource() *schema.Resource {
 }
 
 func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) error {
-	s, err := New(WrapResourceDiff(diff), i, "CustomizeDiff", false)
+	s, err := New(WrapResourceDiff(diff), i, CustomizeDiff, false)
 	if err != nil {
 		return err
 	}
