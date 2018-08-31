@@ -53,20 +53,22 @@ type EnvironmentChangeMap struct {
 	New map[string]string
 	Cur map[string]string
 }
+type TemplateProviderConfig struct {
+}
 
 type TemplateContext struct {
 	*ChangeMap
-	ProviderVersion string
-	Operation       Operation
-	EmptyString     string
-	TriggerString   string
-	StatePrefix     string
-	OutputPrefix    string
-	LinePrefix      string
-	Output          map[string]interface{}
-	State           *ChangeMap
-	TemplateName    string
-	TemplateNames   []string
+	Provider      *ProviderConfig
+	Operation     Operation
+	EmptyString   string
+	TriggerString string
+	StatePrefix   string
+	OutputPrefix  string
+	LinePrefix    string
+	Output        map[string]interface{}
+	State         *ChangeMap
+	TemplateName  string
+	TemplateNames []string
 }
 
 type ResourceConfig struct {
@@ -378,17 +380,17 @@ func (s *Scripted) templateExtra(names []string, tpl string, extraCtx map[string
 			New: s.rc.Context.New,
 			Cur: mergeMaps(s.rc.Context.Cur, extraCtx),
 		},
-		TemplateName:    name,
-		TemplateNames:   names,
-		Operation:       s.op,
-		ProviderVersion: Version,
-		EmptyString:     s.pc.EmptyString,
-		TriggerString:   s.pc.Commands.TriggerString,
-		StatePrefix:     s.pc.StateLinePrefix,
-		LinePrefix:      s.pc.LinePrefix,
-		OutputPrefix:    s.pc.OutputLinePrefix(),
-		Output:          castConfigMap(s.d.Get("output")),
-		State:           s.rc.state,
+		Provider:      s.pc,
+		TemplateName:  name,
+		TemplateNames: names,
+		Operation:     s.op,
+		EmptyString:   s.pc.EmptyString,
+		TriggerString: s.pc.Commands.TriggerString,
+		StatePrefix:   s.pc.StateLinePrefix,
+		LinePrefix:    s.pc.LinePrefix,
+		OutputPrefix:  s.pc.OutputLinePrefix,
+		Output:        castConfigMap(s.d.Get("output")),
+		State:         s.rc.state,
 	}
 	if s.pc.Logging.level == hclog.Trace {
 		jsonCtx, _ := toJson(ctx)
@@ -598,7 +600,7 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh c
 		defer s.logging.PushDefer("ctx", "outputSetter")()
 		output := map[string]interface{}{}
 		filtered := make(chan string)
-		go s.filterLines(input, s.pc.OutputLinePrefix(), s.pc.StateLinePrefix, filtered)
+		go s.filterLines(input, s.pc.OutputLinePrefix, s.pc.StateLinePrefix, filtered)
 		entries := make(chan KVEntry)
 		go s.scanOutput(filtered, s.pc.OutputFormat, entries)
 		for e := range entries {

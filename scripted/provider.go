@@ -424,6 +424,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		sf = of
 	}
 
+	outputUseDefaultLinePrefix := d.Get("commands_read_use_default_line_prefix").(bool)
+	outputLinePrefix := d.Get("commands_read_line_prefix").(string)
+	if outputUseDefaultLinePrefix {
+		outputLinePrefix = LinePrefix
+	}
 	config := ProviderConfig{
 		Commands: &CommandsConfig{
 			Environment: &EnvironmentConfig{
@@ -472,12 +477,13 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		ComputeStateKeys:           castConfigListString(d.Get("compute_state_keys")),
 		ComputeOutputKeys:          castConfigListString(d.Get("compute_output_keys")),
 		OutputFormat:               of,
-		OutputUseDefaultLinePrefix: d.Get("commands_read_use_default_line_prefix").(bool),
-		outputLinePrefix:           d.Get("commands_read_line_prefix").(string),
+		OutputUseDefaultLinePrefix: outputUseDefaultLinePrefix,
+		OutputLinePrefix:           outputLinePrefix,
 		StateFormat:                sf,
 		LinePrefix:                 LinePrefix,
 		StateLinePrefix:            StatePrefix,
 		RunningMessageInterval:     d.Get("logging_running_messages_interval").(float64),
+		Version:                    Version,
 	}
 	logging.Log(hclog.Info, `Provider "scripted" initialized`)
 	return &config, nil

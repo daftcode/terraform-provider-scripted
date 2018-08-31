@@ -60,16 +60,10 @@ type ProviderConfig struct {
 	EmptyString                string
 	LoggingBufferSize          int64
 	OutputUseDefaultLinePrefix bool
-	outputLinePrefix           string
+	OutputLinePrefix           string
 	OutputFormat               string
 	StateFormat                string
 	StateLinePrefix            string
 	LinePrefix                 string
-}
-
-func (pc *ProviderConfig) OutputLinePrefix() string {
-	if pc.OutputUseDefaultLinePrefix {
-		return pc.LinePrefix
-	}
-	return pc.outputLinePrefix
+	Version                    string
 }
