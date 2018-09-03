@@ -16,24 +16,13 @@ import (
 	"time"
 )
 
-type Operation string
-
 var nextResourceId = 1
-
-const (
-	Create        Operation = "create"
-	Read          Operation = "read"
-	Exists        Operation = "exists"
-	Update        Operation = "update"
-	Delete        Operation = "delete"
-	CustomizeDiff Operation = "customizediff"
-)
 
 type Scripted struct {
 	pc                  *ProviderConfig
 	d                   ResourceInterface
 	rc                  *ResourceConfig
-	op                  Operation
+	op                  TerraformOperation
 	logging             *Logging
 	oldLog              []bool
 	piid                int
@@ -62,7 +51,7 @@ type JsonContext struct {
 type TemplateContext struct {
 	*ChangeMap
 	Provider      *ProviderConfig
-	Operation     Operation
+	Operation     TerraformOperation
 	EmptyString   string
 	TriggerString string
 	StatePrefix   string
@@ -72,6 +61,7 @@ type TemplateContext struct {
 	State         *ChangeMap
 	TemplateName  string
 	TemplateNames []string
+	Command       string
 }
 
 type ResourceConfig struct {
@@ -101,7 +91,7 @@ type ResourceInterface interface {
 	GetChangedKeysPrefix(string) []string
 }
 
-func New(d ResourceInterface, meta interface{}, operation Operation, old bool) (*Scripted, error) {
+func New(d ResourceInterface, meta interface{}, operation TerraformOperation, old bool) (*Scripted, error) {
 	s := (&Scripted{
 		pc: meta.(*ProviderConfig),
 		d:  d,
@@ -119,7 +109,7 @@ func New(d ResourceInterface, meta interface{}, operation Operation, old bool) (
 }
 
 func (s *Scripted) ensureLogging() *Scripted {
-	s.logging = s.pc.Logging.Clone()
+	s.logging = s.pc.logging.Clone()
 
 	args := []interface{}{
 		"operation", s.op,
@@ -148,7 +138,7 @@ func (s *Scripted) renderEnv(old bool) error {
 		if !strings.Contains(tpl, s.pc.Templates.LeftDelim) {
 			continue
 		}
-		rendered, _, err := s.template([]string{fmt.Sprintf("env.%s.%s", prefix, key)}, tpl)
+		rendered, _, err := s.template("", []string{fmt.Sprintf("env.%s.%s", prefix, key)}, tpl)
 		if err != nil {
 			if !s.old() {
 				return err
@@ -165,11 +155,14 @@ func (s *Scripted) Environment() (*EnvironmentChangeMap, error) {
 		env := castEnvironmentChangeMap(s.d.GetChange("environment"))
 		if s.pc.Commands.Environment.IncludeParent {
 			for _, line := range os.Environ() {
-				split := strings.SplitN(line, "=", 1)
+				split := strings.SplitN(line, "=", 2)
 				key := split[0]
 				value := ""
 				if len(split) > 1 {
 					value = split[1]
+				}
+				if s.logging.level <= hclog.Trace {
+					s.log(hclog.Trace, "Setting parent's environment", "key", fmt.Sprintf("%v", key), "value", toJsonMust(value))
 				}
 				if _, ok := env.Old[key]; !ok {
 					env.Old[key] = value
@@ -178,7 +171,7 @@ func (s *Scripted) Environment() (*EnvironmentChangeMap, error) {
 					env.New[key] = value
 				}
 			}
-		} else if len(s.pc.Commands.Environment.InheritVariables) > 0 {
+		} else {
 			for _, key := range s.pc.Commands.Environment.InheritVariables {
 				value := os.Getenv(key)
 				if _, ok := env.Old[key]; !ok {
@@ -228,7 +221,7 @@ func (s *Scripted) Environment() (*EnvironmentChangeMap, error) {
 	return s.rc.environment, nil
 }
 
-func (s *Scripted) setOperation(operation Operation) *Scripted {
+func (s *Scripted) setOperation(operation TerraformOperation) *Scripted {
 	s.op = operation
 	return s
 }
@@ -366,7 +359,7 @@ func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
 	}
 }
 
-func (s *Scripted) templateExtra(names []string, tpl string, extraCtx map[string]interface{}) (string, *JsonContext, error) {
+func (s *Scripted) templateExtra(command string, names []string, tpl string, extraCtx map[string]interface{}) (string, *JsonContext, error) {
 	name := strings.Join(names, "+")
 	t := template.New(name)
 	t = t.Delims(s.pc.Templates.LeftDelim, s.pc.Templates.RightDelim)
@@ -386,8 +379,9 @@ func (s *Scripted) templateExtra(names []string, tpl string, extraCtx map[string
 		Provider:      s.pc,
 		TemplateName:  name,
 		TemplateNames: names,
+		Command:       command,
 		Operation:     s.op,
-		EmptyString:   s.pc.EmptyString,
+		EmptyString:   EnvEmptyString,
 		TriggerString: s.pc.Commands.TriggerString,
 		StatePrefix:   s.pc.StateLinePrefix,
 		LinePrefix:    s.pc.LinePrefix,
@@ -402,7 +396,7 @@ func (s *Scripted) templateExtra(names []string, tpl string, extraCtx map[string
 		return "", nil, err
 	}
 
-	if s.pc.Logging.level == hclog.Trace {
+	if s.pc.logging.level == hclog.Trace {
 		s.log(hclog.Trace, "rendering template", "name", name, "template", tpl, "context", jsonCtx)
 	}
 	err = t.Execute(&buf, ctx)
@@ -413,8 +407,8 @@ func (s *Scripted) templateExtra(names []string, tpl string, extraCtx map[string
 	return rendered, &JsonContext{data: jsonCtx}, err
 }
 
-func (s *Scripted) template(names []string, tpl string) (string, *JsonContext, error) {
-	return s.templateExtra(names, tpl, map[string]interface{}{})
+func (s *Scripted) template(command string, names []string, tpl string) (string, *JsonContext, error) {
+	return s.templateExtra(command, names, tpl, map[string]interface{}{})
 }
 
 func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, *JsonContext, error) {
@@ -427,7 +421,7 @@ func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, *JsonContext,
 		}
 	}
 	if !hasAny {
-		return EmptyString, nil, nil
+		return EnvEmptyString, nil, nil
 	}
 	if isFilled(s.pc.Commands.Templates.PrefixFromEnv) {
 		names = append(names, "commands_prefix_fromenv")
@@ -443,7 +437,8 @@ func (s *Scripted) prefixedTemplate(args ...*TemplateArg) (string, *JsonContext,
 			templates = append(templates, arg.template)
 		}
 	}
-	return s.template(names, s.joinCommands(templates...))
+	command := args[len(args)-1].name
+	return s.template(command, names, s.joinCommands(templates...))
 }
 
 func (s *Scripted) getInterpreter(command string) (string, []string, error) {
@@ -482,11 +477,14 @@ func (s *Scripted) executeBase(output chan string, env *EnvironmentChangeMap, js
 	if isSet(s.pc.Commands.WorkingDirectory) {
 		cmd.Dir = s.pc.Commands.WorkingDirectory
 	}
-	cmd.Env = mapToEnv(env.Cur)
 	if s.pc.Commands.Environment.IncludeJsonContext {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", JsonContextEnvKey, jsonCtx.data))
+		env.Cur[JsonContextEnvKey] = jsonCtx.data
 	}
-
+	if s.pc.logging.level <= hclog.Trace {
+		envYaml, _ := toYaml(env.Cur)
+		s.log(hclog.Trace, "command environment", "environment", envYaml)
+	}
+	cmd.Env = mapToEnv(env.Cur)
 	outBuf, err := circbuf.NewBuffer(s.pc.LoggingBufferSize)
 	if err != nil {
 		return fmt.Errorf("failed to initialize redirection buffer: %s", err)
@@ -505,7 +503,7 @@ func (s *Scripted) executeBase(output chan string, env *EnvironmentChangeMap, js
 	defer errLog.Close()
 
 	// Output what we're about to run
-	if s.pc.Logging.level >= hclog.Debug {
+	if s.pc.logging.level >= hclog.Debug {
 		s.log(hclog.Debug, "executing command", "command", command)
 	} else {
 		s.log(hclog.Trace, "executing", "interpreter", interpreter, "args", args)
@@ -570,7 +568,7 @@ func (s *Scripted) log(level hclog.Level, msg string, args ...interface{}) {
 func (s *Scripted) ensureId() error {
 	if isSet(s.pc.Commands.Templates.Id) {
 		defer s.logging.PushDefer("commands", "id")()
-		command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_id", s.pc.Commands.Templates.Id})
+		command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{CommandId, s.pc.Commands.Templates.Id})
 		if err != nil {
 			return err
 		}
@@ -747,14 +745,14 @@ func (s *Scripted) checkNeedsUpdate() (bool, error) {
 		return false, nil
 	}
 	if !isSet(s.pc.Commands.Templates.NeedsUpdate) {
-		return onEmpty(`"commands_needs_update" is empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" is empty, exiting.`, CommandNeedsUpdate))
 	}
-	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_needs_update", s.pc.Commands.Templates.NeedsUpdate})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{CommandNeedsUpdate, s.pc.Commands.Templates.NeedsUpdate})
 	if err != nil {
 		return false, err
 	}
 	if !isFilled(command) {
-		return onEmpty(`"commands_needs_update" rendered empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandNeedsUpdate))
 	}
 	s.log(hclog.Info, "checking resource needs update")
 	lines, triggered := s.triggerReader()
@@ -772,16 +770,16 @@ func (s *Scripted) checkDependenciesMet() (bool, error) {
 			s.log(hclog.Debug, "setting `dependencies_met`", "value", s.dependenciesMet)
 		}
 		if !isSet(s.pc.Commands.Templates.Dependencies) {
-			onEmpty(`"commands_dependencies" is empty, exiting.`)
+			onEmpty(fmt.Sprintf(`"%s" is empty, exiting.`, CommandDependencies))
 			return
 		}
-		command, jsonCtx, e := s.prefixedTemplate(&TemplateArg{"commands_dependencies", s.pc.Commands.Templates.Dependencies})
+		command, jsonCtx, e := s.prefixedTemplate(&TemplateArg{CommandDependencies, s.pc.Commands.Templates.Dependencies})
 		if e != nil {
 			err = e
 			return
 		}
 		if !isFilled(command) {
-			onEmpty(`"commands_dependencies" rendered empty, exiting.`)
+			onEmpty(fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandDependencies))
 			return
 		}
 		s.log(hclog.Info, "checking resource dependencies met")
@@ -837,25 +835,22 @@ func (s *Scripted) getComputeKeysFromCommand() ([]string, error) {
 	}
 	defer s.logging.PushDefer("commands", "customizediff_computekeys")()
 	if !isSet(s.pc.Commands.Templates.CustomizeDiffComputeKeys) {
-		return ret, onEmpty(`"commands_customizediff_computekeys" is empty, exiting.`)
+		return ret, onEmpty(fmt.Sprintf(`"%s" is empty, exiting.`, CommandCustomizeDiffComputeKeys))
 	}
-	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_customizediff_computekeys", s.pc.Commands.Templates.CustomizeDiffComputeKeys})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{CommandCustomizeDiffComputeKeys, s.pc.Commands.Templates.CustomizeDiffComputeKeys})
 	if err != nil {
 		return ret, err
 	}
 	if !isFilled(command) {
-		return ret, onEmpty(`"commands_customizediff_computekeys" rendered empty, exiting.`)
+		return ret, onEmpty(fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandCustomizeDiffComputeKeys))
 	}
-	env, err := s.Environment()
-	if err != nil {
-		return ret, err
-	}
+
 	output := make(chan string)
 	tokens := make(chan string)
 
 	go func() {
 		lines := make(chan string)
-		go s.filterLines(output, s.pc.LinePrefix, EmptyString, lines)
+		go s.filterLines(output, s.pc.LinePrefix, s.pc.EmptyString, lines)
 		for line := range lines {
 			for _, token := range strings.Fields(line) {
 				tokens <- token
@@ -865,7 +860,7 @@ func (s *Scripted) getComputeKeysFromCommand() ([]string, error) {
 	}()
 
 	s.log(hclog.Info, "getting compute keys", "command", command)
-	err = s.executeBase(output, env, jsonCtx, command)
+	err = s.execute(output, jsonCtx, command)
 	for token := range tokens {
 		ret = append(ret, token)
 	}
@@ -879,13 +874,13 @@ func (s *Scripted) getRecomputeKeys(prefix string) []string {
 	for _, key := range s.d.GetChangedKeysPrefix(prefix) {
 		entries[key] = true
 	}
-	for _, key := range s.pc.ComputeOutputKeys {
+	for _, key := range s.pc.OutputComputeKeys {
 		key = fmt.Sprintf("output.%s", key)
 		if strings.HasPrefix(key, prefix) {
 			entries[key] = true
 		}
 	}
-	for _, key := range s.pc.ComputeStateKeys {
+	for _, key := range s.pc.StateComputeKeys {
 		key = fmt.Sprintf("state.%s", key)
 		if strings.HasPrefix(key, prefix) {
 			entries[key] = true

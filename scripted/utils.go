@@ -109,14 +109,14 @@ func getMapHash(data map[string]interface{}) []string {
 
 func isSet(val interface{}) bool {
 	if str, ok := val.(string); ok {
-		return str != EmptyString
+		return str != EnvEmptyString
 	}
 	return val != nil
 }
 
 func isFilled(val interface{}) bool {
 	if str, ok := val.(string); ok {
-		return str != EmptyString && str != ""
+		return str != EnvEmptyString && str != ""
 	}
 	return val != nil
 }

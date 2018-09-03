@@ -43,7 +43,7 @@ build_provider_all: build_provider_cur
 build: schema docs build_provider_all
 	(cd dist && sha256sum -b "${BIN}.json" "${BIN}-"* > "${BIN}.sha256sums")
 
-install: build
+install: build_provider_cur
 	mkdir -p "${TF_PLUGINS}" "${TF_SCHEMAS}"
 	cp "dist/${BIN}" "${BIN_PATH}"
 	cp "${OUT}/${BIN}.json" "${TF_SCHEMAS}/${BIN}.json"

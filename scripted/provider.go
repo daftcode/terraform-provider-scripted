@@ -6,7 +6,9 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
 	"github.com/hashicorp/terraform/terraform"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,30 +25,24 @@ var Debug = getEnvBool("DEBUG", false)
 var debugLogging = false
 
 // String representing empty value, can be set to anything
-var EmptyString = getEnvMust("EMPTY_STRING", DefaultEmptyString)
-var StatePrefix = getEnvMust("STATE_PREFIX", DefaultStatePrefix)
-var LinePrefix = getEnvMust("LINE_PREFIX", DefaultLinePrefix)
-var TriggerString = getEnvMust("TRIGGER_STRING", DefaultTriggerString)
+var EnvEmptyString = getEnvMust("EMPTY_STRING", DefaultEmptyString)
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
-			"commands_create": {
+			CommandCreate: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: "Create command. Defaults to: `update_command`",
 			},
-			"commands_customizediff_computekeys": {
+			CommandCustomizeDiffComputeKeys: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
-				Description: fmt.Sprintf(
-					"Command printing keys to be forced to recompute. Lines must be prefixed with %s and keys separated by whitespace characters",
-					LinePrefix,
-				),
+				Description: "Command printing keys to be forced to recompute. Lines must be prefixed with LinePrefix and keys separated by whitespace characters",
 			},
-			"commands_delete": {
+			CommandDelete: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
@@ -64,7 +60,7 @@ func Provider() terraform.ResourceProvider {
 				Default:     true,
 				Description: "Delete resource when exists fails",
 			},
-			"commands_dependencies": {
+			CommandDependencies: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
@@ -100,13 +96,13 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: "New environment prefix (skip if empty)",
 			},
-			"commands_exists": {
+			CommandExists: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: fmt.Sprintf("Exists command, not-exists triggered by `%s`", TriggerStringTpl),
 			},
-			"commands_id": {
+			CommandId: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
@@ -127,13 +123,25 @@ func Provider() terraform.ResourceProvider {
 					)
 				}(),
 			},
+			"commands_interpreter_is_provider": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Should interpreter be considered provider implementation? Should execude commands based based on TF_SCRIPTED_CONTEXT envvar (context's .Command) and ignore command line arguments.",
+			},
+			"commands_interpreter_provider_commands": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "Commands supported by interpreter-provider. Defaults to: result of running interpreter with `commands` argument",
+			},
 			"commands_modify_prefix": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: "Modification commands (create and update) prefix",
 			},
-			"commands_needs_update": {
+			CommandNeedsUpdate: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
@@ -157,17 +165,17 @@ func Provider() terraform.ResourceProvider {
 				"%s\n%s",
 				"`%s\\n%s`",
 			),
-			"commands_read": {
+			CommandRead: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
 				Description: "Read command",
 			},
-			"commands_read_format": stringDefaultSchema(
+			"output_format": stringDefaultSchema(
 				&schema.Schema{
 					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json"}, false),
 				},
-				"commands_read_format",
+				"output_format",
 				"Templates output types: "+
 					"raw `/^(?<key>[^=]+)=(?<value>[^\\n]*)$/`, "+
 					"base64 `/^(?<key>[^=]+)=(?<value_base64>[^\\n]*)$/` or "+
@@ -177,23 +185,23 @@ func Provider() terraform.ResourceProvider {
 			"commands_read_use_default_line_prefix": boolDefaultSchema(
 				nil,
 				"commands_read_use_default_line_prefix",
-				fmt.Sprintf("Ignore lines in read command without default line prefix (%s).", LinePrefix),
+				"Ignore lines in read command without default line prefix instead of read-specific",
 				false,
 			),
-			"commands_read_line_prefix": stringDefaultSchemaEmpty(
+			"output_line_prefix": stringDefaultSchemaEmpty(
 				nil,
-				"commands_read_line_prefix",
+				"output_line_prefix",
 				"Ignore lines in read command without this prefix.",
 			),
-			"commands_state_format": stringDefaultSchemaEmptyMsgVal(
+			"state_format": stringDefaultSchemaEmptyMsgVal(
 				&schema.Schema{
-					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json", EmptyString}, false),
+					ValidateFunc: validation.StringInSlice([]string{"raw", "base64", "json", EnvEmptyString}, false),
 				},
-				"commands_state_format",
-				"Create/Update state output format, for more info see `commands_read_format`.",
-				"`commands_read_format`",
+				"state_format",
+				"Create/Update state output format, for more info see `output_format`.",
+				"`output_format`",
 			),
-			"commands_update": {
+			CommandUpdate: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: defaultEmptyString,
@@ -204,13 +212,13 @@ func Provider() terraform.ResourceProvider {
 				"commands_working_directory",
 				"Working directory to run commands in",
 			),
-			"compute_state_keys": {
+			"state_compute_keys": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				Description: "List of `state` keys which are forced to be computed on change.",
 			},
-			"compute_output_keys": {
+			"output_compute_keys": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
@@ -312,6 +320,24 @@ func Provider() terraform.ResourceProvider {
 				"Right delimiter for templates.",
 				"}}",
 			),
+			"trigger_string": stringDefaultSchema(
+				nil,
+				"trigger_string",
+				"TriggerString for exists, dependencies_met and needs_update",
+				DefaultTriggerString,
+			),
+			"line_prefix": stringDefaultSchema(
+				nil,
+				"line_prefix",
+				"General line prefix",
+				DefaultLinePrefix,
+			),
+			"state_line_prefix": stringDefaultSchema(
+				nil,
+				"state_line_prefix",
+				"State line prefix",
+				DefaultStatePrefix,
+			),
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
@@ -343,7 +369,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 
 	logPath := d.Get("logging_log_path").(string)
 	var fileLogger hclog.Logger
-	if logPath != EmptyString {
+	if logPath != EnvEmptyString {
 		logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			return nil, err
@@ -364,7 +390,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 		logging.Push("piid", nextProviderId)
 	}
 	nextProviderId++
-	if logProviderName != EmptyString {
+	if logProviderName != EnvEmptyString {
 		logging.Push("provider_name", logProviderName)
 	}
 	return logging, nil
@@ -392,21 +418,18 @@ func interpreterOrDefault(cur []string) ([]string, error) {
 	return interpreter, err
 }
 
-func inheritVariablesOrDefault(d *schema.ResourceData) []string {
-	inherit := castConfigListString(d.Get("commands_environment_inherit_variables"))
-	if len(inherit) < 1 {
-		inherit, _, _ = getEnvList("ENVIRONMENT_INHERIT_VARIABLES", []string{})
-	}
-	return inherit
-}
-
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	logging, err := providerConfigureLogging(d)
+	if err != nil {
+		return nil, err
+	}
 	debugLogging = envDefault("TF_SCRIPTED_DEBUG_LOGGING", "") != ""
+
 	interpreter, err := interpreterOrDefault(castConfigListString(d.Get("commands_interpreter")))
 	if err != nil {
 		return nil, err
 	}
+	d.Set("commands_interpreter", interpreter)
 
 	if len(interpreter) < 1 {
 		return nil, fmt.Errorf(`invalid interpreter: %s`, interpreter)
@@ -416,48 +439,93 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		return nil, err
 	}
 
-	dbu := false
-	cau := false
-
-	update := d.Get("commands_update").(string)
-	if update == EmptyString {
-		dbu = true
-		cau = true
-	}
-	of := d.Get("commands_read_format").(string)
-	sf := d.Get("commands_state_format").(string)
-	if sf == EmptyString {
-		sf = of
+	// Set default state_format
+	if d.Get("state_format").(string) == EnvEmptyString {
+		d.Set("state_format", d.Get("output_format").(string))
 	}
 
-	outputUseDefaultLinePrefix := d.Get("commands_read_use_default_line_prefix").(bool)
-	outputLinePrefix := d.Get("commands_read_line_prefix").(string)
-	if outputUseDefaultLinePrefix {
-		outputLinePrefix = LinePrefix
+	// Set read prefix
+	if d.Get("commands_read_use_default_line_prefix").(bool) {
+		d.Set("output_line_prefix", d.Get("line_prefix").(string))
 	}
+
+	// Set default commands_environment_inherit_variables
+	inherit := castConfigListString(d.Get("commands_environment_inherit_variables"))
+	if len(inherit) == 0 {
+		inherit, _, err = getEnvList("ENVIRONMENT_INHERIT_VARIABLES", []string{})
+		if err != nil {
+			return nil, err
+		}
+		d.Set("commands_environment_inherit_variables", inherit)
+	}
+
+	interpreterProviderCommands := castConfigListString(d.Get("commands_interpreter_provider_commands"))
+	if d.Get("commands_interpreter_is_provider").(bool) {
+		if len(interpreterProviderCommands) == 0 {
+			name := interpreter[0]
+			args := interpreter[1:]
+			args = append(args, "commands")
+			cmd := exec.Command(name, args...)
+			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				return nil, err
+			}
+			if err = cmd.Start(); err != nil {
+				return nil, err
+			}
+			stdoutBytes, _ := ioutil.ReadAll(stdout)
+
+			if err := cmd.Wait(); err != nil {
+				return nil, err
+			}
+			interpreterProviderCommands = strings.Fields(string(stdoutBytes[:]))
+
+			for _, command := range interpreterProviderCommands {
+				if _, ok := AllowedCommands[command]; !ok {
+					var allowedKeys []string
+					for key := range AllowedCommands {
+						allowedKeys = append(allowedKeys, fmt.Sprintf("%v", key))
+					}
+					return nil, fmt.Errorf(
+						"command %v is not allowed, only: %s",
+						command,
+						strings.Join(allowedKeys, ", "),
+					)
+				}
+				d.Set(command, command)
+			}
+		}
+		d.Set("commands_prefix", EnvEmptyString)
+		d.Set("commands_modify_prefix", EnvEmptyString)
+		d.Set("commands_prefix_fromenv", EnvEmptyString)
+		d.Set("commands_environment_include_parent", true)
+		d.Set("commands_environment_include_json_context", true)
+		d.Set("commands_interpreter_provider_commands", interpreterProviderCommands)
+	}
+
 	config := ProviderConfig{
 		Commands: &CommandsConfig{
 			Environment: &EnvironmentConfig{
 				PrefixNew:          d.Get("commands_environment_prefix_new").(string),
 				PrefixOld:          d.Get("commands_environment_prefix_old").(string),
 				IncludeParent:      d.Get("commands_environment_include_parent").(bool),
-				InheritVariables:   inheritVariablesOrDefault(d),
+				InheritVariables:   castConfigListString(d.Get("commands_environment_inherit_variables")),
 				IncludeJsonContext: d.Get("commands_environment_include_json_context").(bool),
 			},
 			Templates: &CommandTemplates{
 				Interpreter:   interpreter,
-				Dependencies:  d.Get("commands_dependencies").(string),
+				Dependencies:  d.Get(CommandDependencies).(string),
 				ModifyPrefix:  d.Get("commands_modify_prefix").(string),
 				Prefix:        d.Get("commands_prefix").(string),
 				PrefixFromEnv: d.Get("commands_prefix_fromenv").(string),
-				Create:        d.Get("commands_create").(string),
-				Delete:        d.Get("commands_delete").(string),
-				Exists:        d.Get("commands_exists").(string),
-				Id:            d.Get("commands_id").(string),
-				NeedsUpdate:   d.Get("commands_needs_update").(string),
-				Read:          d.Get("commands_read").(string),
-				CustomizeDiffComputeKeys: d.Get("commands_read").(string),
-				Update: update,
+				Create:        d.Get(CommandCreate).(string),
+				Delete:        d.Get(CommandDelete).(string),
+				Exists:        d.Get(CommandExists).(string),
+				Id:            d.Get(CommandId).(string),
+				NeedsUpdate:   d.Get(CommandNeedsUpdate).(string),
+				Read:          d.Get(CommandRead).(string),
+				Update:        d.Get(CommandUpdate).(string),
+				CustomizeDiffComputeKeys: d.Get(CommandCustomizeDiffComputeKeys).(string),
 			},
 			Output: &OutputConfig{
 				LogLevel:  hclog.LevelFromString(d.Get("logging_output_logging_log_level").(string)),
@@ -465,32 +533,31 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 				LogPids:   d.Get("logging_pids").(bool),
 				LogIids:   d.Get("logging_iids").(bool),
 			},
-			CreateAfterUpdate:   cau,
-			DeleteBeforeUpdate:  dbu,
-			DeleteOnNotExists:   d.Get("commands_delete_on_not_exists").(bool),
-			DeleteOnReadFailure: d.Get("commands_delete_on_read_failure").(bool),
-			Separator:           d.Get("commands_separator").(string),
-			WorkingDirectory:    d.Get("commands_working_directory").(string),
-			TriggerString:       TriggerString,
+			InterpreterIsProvider:       d.Get("commands_interpreter_is_provider").(bool),
+			InterpreterProviderCommands: interpreterProviderCommands,
+			DeleteOnNotExists:           d.Get("commands_delete_on_not_exists").(bool),
+			DeleteOnReadFailure:         d.Get("commands_delete_on_read_failure").(bool),
+			Separator:                   d.Get("commands_separator").(string),
+			WorkingDirectory:            d.Get("commands_working_directory").(string),
+			TriggerString:               d.Get("trigger_string").(string),
 		},
 		Templates: &TemplatesConfig{
 			LeftDelim:  d.Get("templates_left_delim").(string),
 			RightDelim: d.Get("templates_right_delim").(string),
 		},
-		EmptyString:       EmptyString,
-		Logging:           logging,
-		LoggingBufferSize: int64(d.Get("logging_buffer_size").(int)),
-
-		ComputeStateKeys:           castConfigListString(d.Get("compute_state_keys")),
-		ComputeOutputKeys:          castConfigListString(d.Get("compute_output_keys")),
-		OutputFormat:               of,
-		OutputUseDefaultLinePrefix: outputUseDefaultLinePrefix,
-		OutputLinePrefix:           outputLinePrefix,
-		StateFormat:                sf,
-		LinePrefix:                 LinePrefix,
-		StateLinePrefix:            StatePrefix,
-		RunningMessageInterval:     d.Get("logging_running_messages_interval").(float64),
-		Version:                    Version,
+		logging:                logging,
+		LoggingBufferSize:      int64(d.Get("logging_buffer_size").(int)),
+		StateComputeKeys:       castConfigListString(d.Get("state_compute_keys")),
+		OutputComputeKeys:      castConfigListString(d.Get("output_compute_keys")),
+		OutputFormat:           d.Get("output_format").(string),
+		OutputLinePrefix:       d.Get("output_line_prefix").(string),
+		EmptyString:            EnvEmptyString,
+		StateFormat:            d.Get("state_format").(string),
+		LinePrefix:             d.Get("line_prefix").(string),
+		StateLinePrefix:        d.Get("state_line_prefix").(string),
+		RunningMessageInterval: d.Get("logging_running_messages_interval").(float64),
+		Version:                Version,
+		InstanceState:          d.State(),
 	}
 	logging.Log(hclog.Info, `Provider "scripted" initialized`)
 	return &config, nil

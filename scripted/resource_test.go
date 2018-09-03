@@ -63,7 +63,7 @@ func TestAccScriptedResource_Prefix(t *testing.T) {
 func TestAccScriptedResource_Terraformify(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-        commands_read_format = "json" 
+        output_format = "json" 
 		commands_read = <<EOF
 jq -c '{data: .}' <<< "$content"
 EOF
@@ -206,7 +206,7 @@ func TestAccScriptedResource_Base64(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"hi\" > test_file"
   		commands_read = "echo -n \"out=$(base64 'test_file')\""
-		commands_read_format = "base64"
+		output_format = "base64"
 		commands_delete = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
@@ -234,7 +234,7 @@ func TestAccScriptedResource_JsonWithOverride(t *testing.T) {
   		commands_read = <<EOF
 	echo -n "{\"out\": \"$(cat test_file)\"}"
 	EOF
-		commands_read_format = "json"
+		output_format = "json"
 		commands_delete = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
@@ -247,7 +247,7 @@ func TestAccScriptedResource_JsonWithOverride(t *testing.T) {
 	echo "{\"out\": \"$(cat test_file)\"}"
 	echo '{"out": "hi2"}'
 	EOF
-		commands_read_format = "json"
+		output_format = "json"
 		commands_delete = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
@@ -285,7 +285,7 @@ func TestAccScriptedResource_Prefixed(t *testing.T) {
 	provider "scripted" {
 		commands_create = "echo -n \"hi\" > test_file"
   		commands_read = "echo -n \"PREFIX_out=$(cat 'test_file')\""
-		commands_read_line_prefix =  "PREFIX_"
+		output_line_prefix =  "PREFIX_"
 		commands_delete = "rm test_file"
 	}
 	resource "scripted_resource" "test" {
@@ -442,7 +442,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 func TestAccScriptedResource_MultilineEnvironment(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-        commands_read_format = "base64"
+        output_format = "base64"
   		commands_read = <<EOF
 echo -n "out=$(echo -n "$test_var" | base64)"
 EOF
@@ -759,7 +759,7 @@ EOF
 func TestAccScriptedResource_YAML(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {
-		commands_read_format = "base64"
+		output_format = "base64"
   		commands_read = <<EOF
 echo -n 'out={{ b64enc (toYaml (fromYaml .Cur.val)) }}'
 EOF

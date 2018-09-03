@@ -9,7 +9,7 @@ import (
 )
 
 func defaultEmptyString() (interface{}, error) {
-	return EmptyString, nil
+	return EnvEmptyString, nil
 }
 
 func defaultMsg(msg, defVal string) string {
@@ -46,7 +46,7 @@ func getEnv(key, defValue string) (value string, ok bool) {
 }
 
 func getEnvList(key string, defValue []string) (value []string, ok bool, err error) {
-	val, ok := envDefaultOk(envKey(key), EmptyString)
+	val, ok := envDefaultOk(envKey(key), EnvEmptyString)
 	if !ok {
 		return defValue, ok, nil
 	}
@@ -59,8 +59,8 @@ func getEnvList(key string, defValue []string) (value []string, ok bool, err err
 }
 
 func getEnvBoolOk(key string, defVal bool) (value, ok bool) {
-	str, ok := getEnv(key, EmptyString)
-	if str == EmptyString {
+	str, ok := getEnv(key, EnvEmptyString)
+	if str == EnvEmptyString {
 		return defVal, false
 	}
 	value, err := strconv.ParseBool(str)
@@ -104,7 +104,7 @@ func stringDefaultSchemaEmpty(schema *schema.Schema, key, description string) *s
 }
 
 func stringDefaultSchemaEmptyMsgVal(s *schema.Schema, key, description, msgVal string) *schema.Schema {
-	return stringDefaultSchemaBaseOr(s, key, description, EmptyString, msgVal)
+	return stringDefaultSchemaBaseOr(s, key, description, EnvEmptyString, msgVal)
 }
 func stringDefaultSchema(s *schema.Schema, key, description, defVal string) *schema.Schema {
 	return stringDefaultSchemaBaseOr(s, key, description, defVal, fmt.Sprintf("`%s`", defVal))
@@ -129,7 +129,7 @@ func stringDefaultSchemaBase(s *schema.Schema, key, description, defVal, msgVal 
 }
 
 func stringDefaultSchemaMsgVal(s *schema.Schema, key, description, msgVal string) *schema.Schema {
-	return stringDefaultSchemaBaseOr(s, key, description, EmptyString, msgVal)
+	return stringDefaultSchemaBaseOr(s, key, description, EnvEmptyString, msgVal)
 }
 
 func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *schema.Schema {
@@ -138,7 +138,7 @@ func boolDefaultSchema(s *schema.Schema, key, description string, defVal bool) *
 	if defVal {
 		prefix = "!"
 	}
-	s = stringDefaultSchemaBase(s, key, description, EmptyString, fmt.Sprintf(" %s= `\"\"`", prefix))
+	s = stringDefaultSchemaBase(s, key, description, EnvEmptyString, fmt.Sprintf(" %s= `\"\"`", prefix))
 	s.DefaultFunc = func() (interface{}, error) {
 		value, ok := getEnvBoolOk(key, defVal)
 		if !ok {

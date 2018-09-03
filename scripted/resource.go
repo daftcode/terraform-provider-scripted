@@ -59,7 +59,7 @@ func getScriptedResource() *schema.Resource {
 }
 
 func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) error {
-	s, err := New(WrapResourceDiff(diff), i, CustomizeDiff, false)
+	s, err := New(WrapResourceDiff(diff), i, OperationCustomizeDiff, false)
 	if err != nil {
 		return err
 	}
@@ -74,6 +74,7 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 
 	changed = changed || len(diff.UpdatedKeys()) > 0
 	commandComputeKeys, err := s.getComputeKeysFromCommand()
+	commandComputeKeys = append(commandComputeKeys, "update_trigger")
 	if err != nil {
 		return err
 	}
@@ -89,23 +90,24 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 			if !diff.HasChange("update_trigger") {
 				diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
 			}
-			for _, key := range s.getRecomputeKeysExtra("state", commandComputeKeys) {
-				diff.SetNewComputed(key)
-			}
-		}
-	} else {
-		for _, key := range s.getRecomputeKeysExtra("state", commandComputeKeys) {
-			diff.SetNewComputed(key)
+			changed = true
 		}
 	}
-	for _, key := range s.getRecomputeKeysExtra("output", commandComputeKeys) {
+	setNewComputedPrefix := "output"
+	if changed {
+		setNewComputedPrefix = ""
+	}
+
+	for _, key := range s.getRecomputeKeysExtra(setNewComputedPrefix, commandComputeKeys) {
+		s.log(hclog.Trace, "setting key as computed", "key", key)
 		diff.SetNewComputed(key)
 	}
+
 	return nil
 }
 
 func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
-	s, err := New(WrapResourceData(d), meta, Create, false)
+	s, err := New(WrapResourceData(d), meta, OperationCreate, false)
 	if err != nil {
 		return err
 	}
@@ -127,7 +129,7 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
-	s, err := New(WrapResourceData(d), meta, Read, false)
+	s, err := New(WrapResourceData(d), meta, OperationRead, false)
 	if err != nil {
 		return err
 	}
@@ -147,7 +149,7 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
-	s, err := New(WrapResourceData(d), meta, Update, false)
+	s, err := New(WrapResourceData(d), meta, OperationUpdate, false)
 	if err != nil {
 		return err
 	}
@@ -182,7 +184,7 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, error) {
-	s, err := New(WrapResourceData(d), meta, Exists, false)
+	s, err := New(WrapResourceData(d), meta, OperationExists, false)
 	if err != nil {
 		return true, err
 	}
@@ -195,10 +197,10 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 	defer s.logging.PushDefer("commands", "exists")()
 
 	if !isSet(s.pc.Commands.Templates.Exists) {
-		s.log(hclog.Debug, `"commands_exists" is empty, exiting.`)
+		s.log(hclog.Debug, fmt.Sprintf(`"%s" is empty, exiting.`, CommandExists))
 		return true, nil
 	}
-	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_exists", s.pc.Commands.Templates.Exists})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{CommandExists, s.pc.Commands.Templates.Exists})
 	if err != nil {
 		return false, err
 	}
@@ -222,7 +224,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 }
 
 func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
-	s, err := New(WrapResourceData(d), meta, Delete, true)
+	s, err := New(WrapResourceData(d), meta, OperationDelete, true)
 	if err != nil {
 		return err
 	}
@@ -244,7 +246,7 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	defer s.logging.PushDefer("commands", "create")()
 	onEmpty := func(msg string) error {
 		if isSet(s.pc.Commands.Templates.Update) {
-			s.log(hclog.Debug, `"commands_create" is empty, running "commands_update".`)
+			s.log(hclog.Debug, fmt.Sprintf(`"%s" is empty, running "%s" instead.`, CommandCreate, CommandUpdate))
 			return resourceScriptedUpdateBase(s)
 		}
 		s.log(hclog.Debug, msg)
@@ -256,18 +258,18 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	}
 
 	if !isSet(s.pc.Commands.Templates.Create) {
-		return onEmpty(`"commands_create" is empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" is empty, exiting.`, CommandCreate))
 	}
 	command, jsonCtx, err := s.prefixedTemplate(
 		&TemplateArg{"commands_modify_prefix", s.pc.Commands.Templates.ModifyPrefix},
-		&TemplateArg{"commands_create", s.pc.Commands.Templates.Create},
+		&TemplateArg{CommandCreate, s.pc.Commands.Templates.Create},
 	)
 	if err != nil {
 		return err
 	}
 
 	if !isFilled(command) {
-		return onEmpty(`"commands_create" rendered empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandCreate))
 	}
 
 	s.log(hclog.Info, "creating resource")
@@ -294,18 +296,18 @@ func resourceScriptedReadBase(s *Scripted) error {
 	}
 	defer s.logging.PushDefer("commands", "read")()
 	if !isSet(s.pc.Commands.Templates.Read) {
-		return onEmpty(`"commands_read" is empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" is empty, exiting.`, CommandRead))
 	}
-	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_read", s.pc.Commands.Templates.Read})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{CommandRead, s.pc.Commands.Templates.Read})
 	if err != nil {
 		return err
 	}
 	if !isFilled(command) {
-		return onEmpty(`"commands_read" rendered empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandRead))
 	}
 	env, err := s.Environment()
 	if err != nil {
-		if s.op == Read {
+		if s.op == OperationRead {
 			// Return immediately in read so Context.Refresh() passes
 			return nil
 		}
@@ -331,13 +333,13 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	defer s.logging.PushDefer("commands", "update")()
 	command, jsonCtx, err := s.prefixedTemplate(
 		&TemplateArg{"commands_modify_prefix", s.pc.Commands.Templates.ModifyPrefix},
-		&TemplateArg{"commands_update", s.pc.Commands.Templates.Update},
+		&TemplateArg{CommandUpdate, s.pc.Commands.Templates.Update},
 	)
 	if err != nil {
 		return err
 	}
 	if !isFilled(command) {
-		s.log(hclog.Warn, `"commands_update" rendered empty, exiting.`)
+		s.log(hclog.Warn, fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandUpdate))
 		if err := s.ensureId(); err != nil {
 			return err
 		}
@@ -366,16 +368,16 @@ func resourceScriptedDeleteBase(s *Scripted) error {
 		return nil
 	}
 	if !isSet(s.pc.Commands.Templates.Delete) {
-		return onEmpty(`"commands_delete" is empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" is empty, exiting.`, CommandDelete))
 	}
 	s.addOld(true)
 	defer s.removeOld()
-	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{"commands_delete", s.pc.Commands.Templates.Delete})
+	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{CommandDelete, s.pc.Commands.Templates.Delete})
 	if err != nil {
 		return err
 	}
 	if !isFilled(command) {
-		return onEmpty(`"commands_delete" rendered empty, exiting.`)
+		return onEmpty(fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandDelete))
 	}
 	s.log(hclog.Info, "deleting resource")
 	_, err = s.executeString(jsonCtx, command)

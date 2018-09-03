@@ -59,7 +59,7 @@ func export(v *schema.Schema) SchemaDefinition {
 	defVal := v.Default
 	description := v.Description
 
-	if defVal == scripted.EmptyString {
+	if defVal == scripted.DefaultEmptyString {
 		defVal = nil
 	}
 

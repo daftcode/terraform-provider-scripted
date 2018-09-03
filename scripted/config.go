@@ -1,6 +1,9 @@
 package scripted
 
-import "github.com/hashicorp/go-hclog"
+import (
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/terraform/terraform"
+)
 
 type EnvironmentConfig struct {
 	PrefixNew          string
@@ -34,16 +37,16 @@ type OutputConfig struct {
 }
 
 type CommandsConfig struct {
-	Environment         *EnvironmentConfig
-	Templates           *CommandTemplates
-	Output              *OutputConfig
-	CreateAfterUpdate   bool
-	DeleteBeforeUpdate  bool
-	DeleteOnNotExists   bool
-	DeleteOnReadFailure bool
-	Separator           string
-	WorkingDirectory    string
-	TriggerString       string
+	Environment                 *EnvironmentConfig
+	Templates                   *CommandTemplates
+	Output                      *OutputConfig
+	DeleteOnNotExists           bool
+	DeleteOnReadFailure         bool
+	Separator                   string
+	WorkingDirectory            string
+	TriggerString               string
+	InterpreterIsProvider       bool
+	InterpreterProviderCommands []string
 }
 
 type TemplatesConfig struct {
@@ -53,9 +56,9 @@ type TemplatesConfig struct {
 
 type ProviderConfig struct {
 	Commands                   *CommandsConfig
-	ComputeStateKeys           []string
-	ComputeOutputKeys          []string
-	Logging                    *Logging
+	StateComputeKeys           []string
+	OutputComputeKeys          []string
+	logging                    *Logging
 	Templates                  *TemplatesConfig
 	RunningMessageInterval     float64
 	EmptyString                string
@@ -67,4 +70,5 @@ type ProviderConfig struct {
 	StateLinePrefix            string
 	LinePrefix                 string
 	Version                    string
+	InstanceState              *terraform.InstanceState
 }
