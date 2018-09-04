@@ -71,4 +71,5 @@ type ProviderConfig struct {
 	LinePrefix                 string
 	Version                    string
 	InstanceState              *terraform.InstanceState
+	EnvPrefix                  string
 }

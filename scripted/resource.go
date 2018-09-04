@@ -80,11 +80,7 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	}
 	if diff.Id() != "" {
 		if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
-			if met, e := s.checkDependenciesMet(); e == nil {
-				return e
-			} else if !met {
-				return err
-			}
+			return err
 		} else if needsUpdate || changed {
 			s.log(hclog.Debug, "update triggered", "needsUpdate", needsUpdate, "changed", changed)
 			if !diff.HasChange("update_trigger") {

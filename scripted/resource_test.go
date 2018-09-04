@@ -573,7 +573,7 @@ EOF
 				Config: testConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
-					testAccCheckResourceOutput("scripted_resource.test", "old", ""),
+					testAccCheckResourceOutput("scripted_resource.test", "old", "<nil>"),
 					testAccCheckResourceOutput("scripted_resource.test", "new", "test"),
 				),
 			},
@@ -598,7 +598,7 @@ EOF
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceStateMissing("scripted_resource.test", "value"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
-					testAccCheckResourceOutput("scripted_resource.test", "new", ""),
+					testAccCheckResourceOutput("scripted_resource.test", "new", "<nil>"),
 				),
 			},
 		},
@@ -910,6 +910,7 @@ func testAccCheckResourceOutput(name string, outparam string, value string) reso
 		return nil
 	}
 }
+
 func testAccCheckResourceMissing(name string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		_, ok := s.RootModule().Resources[name]
