@@ -1,4 +1,4 @@
-# scripted v3.0.2
+# scripted v3.0.3
 - [provider_scripted](provider_scripted.md)
 - [scripted_resource](scripted_resource.md)
 - [scripted_data](scripted_data.md)

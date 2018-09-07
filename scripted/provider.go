@@ -375,6 +375,7 @@ func Provider() terraform.ResourceProvider {
 
 func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	var hcloggers []hclog.Logger
+	jsonFormat := d.Get("logging_jsonformat").(bool)
 	logToParent := d.Get("logging_output_parent_stderr").(bool)
 	logProviderName := d.Get("logging_provider_name").(string)
 	logLevel := hclog.LevelFromString(d.Get("logging_log_level").(string))
@@ -388,7 +389,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	}
 
 	logger := hclog.New(&hclog.LoggerOptions{
-		JSONFormat:      os.Getenv("TF_ACC") == "", // For logging in tests
+		JSONFormat:      jsonFormat,
 		JSONList:        jsonList,
 		JSONListPromote: jsonListPromote,
 		Output:          output,
@@ -404,7 +405,7 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 			return nil, err
 		}
 		fileLogger = hclog.New(&hclog.LoggerOptions{
-			JSONFormat:      d.Get("logging_jsonformat").(bool),
+			JSONFormat:      jsonFormat,
 			JSONList:        jsonList,
 			JSONListPromote: jsonListPromote,
 			Output:          logFile,
