@@ -72,4 +72,5 @@ type ProviderConfig struct {
 	Version                    string
 	InstanceState              *terraform.InstanceState
 	EnvPrefix                  string
+	OpenParentStderr           bool
 }

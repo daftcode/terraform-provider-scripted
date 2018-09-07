@@ -12,11 +12,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 var nextProviderId = 1
 
 // Store original os.Stderr and os.Stdout, because it gets overwritten by go-plugin/server:Serve()
+var parentStderr *os.File
 var Stderr = os.Stderr
 var Stdout = os.Stdout
 
@@ -26,6 +28,13 @@ var debugLogging = false
 
 // String representing empty value, can be set to anything
 var EnvEmptyString = getEnvMust("EMPTY_STRING", DefaultEmptyString)
+
+func ParentStderr() *os.File {
+	if parentStderr == nil {
+		parentStderr = os.NewFile(uintptr(syscall.Stderr+1), fmt.Sprintf("/proc/%d/fd/%d", os.Getppid(), syscall.Stderr))
+	}
+	return parentStderr
+}
 
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
@@ -290,6 +299,12 @@ func Provider() terraform.ResourceProvider {
 					return val, err
 				},
 			},
+			"logging_output_parent_stderr": boolDefaultSchema(
+				nil,
+				"logging_output_parent_stderr",
+				"should we log directly to parent's stderr instead of our own?",
+				false,
+			),
 			"logging_pids": boolDefaultSchema(
 				nil,
 				"logging_pids",
@@ -338,6 +353,12 @@ func Provider() terraform.ResourceProvider {
 				"State line prefix",
 				DefaultStatePrefix,
 			),
+			"open_parent_stderr": boolDefaultSchema(
+				nil,
+				"open_parent_stderr",
+				"should we open 3rd file descriptor as parent's Stderr?",
+				false,
+			),
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
@@ -354,15 +375,23 @@ func Provider() terraform.ResourceProvider {
 
 func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	var hcloggers []hclog.Logger
+	logToParent := d.Get("logging_output_parent_stderr").(bool)
 	logProviderName := d.Get("logging_provider_name").(string)
 	logLevel := hclog.LevelFromString(d.Get("logging_log_level").(string))
 	jsonList := d.Get("logging_jsonlist").(bool)
 	jsonListPromote := d.Get("logging_jsonlistpromote").(bool)
+	output := Stderr
+
+	if logToParent {
+		d.Set("open_parent_stderr", true)
+		output = ParentStderr()
+	}
+
 	logger := hclog.New(&hclog.LoggerOptions{
 		JSONFormat:      os.Getenv("TF_ACC") == "", // For logging in tests
 		JSONList:        jsonList,
 		JSONListPromote: jsonListPromote,
-		Output:          Stderr,
+		Output:          output,
 		Level:           logLevel,
 	})
 	hcloggers = append(hcloggers, logger)
@@ -545,7 +574,9 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			LeftDelim:  d.Get("templates_left_delim").(string),
 			RightDelim: d.Get("templates_right_delim").(string),
 		},
-		logging:                logging,
+		logging: logging,
+
+		OpenParentStderr:       d.Get("open_parent_stderr").(bool),
 		LoggingBufferSize:      int64(d.Get("logging_buffer_size").(int)),
 		StateComputeKeys:       castConfigListString(d.Get("state_compute_keys")),
 		OutputComputeKeys:      castConfigListString(d.Get("output_compute_keys")),
@@ -560,6 +591,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		EnvPrefix:              EnvPrefix,
 		InstanceState:          d.State(),
 	}
+
+	if config.OpenParentStderr {
+		ParentStderr()
+	}
+
 	logging.Log(hclog.Info, `Provider "scripted" initialized`)
 	return &config, nil
 }
