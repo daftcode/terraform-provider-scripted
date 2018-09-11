@@ -592,7 +592,7 @@ func (s *Scripted) ensureId() error {
 		entries = append(entries, hash(entry))
 	}
 
-	value := hash(strings.Join(entries, ""))
+	value := fmt.Sprintf("%s#%s", hash(strings.Join(entries, "")), s.d.Get("revision").(string))
 	s.log(hclog.Debug, "setting resource id", "id", value)
 	s.d.SetIdErr(value)
 	return nil
