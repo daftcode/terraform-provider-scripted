@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform/terraform"
+	"reflect"
 )
 
 var resourceSchema = getResourceSchema()
@@ -34,6 +36,11 @@ func getResourceSchema() map[string]*schema.Schema {
 			Description: "Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'`",
 			Sensitive:   true,
 		},
+		"revision": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "Resource's revision",
+		},
 		"update_trigger": {
 			Type:        schema.TypeBool,
 			Description: "Helper indicating whether resource should be updated, ignore this.",
@@ -45,6 +52,9 @@ func getResourceSchema() map[string]*schema.Schema {
 
 func getScriptedResource() *schema.Resource {
 	ret := &schema.Resource{
+		SchemaVersion: 2,
+		MigrateState:  stateMigrateFunc,
+
 		Create: resourceScriptedCreate,
 		Read:   resourceScriptedRead,
 		Update: resourceScriptedUpdate,
@@ -58,45 +68,64 @@ func getScriptedResource() *schema.Resource {
 	return ret
 }
 
+func hasChanged(a, b interface{}) bool {
+	if eq, ok := a.(schema.Equal); ok {
+		return !eq.Equal(b)
+	}
+
+	return !reflect.DeepEqual(a, b)
+}
+
+func stateMigrateFunc(version int, state *terraform.InstanceState, i interface{}) (*terraform.InstanceState, error) {
+	if _, ok := state.Attributes["revision"]; !ok {
+		state.Attributes["revision"] = "0"
+	}
+	if _, ok := state.Attributes["update_trigger"]; ok {
+		delete(state.Attributes, "update_trigger")
+	}
+	return state, nil
+}
+
 func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) error {
 	s, err := New(WrapResourceDiff(diff), i, OperationCustomizeDiff, false)
 	if err != nil {
 		return err
 	}
-	vDiff := make(map[string]map[string]interface{})
-	for _, key := range diff.GetChangedKeysPrefix("") {
-		o, n := s.d.GetChange(key)
-		vDiff[key] = map[string]interface{}{"old": o, "new": n}
-	}
-	changed := len(vDiff) > 0
-	jsonDiff, _ := toJson(vDiff)
-	s.log(hclog.Debug, "customize diff", "diff", jsonDiff)
-
-	changed = changed || len(diff.UpdatedKeys()) > 0
 	commandComputeKeys, err := s.getComputeKeysFromCommand()
-	commandComputeKeys = append(commandComputeKeys, "update_trigger")
 	if err != nil {
 		return err
 	}
+	computedKeys := s.getRecomputeKeysExtra("", commandComputeKeys)
+
+	changed := false
+	vDiff := make(map[string]map[string]interface{})
+	for _, key := range computedKeys {
+		o, n := s.d.GetChange(key)
+		if hasChanged(o, n) {
+			changed = true
+			vDiff[key] = map[string]interface{}{"old": o, "new": n}
+		}
+	}
+	if s.logging.level <= hclog.Debug {
+		jsonDiff, _ := toJson(vDiff)
+		s.log(hclog.Debug, "customize diff", "diff", jsonDiff)
+	}
+
 	if diff.Id() != "" {
 		if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
 			return err
-		} else if needsUpdate || changed {
-			s.log(hclog.Debug, "update triggered", "needsUpdate", needsUpdate, "changed", changed)
-			if !diff.HasChange("update_trigger") {
-				diff.SetNew("update_trigger", !diff.Get("update_trigger").(bool))
-			}
-			changed = true
+		} else {
+			changed = changed || needsUpdate
 		}
 	}
-	setNewComputedPrefix := "output"
-	if changed {
-		setNewComputedPrefix = ""
-	}
 
-	for _, key := range s.getRecomputeKeysExtra(setNewComputedPrefix, commandComputeKeys) {
-		s.log(hclog.Trace, "setting key as computed", "key", key)
-		diff.SetNewComputed(key)
+	if changed {
+		s.log(hclog.Debug, "update triggered")
+		s.bumpRevision()
+		for _, key := range computedKeys {
+			s.log(hclog.Trace, "setting key as computed", "key", key)
+			diff.SetNewComputed(key)
+		}
 	}
 
 	return nil

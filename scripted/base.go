@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -907,4 +908,17 @@ func (s *Scripted) getRecomputeKeysExtra(prefix string, extra []string) []string
 		ret = append(ret, key)
 	}
 	return ret
+}
+
+func (s *Scripted) bumpRevision() {
+	o, _ := s.d.GetChange("revision")
+	oldStr := o.(string)
+	oldRevision, _ := strconv.ParseUint(oldStr, 10, 64)
+	newRevision := oldRevision
+	if oldRevision == MaxUint64-1 {
+		newRevision = 0
+	} else {
+		newRevision += 1
+	}
+	s.d.Set("revision", fmt.Sprintf("%d", newRevision))
 }

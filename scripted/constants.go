@@ -9,6 +9,7 @@ const DefaultStatePrefix = `WViRV1TbGAGehAYFL8g3ZL8o1cg1bxaq`
 const DefaultLinePrefix = `QmGRizGk1fdPEBVVZSGkCRPJRgAe9p07B`
 const DefaultEmptyString = `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`
 const Version = version.Version
+const MaxUint64 = ^uint64(0)
 
 var DefaultWindowsInterpreter = []string{"cmd", "/C", "{{ .command }}"}
 var DefaultInterpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
