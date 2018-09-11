@@ -893,15 +893,17 @@ func (s *Scripted) getRecomputeKeys(prefix string) []string {
 	return ret
 }
 
-func (s *Scripted) getRecomputeKeysExtra(prefix string, extra []string) []string {
+func (s *Scripted) getRecomputeKeysExtra(extra []string, prefixes ...string) []string {
 	entries := map[string]bool{}
 	var ret []string
-	for _, key := range s.getRecomputeKeys(prefix) {
-		entries[key] = true
-	}
-	for _, key := range extra {
-		if strings.HasPrefix(key, prefix) {
+	for _, prefix := range prefixes {
+		for _, key := range s.getRecomputeKeys(prefix) {
 			entries[key] = true
+		}
+		for _, key := range extra {
+			if strings.HasPrefix(key, prefix) {
+				entries[key] = true
+			}
 		}
 	}
 	for key := range entries {
@@ -920,5 +922,6 @@ func (s *Scripted) bumpRevision() {
 	} else {
 		newRevision += 1
 	}
+	s.log(hclog.Info, fmt.Sprintf("Setting revision from %v to %v", oldRevision, newRevision))
 	s.d.Set("revision", fmt.Sprintf("%d", newRevision))
 }

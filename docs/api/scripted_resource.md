@@ -10,4 +10,3 @@
 | `output` | [map](https://www.terraform.io/docs/extend/schemas/schema-types.html#typemap) | Output from the read command | not set |
 | `revision` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Resource's revision | not set |
 | `state` | [map](https://www.terraform.io/docs/extend/schemas/schema-types.html#typemap) | Output from create/update commands. Set key: `echo '{{ .StatePrefix }}key=value'`. Delete key: `echo '{{ .StatePrefix }}key={{ .EmptyString }}'` | not set |
-| `update_trigger` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Helper indicating whether resource should be updated, ignore this. | not set |

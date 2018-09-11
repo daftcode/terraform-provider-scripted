@@ -151,3 +151,17 @@ func getGID() uint64 {
 	n, _ := strconv.ParseUint(string(b), 10, 64)
 	return n
 }
+
+func mergeStringSlices(slices ...[]string) []string {
+	entries := map[string]bool{}
+	for _, slice := range slices {
+		for _, key := range slice {
+			entries[key] = true
+		}
+	}
+	var ret []string
+	for key := range entries {
+		ret = append(ret, key)
+	}
+	return ret
+}

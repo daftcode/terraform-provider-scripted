@@ -41,12 +41,6 @@ func getResourceSchema() map[string]*schema.Schema {
 			Computed:    true,
 			Description: "Resource's revision",
 		},
-		"update_trigger": {
-			Type:        schema.TypeBool,
-			Description: "Helper indicating whether resource should be updated, ignore this.",
-			Optional:    true,
-			Computed:    true,
-		},
 	}
 }
 
@@ -95,15 +89,25 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	if err != nil {
 		return err
 	}
-	computedKeys := s.getRecomputeKeysExtra("", commandComputeKeys)
-
+	commandComputeKeys = append(commandComputeKeys, "revision")
+	computedKeys := s.getRecomputeKeysExtra(commandComputeKeys, "output", "state")
+	var allDiffKeys []string
+	allDiffKeys = append(allDiffKeys, mergeStringSlices(
+		diff.GetChangedKeysPrefix("context"),
+		diff.GetChangedKeysPrefix("environment"),
+		computedKeys,
+	)...)
 	changed := false
 	vDiff := make(map[string]map[string]interface{})
-	for _, key := range computedKeys {
+
+	for _, key := range allDiffKeys {
 		o, n := s.d.GetChange(key)
-		if hasChanged(o, n) {
+		if !diff.NewValueKnown(key) {
 			changed = true
-			vDiff[key] = map[string]interface{}{"old": o, "new": n}
+			vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": false}
+		} else if hasChanged(o, n) {
+			changed = true
+			vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": true}
 		}
 	}
 	if s.logging.level <= hclog.Debug {
@@ -111,16 +115,18 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 		s.log(hclog.Debug, "customize diff", "diff", jsonDiff)
 	}
 
-	if diff.Id() != "" {
-		if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
-			return err
-		} else {
-			changed = changed || needsUpdate
-		}
+	if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
+		return err
+	} else {
+		changed = changed || needsUpdate
+	}
+
+	if hasChanged(s.d.GetChange("revision")) {
+		changed = true
 	}
 
 	if changed {
-		s.log(hclog.Debug, "update triggered")
+		s.log(hclog.Info, "update triggered")
 		s.bumpRevision()
 		for _, key := range computedKeys {
 			s.log(hclog.Trace, "setting key as computed", "key", key)
@@ -150,6 +156,7 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 		s.rollback()
 		return err
 	}
+	s.bumpRevision()
 	return nil
 }
 
@@ -205,6 +212,7 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		s.rollback()
 	}
+	s.bumpRevision()
 	return err
 }
 
