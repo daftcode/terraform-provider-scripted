@@ -88,6 +88,7 @@ type ResourceInterface interface {
 	GetOk(string) (interface{}, bool)
 	Set(string, interface{}) error
 	Id() string
+	IsNew() bool
 	SetIdErr(string) error
 	GetChangedKeysPrefix(string) []string
 }

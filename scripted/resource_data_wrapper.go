@@ -9,6 +9,10 @@ type ResourceData struct {
 	*schema.ResourceData
 }
 
+func (d *ResourceData) IsNew() bool {
+	return d.ResourceData.IsNewResource()
+}
+
 func (d *ResourceData) GetChange(key string) (interface{}, interface{}) {
 	o, n := d.ResourceData.GetChange(key)
 	return deterraformify(o), deterraformify(n)

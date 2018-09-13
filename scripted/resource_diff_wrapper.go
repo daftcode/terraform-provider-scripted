@@ -9,6 +9,10 @@ type ResourceDiff struct {
 	*schema.ResourceDiff
 }
 
+func (rd *ResourceDiff) IsNew() bool {
+	return rd.ResourceDiff.Id() == ""
+}
+
 func (rd *ResourceDiff) GetChange(key string) (o interface{}, n interface{}) {
 	defer func() {
 		if r := recover(); r != nil {

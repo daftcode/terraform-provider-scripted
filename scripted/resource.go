@@ -85,44 +85,56 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	if err != nil {
 		return err
 	}
-	commandComputeKeys, err := s.getComputeKeysFromCommand()
-	if err != nil {
+	var computedKeys []string
+	if computedKeys, err = s.getComputeKeysFromCommand(); err != nil {
 		return err
 	}
-	commandComputeKeys = append(commandComputeKeys, "revision")
-	computedKeys := s.getRecomputeKeysExtra(commandComputeKeys, "output", "state")
-	var allDiffKeys []string
-	allDiffKeys = append(allDiffKeys, mergeStringSlices(
-		diff.GetChangedKeysPrefix("context"),
-		diff.GetChangedKeysPrefix("environment"),
-		computedKeys,
-	)...)
-	changed := false
-	vDiff := make(map[string]map[string]interface{})
+	computedKeys = append(computedKeys, "revision")
+	computedKeys = s.getRecomputeKeysExtra(computedKeys, "output", "state")
 
-	for _, key := range allDiffKeys {
-		o, n := s.d.GetChange(key)
-		if !diff.NewValueKnown(key) {
-			changed = true
-			vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": false}
-		} else if hasChanged(o, n) {
-			changed = true
-			vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": true}
+	changed := s.d.IsNew()
+
+	if !s.d.IsNew() {
+		var allDiffKeys []string
+		allDiffKeys = append(allDiffKeys, mergeStringSlices(
+			diff.GetChangedKeysPrefix("context"),
+			diff.GetChangedKeysPrefix("environment"),
+			computedKeys,
+		)...)
+		shouldLog := s.logging.level <= hclog.Debug
+
+		vDiff := make(map[string]map[string]interface{})
+
+		for _, key := range allDiffKeys {
+			o, n := s.d.GetChange(key)
+			if !diff.NewValueKnown(key) {
+				changed = true
+				if shouldLog {
+					vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": false}
+				}
+			} else if hasChanged(o, n) {
+				changed = true
+				if shouldLog {
+					vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": true}
+				}
+			}
 		}
-	}
-	if s.logging.level <= hclog.Debug {
-		jsonDiff, _ := toJson(vDiff)
-		s.log(hclog.Debug, "customize diff", "diff", jsonDiff)
-	}
 
-	if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
-		return err
-	} else {
-		changed = changed || needsUpdate
+		if shouldLog {
+			s.log(hclog.Debug, "customize diff", "diff", toJsonMust(vDiff))
+		}
 	}
 
 	if hasChanged(s.d.GetChange("revision")) {
 		changed = true
+	}
+
+	if !changed {
+		if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
+			return err
+		} else if needsUpdate {
+			changed = true
+		}
 	}
 
 	if changed {
