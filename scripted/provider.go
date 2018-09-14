@@ -533,6 +533,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		d.Set("commands_interpreter_provider_commands", interpreterProviderCommands)
 	}
 
+	outputLinePrefix := d.Get("output_line_prefix").(string)
+	if !isSet(outputLinePrefix) {
+		outputLinePrefix = ""
+		d.Set("output_line_prefix", outputLinePrefix)
+	}
 	config := ProviderConfig{
 		Commands: &CommandsConfig{
 			Environment: &EnvironmentConfig{
@@ -582,7 +587,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		StateComputeKeys:       castConfigListString(d.Get("state_compute_keys")),
 		OutputComputeKeys:      castConfigListString(d.Get("output_compute_keys")),
 		OutputFormat:           d.Get("output_format").(string),
-		OutputLinePrefix:       d.Get("output_line_prefix").(string),
+		OutputLinePrefix:       outputLinePrefix,
 		EmptyString:            EnvEmptyString,
 		StateFormat:            d.Get("state_format").(string),
 		LinePrefix:             d.Get("line_prefix").(string),

@@ -145,6 +145,11 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 			s.log(hclog.Trace, "setting key as computed", "key", key)
 			diff.SetNewComputed(key)
 		}
+	} else {
+		for _, key := range s.getRecomputeKeysExtra(computedKeys, "output") {
+			s.log(hclog.Trace, "setting key as computed", "key", key)
+			diff.SetNewComputed(key)
+		}
 	}
 
 	return nil
