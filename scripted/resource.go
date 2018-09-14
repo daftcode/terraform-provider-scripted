@@ -49,11 +49,12 @@ func getScriptedResource() *schema.Resource {
 		SchemaVersion: 2,
 		MigrateState:  stateMigrateFunc,
 
-		Create: resourceScriptedCreate,
-		Read:   resourceScriptedRead,
-		Update: resourceScriptedUpdate,
-		Delete: resourceScriptedDelete,
-		Exists: resourceScriptedExists,
+		Importer: &schema.ResourceImporter{State: schema.ImportStatePassthrough},
+		Create:   resourceScriptedCreate,
+		Read:     resourceScriptedRead,
+		Update:   resourceScriptedUpdate,
+		Delete:   resourceScriptedDelete,
+		Exists:   resourceScriptedExists,
 
 		Schema: getResourceSchema(),
 
