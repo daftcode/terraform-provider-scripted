@@ -1,7 +1,9 @@
 package scripted
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/Masterminds/sprig"
 	"github.com/ghodss/yaml"
 	"text/template"
@@ -19,6 +21,15 @@ var ExtraTemplateFuncs = template.FuncMap{
 	"isSet":              isSet,
 	"isFilled":           isFilled,
 	"terraformifyValues": terraformifyPrimitives,
+
+	"include":  func(string, interface{}) string { return "not implemented" },
+	"required": func(string, interface{}) interface{} { return "not implemented" },
+}
+
+func NewTemplate(name string) *template.Template {
+	t := template.New(name)
+	t = t.Funcs(getFuncsForTemplate(t))
+	return t
 }
 
 func getSprigTemplateFuncs() template.FuncMap {
@@ -26,6 +37,37 @@ func getSprigTemplateFuncs() template.FuncMap {
 	delete(ret, "env")
 	delete(ret, "expandenv")
 	return ret
+}
+
+func getFuncsForTemplate(t *template.Template) template.FuncMap {
+	funcMap := make(template.FuncMap)
+	for k, v := range TemplateFuncs {
+		funcMap[k] = v
+	}
+
+	// Copied from https://github.com/helm/helm/blob/3f0c6c54049d38e5c86dad1e9475f7dbf783be21/pkg/engine/engine.go#L150-L178
+
+	// Add the 'include' function here so we can close over t.
+	funcMap["include"] = func(name string, data interface{}) (string, error) {
+		buf := bytes.NewBuffer(nil)
+		if err := t.ExecuteTemplate(buf, name, data); err != nil {
+			return "", err
+		}
+		return buf.String(), nil
+	}
+
+	// Add the 'required' function here
+	funcMap["required"] = func(warn string, val interface{}) (interface{}, error) {
+		if val == nil {
+			return val, fmt.Errorf(warn)
+		} else if _, ok := val.(string); ok {
+			if val == "" {
+				return val, fmt.Errorf(warn)
+			}
+		}
+		return val, nil
+	}
+	return funcMap
 }
 
 func getTemplateFuncs() template.FuncMap {

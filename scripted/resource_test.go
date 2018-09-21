@@ -35,6 +35,32 @@ func TestAccScriptedResource_BasicCRD(t *testing.T) {
 	})
 }
 
+func TestAccScriptedResource_TemplateFuncInclude(t *testing.T) {
+	const testConfig = `
+	provider "scripted" {
+		commands_read = <<EOF
+{{- define "test" }}hi{{ end -}}
+echo out={{ include "test" . | quote }}
+EOF
+	}
+	resource "scripted_resource" "test" {
+	}
+`
+
+	resource.Test(t, resource.TestCase{
+		Providers: testAccProviders,
+
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckResourceOutput("scripted_resource.test", "out", "hi"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccScriptedResource_Prefix(t *testing.T) {
 	const testConfig = `
 	provider "scripted" {

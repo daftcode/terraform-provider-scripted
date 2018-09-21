@@ -363,9 +363,8 @@ func (s *Scripted) scanJson(input chan string, output chan KVEntry) {
 
 func (s *Scripted) templateExtra(command string, names []string, tpl string, extraCtx map[string]interface{}) (string, *JsonContext, error) {
 	name := strings.Join(names, "+")
-	t := template.New(name)
+	t := NewTemplate(name)
 	t = t.Delims(s.pc.Templates.LeftDelim, s.pc.Templates.RightDelim)
-	t = t.Funcs(TemplateFuncs)
 	t, err := t.Parse(tpl)
 	if err != nil {
 		s.log(hclog.Warn, "error when parsing template", "error", err)

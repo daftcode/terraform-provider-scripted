@@ -56,6 +56,7 @@ Builtin go template functions are available at the [official docs](https://golan
 | `hello` | `sprig` | `func() string` |
 | `htmlDate` | `sprig` | `func(interface {}) string` |
 | `htmlDateInZone` | `sprig` | `func(interface {}, string) string` |
+| `include` | `scripted` | `func(string, interface {}) string` |
 | `indent` | `sprig` | `func(int, string) string` |
 | `initial` | `sprig` | `func(interface {}) []interface {}` |
 | `initials` | `sprig` | `func(string) string` |
@@ -99,6 +100,7 @@ Builtin go template functions are available at the [official docs](https://golan
 | `regexSplit` | `sprig` | `func(string, string, int) []string` |
 | `repeat` | `sprig` | `func(int, string) string` |
 | `replace` | `sprig` | `func(string, string, string) string` |
+| `required` | `scripted` | `func(string, interface {}) interface {}` |
 | `rest` | `sprig` | `func(interface {}) []interface {}` |
 | `reverse` | `sprig` | `func(interface {}) []interface {}` |
 | `round` | `sprig` | `func(interface {}, int, ...float64) float64` |
