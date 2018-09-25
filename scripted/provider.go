@@ -75,6 +75,12 @@ func Provider() terraform.ResourceProvider {
 				DefaultFunc: defaultEmptyString,
 				Description: fmt.Sprintf("Command determining whether dependencies are met, dependencies met triggered by `%s`", TriggerStringTpl),
 			},
+			"commands_dependencies_error": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Should commands fail on dependencies not met?",
+			},
 			"commands_environment_include_json_context": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -570,6 +576,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 			},
 			InterpreterIsProvider:       d.Get("commands_interpreter_is_provider").(bool),
 			InterpreterProviderCommands: interpreterProviderCommands,
+			DependenciesNotMetError:     d.Get("commands_dependencies_error").(bool),
 			DeleteOnNotExists:           d.Get("commands_delete_on_not_exists").(bool),
 			DeleteOnReadFailure:         d.Get("commands_delete_on_read_failure").(bool),
 			Separator:                   d.Get("commands_separator").(string),

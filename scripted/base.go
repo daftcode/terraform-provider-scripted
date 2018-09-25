@@ -85,12 +85,16 @@ type KVEntry struct {
 type ResourceInterface interface {
 	GetChange(string) (interface{}, interface{})
 	Get(string) interface{}
+	GetOld(string) interface{}
 	GetOk(string) (interface{}, bool)
 	Set(string, interface{}) error
 	Id() string
 	IsNew() bool
 	SetIdErr(string) error
 	GetChangedKeysPrefix(string) []string
+	GetRollbackKeys() []string
+	HasChangedKeysPrefix(string) bool
+	HasChange(string) bool
 }
 
 func New(d ResourceInterface, meta interface{}, operation TerraformOperation, old bool) (*Scripted, error) {
@@ -584,10 +588,12 @@ func (s *Scripted) ensureId() error {
 			return nil
 		}
 	}
-	env := castEnvironmentMap(s.d.Get("environment"))
+
 	var entries []string
 	entries = append(entries, getMapHash(s.d.Get("context").(map[string]interface{}))...)
 	entries = append(entries, getMapHash(s.d.Get("state").(map[string]interface{}))...)
+
+	env := castEnvironmentMap(s.d.Get("environment"))
 	for _, entry := range env {
 		entries = append(entries, hash(entry))
 	}
@@ -760,8 +766,11 @@ func (s *Scripted) checkNeedsUpdate() (bool, error) {
 	err = s.execute(lines, jsonCtx, command)
 	return <-triggered, err
 }
-
 func (s *Scripted) checkDependenciesMet() (bool, error) {
+	return s.checkDependenciesMetSkippable(s.pc.Commands.DependenciesNotMetError)
+}
+
+func (s *Scripted) checkDependenciesMetSkippable(notMetError bool) (bool, error) {
 	var err error
 	run := func() {
 		defer s.logging.PushDefer("commands", "dependencies")()
@@ -790,6 +799,9 @@ func (s *Scripted) checkDependenciesMet() (bool, error) {
 		s.log(hclog.Debug, "setting `dependencies_met`", "value", s.dependenciesMet)
 	}
 	s.dependenciesMetOnce.Do(run)
+	if notMetError && !s.dependenciesMet && err == nil {
+		err = fmt.Errorf("dependencies not met")
+	}
 	return s.dependenciesMet, err
 }
 
@@ -816,7 +828,7 @@ func (s *Scripted) runningMessages() func() {
 
 func (s *Scripted) rollback() {
 	s.log(hclog.Info, "rollback started")
-	for _, key := range s.d.GetChangedKeysPrefix("") {
+	for _, key := range s.d.GetRollbackKeys() {
 		o, n := s.d.GetChange(key)
 		s.log(hclog.Trace, "rolling back value", "key", key, "to", o, "from", n)
 		s.d.Set(key, o)
@@ -912,9 +924,22 @@ func (s *Scripted) getRecomputeKeysExtra(extra []string, prefixes ...string) []s
 	return ret
 }
 
+func (s *Scripted) ensureRevision() {
+	o, n := s.d.GetChange("revision")
+	nS := n.(string)
+	oS := o.(string)
+	if nS != "" {
+		return
+	}
+	if oS == "" {
+		s.bumpRevision()
+	} else {
+		s.d.Set("revision", oS)
+	}
+}
+
 func (s *Scripted) bumpRevision() {
-	o, _ := s.d.GetChange("revision")
-	oldStr := o.(string)
+	oldStr := s.d.GetOld("revision").(string)
 	oldRevision, _ := strconv.ParseUint(oldStr, 10, 64)
 	newRevision := oldRevision
 	if oldRevision == MaxUint64-1 {

@@ -9,6 +9,10 @@ type ResourceDiff struct {
 	*schema.ResourceDiff
 }
 
+func (rd *ResourceDiff) GetRollbackKeys() []string {
+	return rd.GetChangedKeysPrefix("")
+}
+
 func (rd *ResourceDiff) IsNew() bool {
 	return rd.ResourceDiff.Id() == ""
 }
@@ -30,6 +34,11 @@ func (rd *ResourceDiff) GetChange(key string) (o interface{}, n interface{}) {
 	return o, n
 }
 
+func (rd *ResourceDiff) GetOld(key string) interface{} {
+	o, _ := rd.GetChange(key)
+	return o
+}
+
 func (rd *ResourceDiff) Set(key string, value interface{}) error {
 	return rd.ResourceDiff.SetNew(key, value)
 }
@@ -40,6 +49,14 @@ func (rd *ResourceDiff) SetIdErr(string) error {
 
 func (rd *ResourceDiff) GetChangedKeysPrefix(prefix string) []string {
 	return rd.ResourceDiff.GetChangedKeysPrefix(prefix)
+}
+
+func (rd *ResourceDiff) HasChangedKeysPrefix(prefix string) bool {
+	return len(rd.GetChangedKeysPrefix(prefix)) > 0
+}
+
+func (rd *ResourceDiff) HasChange(key string) bool {
+	return !rd.ResourceDiff.NewValueKnown(key) || rd.ResourceDiff.HasChange(key)
 }
 
 func WrapResourceDiff(diff *schema.ResourceDiff) ResourceInterface {

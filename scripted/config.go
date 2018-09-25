@@ -47,6 +47,7 @@ type CommandsConfig struct {
 	TriggerString               string
 	InterpreterIsProvider       bool
 	InterpreterProviderCommands []string
+	DependenciesNotMetError     bool
 }
 
 type TemplatesConfig struct {

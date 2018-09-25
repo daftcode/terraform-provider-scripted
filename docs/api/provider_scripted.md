@@ -11,6 +11,7 @@
 | `commands_delete_on_not_exists` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when exists fails | `true` |
 | `commands_delete_on_read_failure` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Delete resource when read fails | `false` |
 | `commands_dependencies` | [string](https://www.terraform.io/docs/extend/schemas/schema-types.html#typestring) | Command determining whether dependencies are met, dependencies met triggered by `{{ .TriggerString }}` | not set |
+| `commands_dependencies_error` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Should commands fail on dependencies not met? | `false` |
 | `commands_environment_include_json_context` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Should whole TemplateContext be passed as JSON serialized TF_SCRIPTED_CONTEXT environment variable to commands? | `false` |
 | `commands_environment_include_parent` | [bool](https://www.terraform.io/docs/extend/schemas/schema-types.html#typebool) | Include whole parent environment in the command? | `false` |
 | `commands_environment_inherit_variables` | [list](https://www.terraform.io/docs/extend/schemas/schema-types.html#typelist) | List of environment variables to inherit from parent.  | `$TF_SCRIPTED_ENVIRONMENT_INHERIT_VARIABLES` (JSON array) |

@@ -5,13 +5,17 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
-	"reflect"
 )
 
 var resourceSchema = getResourceSchema()
 
 func getResourceSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
+		"dependencies": {
+			Type:        schema.TypeMap,
+			Optional:    true,
+			Description: "Resource dependencies' values used for triggering updates and nothing else",
+		},
 		"context": {
 			Type:        schema.TypeMap,
 			Optional:    true,
@@ -63,15 +67,7 @@ func getScriptedResource() *schema.Resource {
 	return ret
 }
 
-func hasChanged(a, b interface{}) bool {
-	if eq, ok := a.(schema.Equal); ok {
-		return !eq.Equal(b)
-	}
-
-	return !reflect.DeepEqual(a, b)
-}
-
-func stateMigrateFunc(version int, state *terraform.InstanceState, i interface{}) (*terraform.InstanceState, error) {
+func stateMigrateFunc(_ int, state *terraform.InstanceState, i interface{}) (*terraform.InstanceState, error) {
 	if _, ok := state.Attributes["revision"]; !ok {
 		state.Attributes["revision"] = "0"
 	}
@@ -96,27 +92,24 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	changed := s.d.IsNew()
 
 	if !s.d.IsNew() {
-		var allDiffKeys []string
-		allDiffKeys = append(allDiffKeys, mergeStringSlices(
-			diff.GetChangedKeysPrefix("context"),
-			diff.GetChangedKeysPrefix("environment"),
-			computedKeys,
-		)...)
+		allDiffKeys := []string{"revision"}
+		allDiffKeys = append(allDiffKeys,
+			mergeStringSlices(
+				diff.GetChangedKeysPrefix("dependencies"),
+				diff.GetChangedKeysPrefix("context"),
+				diff.GetChangedKeysPrefix("environment"),
+				computedKeys,
+			)...)
 		shouldLog := s.logging.level <= hclog.Debug
 
 		vDiff := make(map[string]map[string]interface{})
 
 		for _, key := range allDiffKeys {
-			o, n := s.d.GetChange(key)
-			if !diff.NewValueKnown(key) {
+			if s.d.HasChange(key) {
 				changed = true
 				if shouldLog {
-					vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": false}
-				}
-			} else if hasChanged(o, n) {
-				changed = true
-				if shouldLog {
-					vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": true}
+					o, n := s.d.GetChange(key)
+					vDiff[key] = map[string]interface{}{"old": o, "new": n, "newKnown": diff.NewValueKnown(key)}
 				}
 			}
 		}
@@ -124,10 +117,6 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 		if shouldLog {
 			s.log(hclog.Debug, "customize diff", "diff", toJsonMust(vDiff))
 		}
-	}
-
-	if hasChanged(s.d.GetChange("revision")) {
-		changed = true
 	}
 
 	if !changed {
@@ -155,12 +144,12 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	if met, err := s.checkDependenciesMet(); err != nil {
-		return err
-	} else if !met {
+
+	if met, err := s.checkDependenciesMet(); !met || err != nil {
 		s.rollback()
-		return fmt.Errorf("Dependency not met, create failed.")
+		return err
 	}
+
 	err = resourceScriptedCreateBase(s)
 	if err != nil {
 		return err
@@ -169,7 +158,10 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 		s.rollback()
 		return err
 	}
-	s.bumpRevision()
+
+	if err := s.ensureId(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -179,15 +171,34 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	defer s.runningMessages()()
-	if met, err := s.checkDependenciesMet(); err != nil {
-		return err
-	} else if !met {
+
+	if met, err := s.checkDependenciesMet(); !met || err != nil {
 		s.rollback()
-		return nil
+		return err
 	}
 
 	if err := resourceScriptedReadBase(s); err != nil {
 		s.rollback()
+		return err
+	}
+
+	{
+		changed := false
+		changed = changed || s.d.HasChangedKeysPrefix("")
+
+		if !changed {
+			if needsUpdate, err := s.checkNeedsUpdate(); err != nil {
+				return err
+			} else if needsUpdate {
+				changed = true
+			}
+		}
+
+		if changed {
+			s.bumpRevision()
+		}
+	}
+	if err := s.ensureId(); err != nil {
 		return err
 	}
 	return nil
@@ -200,12 +211,12 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 	err = func() error {
 		defer s.runningMessages()()
-		if met, err := s.checkDependenciesMet(); err != nil {
-			return err
-		} else if !met {
+
+		if met, err := s.checkDependenciesMet(); !met || err != nil {
 			s.rollback()
-			return fmt.Errorf("Dependency not met, update failed.")
+			return err
 		}
+
 		if isSet(s.pc.Commands.Templates.Update) {
 			err = resourceScriptedUpdateBase(s)
 			if err != nil {
@@ -222,10 +233,15 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 
 		return resourceScriptedReadBase(s)
 	}()
+
 	if err != nil {
 		s.rollback()
+	} else {
+		s.bumpRevision()
+		if err := s.ensureId(); err != nil {
+			return err
+		}
 	}
-	s.bumpRevision()
 	return err
 }
 
@@ -235,7 +251,7 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		return true, err
 	}
 	defer s.runningMessages()()
-	if met, err := s.checkDependenciesMet(); err != nil {
+	if met, err := s.checkDependenciesMetSkippable(false); err != nil {
 		return true, err
 	} else if !met {
 		return true, nil
@@ -275,12 +291,12 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	defer s.runningMessages()()
-	if met, err := s.checkDependenciesMet(); err != nil {
-		return err
-	} else if !met {
+
+	if met, err := s.checkDependenciesMet(); !met || err != nil {
 		s.rollback()
-		return nil
+		return err
 	}
+
 	if err := resourceScriptedDeleteBase(s); err != nil {
 		s.rollback()
 		return err
@@ -296,9 +312,6 @@ func resourceScriptedCreateBase(s *Scripted) error {
 			return resourceScriptedUpdateBase(s)
 		}
 		s.log(hclog.Debug, msg)
-		if err := s.ensureId(); err != nil {
-			return err
-		}
 		s.clearState()
 		return nil
 	}
@@ -324,10 +337,6 @@ func resourceScriptedCreateBase(s *Scripted) error {
 	save <- err == nil
 	<-done
 	if err != nil {
-		return err
-	}
-
-	if err := s.ensureId(); err != nil {
 		return err
 	}
 	s.log(hclog.Debug, "created resource", "id", s.getId())
@@ -386,9 +395,6 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	}
 	if !isFilled(command) {
 		s.log(hclog.Warn, fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandUpdate))
-		if err := s.ensureId(); err != nil {
-			return err
-		}
 		return nil
 	}
 	s.log(hclog.Info, "updating resource", "command", command)
@@ -398,9 +404,6 @@ func resourceScriptedUpdateBase(s *Scripted) error {
 	<-done
 	if err != nil {
 		s.log(hclog.Warn, "update command returned error", "error", err)
-		return err
-	}
-	if err := s.ensureId(); err != nil {
 		return err
 	}
 	return nil

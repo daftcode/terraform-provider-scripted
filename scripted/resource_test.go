@@ -173,29 +173,34 @@ func TestAccScriptedResource_NeedsUpdate(t *testing.T) {
 	}
 	resource "scripted_resource" "test" {}
 `
+	printStep, _ := stepPrinter()
 	resource.Test(t, resource.TestCase{
 		Providers: testAccProviders,
-		PreCheck:  stepPrinter(),
 		Steps: []resource.TestStep{
 			{
-				Config: testConfigNeverUpdate,
+				PreConfig: printStep,
+				Config:    testConfigNeverUpdate,
 			},
 			{
+				PreConfig:          printStep,
 				Config:             testConfigNeverUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 			{
+				PreConfig:          printStep,
 				Config:             testConfigAlwaysUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			{
+				PreConfig:          printStep,
 				Config:             testConfigNeverUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
 			{
+				PreConfig:          printStep,
 				Config:             testConfigAlwaysUpdate,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
@@ -661,15 +666,23 @@ EOF
 	})
 }
 
-func stepPrinter() func() {
-	step := 0
-	os.Stderr.WriteString(fmt.Sprintf(">>>>>>>>>>> stepPrinter initialized with %d\n", step))
-	return func() {
-		if Debug {
-			os.Stderr.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d\n", step))
-		}
-		step++
+func stepPrinter() (func(), resource.TestCheckFunc) {
+	step := -1
+	out := os.Stderr
+	if Debug {
+		out.WriteString(fmt.Sprintf(">>>>>>>>>>> stepPrinter initialized with %d\n", step))
 	}
+	return func() {
+			step++
+			if Debug {
+				out.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d\n", step))
+			}
+		}, func(*terraform.State) error {
+			if Debug {
+				out.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d check\n", step))
+			}
+			return nil
+		}
 }
 
 func TestAccScriptedResource_RollbackDependenciesMet(t *testing.T) {
@@ -690,9 +703,10 @@ EOF
 		}
 	}
 `
+
 	const testConfigDoNothing = `
 	provider "scripted" {
-  		commands_dependencies = " "
+  		commands_dependencies = "true"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -705,7 +719,7 @@ EOF
   		commands_read = <<EOF
 echo out={{ .Cur.val | quote }}
 EOF
-		commands_update = "exit 1"
+		commands_update = "false"
 	}
 	resource "scripted_resource" "test" {
 		context {
@@ -714,7 +728,7 @@ EOF
 	}
 `
 
-	printStep := stepPrinter()
+	printStep, _ := stepPrinter()
 	resource.Test(t, resource.TestCase{
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
