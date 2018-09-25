@@ -11,10 +11,10 @@ var resourceSchema = getResourceSchema()
 
 func getResourceSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"dependencies": {
+		"triggers": {
 			Type:        schema.TypeMap,
 			Optional:    true,
-			Description: "Resource dependencies' values used for triggering updates and nothing else",
+			Description: "Change triggers, not used for anything else",
 		},
 		"context": {
 			Type:        schema.TypeMap,
@@ -95,7 +95,7 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 		allDiffKeys := []string{"revision"}
 		allDiffKeys = append(allDiffKeys,
 			mergeStringSlices(
-				diff.GetChangedKeysPrefix("dependencies"),
+				diff.GetChangedKeysPrefix("triggers"),
 				diff.GetChangedKeysPrefix("context"),
 				diff.GetChangedKeysPrefix("environment"),
 				computedKeys,
