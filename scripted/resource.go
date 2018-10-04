@@ -90,7 +90,6 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	if computedKeys, err = s.getComputeKeysFromCommand(); err != nil {
 		return err
 	}
-	computedKeys = append(computedKeys, "revision")
 	computedKeys = s.getRecomputeKeysExtra(computedKeys, "output", "state")
 
 	changed := s.d.IsNew()
@@ -136,10 +135,12 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 		if err := s.bumpRevision(); err != nil {
 			return err
 		}
+		// if err := diff.Clear("revision"); err != nil {
+		// 	return err
+		// }
 		for _, key := range computedKeys {
 			if strings.HasSuffix(key, ".%") || strings.HasSuffix(key, ".#") {
-				s.log(hclog.Trace, "skipped setting key as computed", "key", key)
-				continue
+				key = key[:len(key)-2]
 			}
 			s.log(hclog.Trace, "setting key as computed", "key", key)
 			if err = diff.SetNewComputed(key); err != nil {
