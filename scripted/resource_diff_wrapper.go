@@ -3,6 +3,7 @@ package scripted
 import (
 	"fmt"
 	"github.com/hashicorp/terraform/helper/schema"
+	"runtime/debug"
 )
 
 type ResourceDiff struct {
@@ -40,7 +41,11 @@ func (rd *ResourceDiff) GetOld(key string) interface{} {
 }
 
 func (rd *ResourceDiff) Set(key string, value interface{}) error {
-	return rd.ResourceDiff.SetNew(key, value)
+	err := rd.ResourceDiff.SetNew(key, value)
+	if err != nil {
+		debug.PrintStack()
+	}
+	return err
 }
 
 func (rd *ResourceDiff) SetIdErr(string) error {

@@ -139,10 +139,6 @@ func chToString(lines chan string) chan string {
 	return output
 }
 
-func ToString(val interface{}) string {
-	return fmt.Sprintf("%s", val)
-}
-
 func getGID() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]

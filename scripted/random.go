@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+//noinspection SpellCheckingInspection
 const alphaCharset = "abcdefghijklmnopqrstuvwxyz" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const alnumCharset = alphaCharset + "0123456789"
 
@@ -21,10 +22,12 @@ func RandomStringWithCharset(length int, charset string) string {
 	return string(b)
 }
 
+//noinspection GoUnusedExportedFunction
 func RandomSafeString(length int) string {
 	return RandomStringWithCharset(1, alphaCharset) + RandomStringWithCharset(length-1, alnumCharset)
 }
 
+//noinspection GoUnusedExportedFunction
 func RandomString(length int) string {
 	return RandomStringWithCharset(length, charset)
 }

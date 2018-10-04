@@ -5,6 +5,9 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
+	"strings"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 var resourceSchema = getResourceSchema()
@@ -67,6 +70,7 @@ func getScriptedResource() *schema.Resource {
 	return ret
 }
 
+//noinspection GoUnusedParameter
 func stateMigrateFunc(_ int, state *terraform.InstanceState, i interface{}) (*terraform.InstanceState, error) {
 	if _, ok := state.Attributes["revision"]; !ok {
 		state.Attributes["revision"] = "0"
@@ -129,10 +133,18 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 
 	if changed {
 		s.log(hclog.Info, "update triggered")
-		s.bumpRevision()
+		if err := s.bumpRevision(); err != nil {
+			return err
+		}
 		for _, key := range computedKeys {
+			if strings.HasSuffix(key, ".%") || strings.HasSuffix(key, ".#") {
+				s.log(hclog.Trace, "skipped setting key as computed", "key", key)
+				continue
+			}
 			s.log(hclog.Trace, "setting key as computed", "key", key)
-			diff.SetNewComputed(key)
+			if err = diff.SetNewComputed(key); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -146,7 +158,9 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	if met, err := s.checkDependenciesMet(); !met || err != nil {
-		s.rollback()
+		if rErr := s.rollback(); rErr != nil {
+			err = multierror.Append(err, rErr)
+		}
 		return err
 	}
 
@@ -155,7 +169,9 @@ func resourceScriptedCreate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	if err := resourceScriptedReadBase(s); err != nil {
-		s.rollback()
+		if rErr := s.rollback(); rErr != nil {
+			err = multierror.Append(err, rErr)
+		}
 		return err
 	}
 
@@ -173,12 +189,16 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 	defer s.runningMessages()()
 
 	if met, err := s.checkDependenciesMet(); !met || err != nil {
-		s.rollback()
+		if rErr := s.rollback(); rErr != nil {
+			err = multierror.Append(err, rErr)
+		}
 		return err
 	}
 
 	if err := resourceScriptedReadBase(s); err != nil {
-		s.rollback()
+		if rErr := s.rollback(); rErr != nil {
+			err = multierror.Append(err, rErr)
+		}
 		return err
 	}
 
@@ -195,7 +215,9 @@ func resourceScriptedRead(d *schema.ResourceData, meta interface{}) error {
 		}
 
 		if changed {
-			s.bumpRevision()
+			if err := s.bumpRevision(); err != nil {
+				return err
+			}
 		}
 	}
 	if err := s.ensureId(); err != nil {
@@ -213,7 +235,9 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 		defer s.runningMessages()()
 
 		if met, err := s.checkDependenciesMet(); !met || err != nil {
-			s.rollback()
+			if rErr := s.rollback(); rErr != nil {
+				err = multierror.Append(err, rErr)
+			}
 			return err
 		}
 
@@ -235,9 +259,13 @@ func resourceScriptedUpdate(d *schema.ResourceData, meta interface{}) error {
 	}()
 
 	if err != nil {
-		s.rollback()
+		if rErr := s.rollback(); rErr != nil {
+			err = multierror.Append(err, rErr)
+		}
 	} else {
-		s.bumpRevision()
+		if err := s.bumpRevision(); err != nil {
+			return err
+		}
 		if err := s.ensureId(); err != nil {
 			return err
 		}
@@ -278,7 +306,9 @@ func resourceScriptedExists(d *schema.ResourceData, meta interface{}) (bool, err
 		s.log(hclog.Warn, "exists returned error", "error", err)
 		missing = true
 	} else if missing && s.pc.Commands.DeleteOnNotExists {
-		s.clear()
+		if err := s.clear(); err != nil {
+			return true, err
+		}
 	}
 
 	s.log(hclog.Debug, "resource exists result", "exists", !missing, "triggered", triggered, "err", err)
@@ -293,12 +323,16 @@ func resourceScriptedDelete(d *schema.ResourceData, meta interface{}) error {
 	defer s.runningMessages()()
 
 	if met, err := s.checkDependenciesMet(); !met || err != nil {
-		s.rollback()
+		if rErr := s.rollback(); rErr != nil {
+			err = multierror.Append(err, rErr)
+		}
 		return err
 	}
 
 	if err := resourceScriptedDeleteBase(s); err != nil {
-		s.rollback()
+		if rErr := s.rollback(); rErr != nil {
+			err = multierror.Append(err, rErr)
+		}
 		return err
 	}
 	return nil
@@ -346,7 +380,9 @@ func resourceScriptedCreateBase(s *Scripted) error {
 func resourceScriptedReadBase(s *Scripted) error {
 	onEmpty := func(msg string) error {
 		s.log(hclog.Debug, msg)
-		s.d.Set("output", map[string]string{})
+		if err := s.d.Set("output", map[string]string{}); err != nil {
+			return err
+		}
 		return nil
 	}
 	defer s.logging.PushDefer("commands", "read")()
@@ -376,7 +412,9 @@ func resourceScriptedReadBase(s *Scripted) error {
 	if err != nil {
 		if s.pc.Commands.DeleteOnReadFailure {
 			s.log(hclog.Info, "command returned error, marking resource deleted", "error", err, "output", output)
-			s.clear()
+			if err := s.clear(); err != nil {
+				return err
+			}
 			return nil
 		}
 		return err
@@ -413,7 +451,9 @@ func resourceScriptedDeleteBase(s *Scripted) error {
 	defer s.logging.PushDefer("commands", "delete")()
 	onEmpty := func(msg string) error {
 		s.log(hclog.Debug, msg)
-		s.clear()
+		if err := s.clear(); err != nil {
+			return err
+		}
 		return nil
 	}
 	if !isSet(s.pc.Commands.Templates.Delete) {
@@ -434,6 +474,8 @@ func resourceScriptedDeleteBase(s *Scripted) error {
 		return err
 	}
 
-	s.clear()
+	if err := s.clear(); err != nil {
+		return err
+	}
 	return nil
 }

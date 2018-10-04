@@ -4,14 +4,24 @@ import "github.com/daftcode/terraform-provider-scripted/version"
 
 const JsonContextEnvKey = "TF_SCRIPTED_CONTEXT"
 const DefaultEnvPrefix = "TF_SCRIPTED_"
+
+//noinspection SpellCheckingInspection
 const DefaultTriggerString = `ndn4VFxYG489bUmV6xKjKFE0RYQIJdts`
+
+//noinspection SpellCheckingInspection
 const DefaultStatePrefix = `WViRV1TbGAGehAYFL8g3ZL8o1cg1bxaq`
+
+//noinspection SpellCheckingInspection
 const DefaultLinePrefix = `QmGRizGk1fdPEBVVZSGkCRPJRgAe9p07B`
+
+//noinspection SpellCheckingInspection
 const DefaultEmptyString = `ZVaXr3jCd80vqJRhBP9t83LrpWIdNKWJ`
 const Version = version.Version
 const MaxUint64 = ^uint64(0)
 
 var DefaultWindowsInterpreter = []string{"cmd", "/C", "{{ .command }}"}
+
+//noinspection SpellCheckingInspection
 var DefaultInterpreter = []string{"bash", "-Eeuo", "pipefail", "-c", "{{ .command }}"}
 
 var ValidLogLevelsStrings = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}

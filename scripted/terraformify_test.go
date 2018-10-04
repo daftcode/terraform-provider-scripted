@@ -70,18 +70,18 @@ func TestTerraformify(t *testing.T) {
 		this := output[key]
 		other := expected[key]
 		if this != other {
-			os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
 			equal = false
 		}
 	}
 	if Debug {
-		os.Stderr.WriteString(fmt.Sprintf("input: %#v\n", input))
-		os.Stderr.WriteString(fmt.Sprintf("output: %#v\n", output))
-		os.Stderr.WriteString(fmt.Sprintf("expected: %#v\n", expected))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("input: %#v\n", input))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("output: %#v\n", output))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("expected: %#v\n", expected))
 	}
 	if !equal {
-		os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(output)))
-		os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(output)))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(output)))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(output)))
 		t.Fail()
 	}
 
@@ -89,7 +89,7 @@ func TestTerraformify(t *testing.T) {
 	backwards := bw.(map[string]interface{})
 
 	if Debug {
-		os.Stderr.WriteString(fmt.Sprintf("backwards: %#v\n", backwards))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("backwards: %#v\n", backwards))
 	}
 
 	terraformified := fromJsonMust(jsonDataTerraformified).(map[string]interface{})
@@ -105,13 +105,13 @@ func TestTerraformify(t *testing.T) {
 		this := backwards[key]
 		other := terraformified[key]
 		if !reflect.DeepEqual(this, other) {
-			os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
 			equal = false
 		}
 	}
 	if !equal {
-		os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(backwards)))
-		os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(terraformified)))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(backwards)))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(terraformified)))
 		t.Fail()
 	}
 }
@@ -186,18 +186,18 @@ func Test_TerraformifyPrimitives(t *testing.T) {
 		this := output[key]
 		other := expected[key]
 		if !reflect.DeepEqual(this, other) {
-			os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("[%#v] %#v != %#v\n", key, this, other))
 			equal = false
 		}
 	}
 	if Debug {
-		os.Stderr.WriteString(fmt.Sprintf("input: %#v\n", input))
-		os.Stderr.WriteString(fmt.Sprintf("output: %#v\n", output))
-		os.Stderr.WriteString(fmt.Sprintf("expected: %#v\n", expected))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("input: %#v\n", input))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("output: %#v\n", output))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("expected: %#v\n", expected))
 	}
 	if !equal {
-		os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(output)))
-		os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(output)))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("output: %v\n", toPrettyJsonMust(output)))
+		_, _ = os.Stderr.WriteString(fmt.Sprintf("expected: %v\n", toPrettyJsonMust(output)))
 		t.Fail()
 	}
 }

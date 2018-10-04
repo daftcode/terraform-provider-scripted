@@ -24,7 +24,7 @@ func envKey(key string) (ret string) {
 		ret = EnvPrefix + key
 	}
 	if debugLogging {
-		Stderr.WriteString(fmt.Sprintf(`envKey("%s") -> ("%s")`+"\n", key, ret))
+		_, _ = Stderr.WriteString(fmt.Sprintf(`envKey("%s") -> ("%s")`+"\n", key, ret))
 	}
 	return ret
 }
@@ -79,6 +79,7 @@ func getEnvBoolFalse(key string) bool {
 	return getEnvBool(key, false)
 }
 
+//noinspection GoUnusedFunction
 func getEnvBoolTrue(key string) bool {
 	return getEnvBool(key, true)
 }
@@ -94,7 +95,7 @@ func envDefaultOk(key, defValue string) (value string, ok bool) {
 		value = defValue
 	}
 	if debugLogging {
-		Stderr.WriteString(fmt.Sprintf(`envDefaultOk("%s", "%s") -> ("%s", %v)`+"\n", key, defValue, value, ok))
+		_, _ = Stderr.WriteString(fmt.Sprintf(`envDefaultOk("%s", "%s") -> ("%s", %v)`+"\n", key, defValue, value, ok))
 	}
 	return value, ok
 }
@@ -167,6 +168,7 @@ func floatDefaultSchema(s *schema.Schema, key, description string, defVal float6
 	return s
 }
 
+//noinspection GoUnusedFunction
 func intDefaultSchema(s *schema.Schema, key, description string, defVal int) *schema.Schema {
 	key = strings.ToUpper(key)
 	s = stringDefaultSchemaMsgVal(s, key, description, "")

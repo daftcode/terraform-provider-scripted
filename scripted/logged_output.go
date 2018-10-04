@@ -30,11 +30,14 @@ func (lo *LoggedOutput) Start() *io.PipeWriter {
 	return lo.pw
 }
 
-func (lo *LoggedOutput) Close() {
-	lo.pw.Close()
+func (lo *LoggedOutput) Close() error {
+	if err := lo.pw.Close(); err != nil {
+		return err
+	}
 	select {
 	case <-lo.doneCh:
 	}
+	return nil
 }
 
 func (lo *LoggedOutput) logOutput() {

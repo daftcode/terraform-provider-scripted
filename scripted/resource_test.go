@@ -434,6 +434,7 @@ func TestAccScriptedResource_EnvironmentTemplateRecover(t *testing.T) {
 		}
 	}
 `
+	//noinspection SpellCheckingInspection
 	resource.Test(t, resource.TestCase{
 		Providers: testAccProviders,
 
@@ -670,16 +671,16 @@ func stepPrinter() (func(), resource.TestCheckFunc) {
 	step := -1
 	out := os.Stderr
 	if Debug {
-		out.WriteString(fmt.Sprintf(">>>>>>>>>>> stepPrinter initialized with %d\n", step))
+		_, _ = out.WriteString(fmt.Sprintf(">>>>>>>>>>> stepPrinter initialized with %d\n", step))
 	}
 	return func() {
 			step++
 			if Debug {
-				out.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d\n", step))
+				_, _ = out.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d\n", step))
 			}
 		}, func(*terraform.State) error {
 			if Debug {
-				out.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d check\n", step))
+				_, _ = out.WriteString(fmt.Sprintf(">>>>>>>>>>> Step %d check\n", step))
 			}
 			return nil
 		}
@@ -951,6 +952,7 @@ func testAccCheckResourceOutput(name string, outparam string, value string) reso
 	}
 }
 
+//noinspection GoUnusedFunction
 func testAccCheckResourceMissing(name string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		_, ok := s.RootModule().Resources[name]
@@ -961,6 +963,7 @@ func testAccCheckResourceMissing(name string) resource.TestCheckFunc {
 	}
 }
 
+//noinspection GoUnusedFunction
 func testAccCheckResourceOutputMissing(name string, outparam string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[name]

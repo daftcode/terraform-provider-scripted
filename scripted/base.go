@@ -82,6 +82,10 @@ type KVEntry struct {
 	err   error
 }
 
+type Closable interface {
+	Close() error
+}
+
 type ResourceInterface interface {
 	GetChange(string) (interface{}, interface{})
 	Get(string) interface{}
@@ -496,16 +500,16 @@ func (s *Scripted) executeBase(output chan string, env *EnvironmentChangeMap, js
 	}
 
 	pr, pw := io.Pipe()
-	defer pw.Close()
+	defer s.logCloseError(pw)
 	go s.scanLines(output, pr)
 
 	outLog := newLoggedOutput(s, "out")
 	cmd.Stdout = io.MultiWriter(outBuf, outLog.Start(), pw)
-	defer outLog.Close()
+	defer s.logCloseError(outLog)
 
 	errLog := newLoggedOutput(s, "err")
 	cmd.Stderr = io.MultiWriter(outBuf, errLog.Start())
-	defer errLog.Close()
+	defer s.logCloseError(errLog)
 
 	// Output what we're about to run
 	if s.pc.logging.level >= hclog.Debug {
@@ -529,6 +533,24 @@ func (s *Scripted) executeBase(output chan string, env *EnvironmentChangeMap, js
 			command, err, outBuf.Bytes())
 	}
 	return nil
+}
+
+func (s *Scripted) logCloseError(closable Closable) {
+	if err := closable.Close(); err != nil {
+		s.log(hclog.Error, "close error", "closable", closable, "err", err)
+	}
+}
+
+func (s *Scripted) logError(err error) {
+	if err != nil {
+		s.log(hclog.Error, "encountered Error", "err", err)
+	}
+}
+
+func (s *Scripted) logForDefer(fn func() error) {
+	if err := fn(); err != nil {
+		s.log(hclog.Error, "deferred call failed", "fn", fn, "err", err)
+	}
 }
 
 func (s *Scripted) executeString(jsonCtx *JsonContext, commands ...string) (string, error) {
@@ -584,7 +606,9 @@ func (s *Scripted) ensureId() error {
 				return err
 			}
 			s.log(hclog.Debug, "setting resource id", "id", stdout)
-			s.d.SetIdErr(stdout)
+			if err = s.d.SetIdErr(stdout); err != nil {
+				return err
+			}
 			return nil
 		}
 	}
@@ -600,7 +624,9 @@ func (s *Scripted) ensureId() error {
 
 	value := fmt.Sprintf("%s#%s", hash(strings.Join(entries, "")), s.d.Get("revision").(string))
 	s.log(hclog.Debug, "setting resource id", "id", value)
-	s.d.SetIdErr(value)
+	if err := s.d.SetIdErr(value); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -638,7 +664,9 @@ func (s *Scripted) outputSetter() (input chan string, doneCh chan bool, saveCh c
 		if save {
 			setval := terraformify(output)
 			s.log(hclog.Debug, "syncing output", "value", output, "setval", fmt.Sprintf("%#v", setval))
-			s.d.Set("output", setval)
+			if err := s.d.Set("output", setval); err != nil {
+				s.log(hclog.Error, "failed saving output", "err", err)
+			}
 		}
 		doneCh <- true
 		close(doneCh)
@@ -725,11 +753,16 @@ func (s *Scripted) syncState() {
 	}
 }
 
-func (s *Scripted) clear() {
+func (s *Scripted) clear() error {
 	s.log(hclog.Info, "clearing resource")
-	s.d.SetIdErr("")
-	s.d.Set("output", map[string]interface{}{})
+	if err := s.d.SetIdErr(""); err != nil {
+		return err
+	}
+	if err := s.d.Set("output", map[string]interface{}{}); err != nil {
+		return err
+	}
 	s.clearState()
+	return nil
 }
 
 func (s *Scripted) scanOutput(input chan string, format string, output chan KVEntry) {
@@ -826,18 +859,23 @@ func (s *Scripted) runningMessages() func() {
 	return ticker.Stop
 }
 
-func (s *Scripted) rollback() {
+func (s *Scripted) rollback() error {
 	s.log(hclog.Info, "rollback started")
 	for _, key := range s.d.GetRollbackKeys() {
 		o, n := s.d.GetChange(key)
 		s.log(hclog.Trace, "rolling back value", "key", key, "to", o, "from", n)
-		s.d.Set(key, o)
+		if err := s.d.Set(key, o); err != nil {
+			return err
+		}
 	}
 	newId := s.d.Id()
 	if s.oldId != newId {
 		s.log(hclog.Trace, "rolling back id", "to", s.oldId, "from", newId)
-		s.d.SetIdErr(s.oldId)
+		if err := s.d.SetIdErr(s.oldId); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (s *Scripted) getComputeKeysFromCommand() ([]string, error) {
@@ -924,21 +962,26 @@ func (s *Scripted) getRecomputeKeysExtra(extra []string, prefixes ...string) []s
 	return ret
 }
 
-func (s *Scripted) ensureRevision() {
+func (s *Scripted) ensureRevision() error {
 	o, n := s.d.GetChange("revision")
 	nS := n.(string)
 	oS := o.(string)
 	if nS != "" {
-		return
+		return nil
 	}
 	if oS == "" {
-		s.bumpRevision()
+		if err := s.bumpRevision(); err != nil {
+			return err
+		}
 	} else {
-		s.d.Set("revision", oS)
+		if err := s.d.Set("revision", oS); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (s *Scripted) bumpRevision() {
+func (s *Scripted) bumpRevision() error {
 	oldStr := s.d.GetOld("revision").(string)
 	oldRevision, _ := strconv.ParseUint(oldStr, 10, 64)
 	newRevision := oldRevision
@@ -948,5 +991,8 @@ func (s *Scripted) bumpRevision() {
 		newRevision += 1
 	}
 	s.log(hclog.Info, fmt.Sprintf("Setting revision from %v to %v", oldRevision, newRevision))
-	s.d.Set("revision", fmt.Sprintf("%d", newRevision))
+	if err := s.d.Set("revision", fmt.Sprintf("%d", newRevision)); err != nil {
+		return err
+	}
+	return nil
 }

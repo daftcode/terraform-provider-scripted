@@ -95,6 +95,14 @@ func terraformify(input interface{}) map[string]interface{} {
 	return ret
 }
 
+func demotedTerraformify(input interface{}) interface{} {
+	terraformified := terraformify(input)
+	if value, ok := terraformified[""]; ok && len(terraformified) == 1 {
+		return value
+	}
+	return terraformified
+}
+
 func deterraformify(input interface{}) interface{} {
 	dict, ok := input.(map[string]interface{})
 

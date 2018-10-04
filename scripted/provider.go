@@ -20,6 +20,8 @@ var nextProviderId = 1
 // Store original os.Stderr and os.Stdout, because it gets overwritten by go-plugin/server:Serve()
 var parentStderr *os.File
 var Stderr = os.Stderr
+
+//noinspection GoUnusedGlobalVariable
 var Stdout = os.Stdout
 
 var EnvPrefix = envDefault("TF_SCRIPTED_ENV_PREFIX", DefaultEnvPrefix)
@@ -390,7 +392,9 @@ func providerConfigureLogging(d *schema.ResourceData) (*Logging, error) {
 	output := Stderr
 
 	if logToParent {
-		d.Set("open_parent_stderr", true)
+		if err := d.Set("open_parent_stderr", true); err != nil {
+			return nil, err
+		}
 		output = ParentStderr()
 	}
 
@@ -465,7 +469,9 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	d.Set("commands_interpreter", interpreter)
+	if err := d.Set("commands_interpreter", interpreter); err != nil {
+		return nil, err
+	}
 
 	if len(interpreter) < 1 {
 		return nil, fmt.Errorf(`invalid interpreter: %s`, interpreter)
@@ -477,12 +483,16 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 
 	// Set default state_format
 	if d.Get("state_format").(string) == EnvEmptyString {
-		d.Set("state_format", d.Get("output_format").(string))
+		if err := d.Set("state_format", d.Get("output_format").(string)); err != nil {
+			return nil, err
+		}
 	}
 
 	// Set read prefix
 	if d.Get("commands_read_use_default_line_prefix").(bool) {
-		d.Set("output_line_prefix", d.Get("line_prefix").(string))
+		if err := d.Set("output_line_prefix", d.Get("line_prefix").(string)); err != nil {
+			return nil, err
+		}
 	}
 
 	// Set default commands_environment_inherit_variables
@@ -492,7 +502,9 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		d.Set("commands_environment_inherit_variables", inherit)
+		if err := d.Set("commands_environment_inherit_variables", inherit); err != nil {
+			return nil, err
+		}
 	}
 
 	interpreterProviderCommands := castConfigListString(d.Get("commands_interpreter_provider_commands"))
@@ -528,21 +540,37 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 						strings.Join(allowedKeys, ", "),
 					)
 				}
-				d.Set(command, command)
+				if err := d.Set(command, command); err != nil {
+					return nil, err
+				}
 			}
 		}
-		d.Set("commands_prefix", EnvEmptyString)
-		d.Set("commands_modify_prefix", EnvEmptyString)
-		d.Set("commands_prefix_fromenv", EnvEmptyString)
-		d.Set("commands_environment_include_parent", true)
-		d.Set("commands_environment_include_json_context", true)
-		d.Set("commands_interpreter_provider_commands", interpreterProviderCommands)
+		if err := d.Set("commands_prefix", EnvEmptyString); err != nil {
+			return nil, err
+		}
+		if err := d.Set("commands_modify_prefix", EnvEmptyString); err != nil {
+			return nil, err
+		}
+		if err := d.Set("commands_prefix_fromenv", EnvEmptyString); err != nil {
+			return nil, err
+		}
+		if err := d.Set("commands_environment_include_parent", true); err != nil {
+			return nil, err
+		}
+		if err := d.Set("commands_environment_include_json_context", true); err != nil {
+			return nil, err
+		}
+		if err := d.Set("commands_interpreter_provider_commands", interpreterProviderCommands); err != nil {
+			return nil, err
+		}
 	}
 
 	outputLinePrefix := d.Get("output_line_prefix").(string)
 	if !isSet(outputLinePrefix) {
 		outputLinePrefix = ""
-		d.Set("output_line_prefix", outputLinePrefix)
+		if err := d.Set("output_line_prefix", outputLinePrefix); err != nil {
+			return nil, err
+		}
 	}
 	config := ProviderConfig{
 		Commands: &CommandsConfig{

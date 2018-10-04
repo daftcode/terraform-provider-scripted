@@ -30,8 +30,8 @@ func (d *ResourceData) GetOk(key string) (interface{}, bool) {
 	value, ok := d.ResourceData.GetOk(key)
 	return deterraformify(value), ok
 }
-func (d *ResourceData) Set(key string, value interface{}) error {
-	return d.ResourceData.Set(key, terraformify(value))
+func (d *ResourceData) Set(key string, value interface{}) (err error) {
+	return d.ResourceData.Set(key, demotedTerraformify(value))
 }
 
 func (d *ResourceData) SetIdErr(value string) error {
