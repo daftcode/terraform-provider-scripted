@@ -15,7 +15,6 @@ type EnvironmentConfig struct {
 
 type CommandTemplates struct {
 	Create                   string
-	CustomizeDiffComputeKeys string
 	Delete                   string
 	Dependencies             string
 	Exists                   string

@@ -3,11 +3,9 @@ package scripted
 import (
 	"fmt"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
-	"strings"
-
-	"github.com/hashicorp/go-multierror"
 )
 
 var resourceSchema = getResourceSchema()
@@ -86,28 +84,15 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 	if err != nil {
 		return err
 	}
-	var computedKeys []string
-	if computedKeys, err = s.getComputeKeysFromCommand(); err != nil {
-		return err
-	}
-	computedKeys = s.getRecomputeKeysExtra(computedKeys, "output", "state")
 
 	changed := s.d.IsNew()
 
 	if !s.d.IsNew() {
-		allDiffKeys := []string{"revision"}
-		allDiffKeys = append(allDiffKeys,
-			mergeStringSlices(
-				diff.GetChangedKeysPrefix("triggers"),
-				diff.GetChangedKeysPrefix("context"),
-				diff.GetChangedKeysPrefix("environment"),
-				computedKeys,
-			)...)
 		shouldLog := s.logging.level <= hclog.Debug
 
 		vDiff := make(map[string]map[string]interface{})
 
-		for _, key := range allDiffKeys {
+		for _, key := range diff.GetChangedKeysPrefix("") {
 			if s.d.HasChange(key) {
 				changed = true
 				if shouldLog {
@@ -135,18 +120,16 @@ func resourceScriptedCustomizeDiff(diff *schema.ResourceDiff, i interface{}) err
 		if err := s.bumpRevision(); err != nil {
 			return err
 		}
-		// if err := diff.Clear("revision"); err != nil {
-		// 	return err
-		// }
-		for _, key := range computedKeys {
-			if strings.HasSuffix(key, ".%") || strings.HasSuffix(key, ".#") {
-				key = key[:len(key)-2]
-			}
+		for _, key := range []string{"state", "output"} {
 			s.log(hclog.Trace, "setting key as computed", "key", key)
 			if err = diff.SetNewComputed(key); err != nil {
 				return err
 			}
 		}
+	}
+
+	if err := diff.Clear("revision"); err != nil {
+		return err
 	}
 
 	return nil

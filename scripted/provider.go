@@ -50,8 +50,8 @@ func Provider() terraform.ResourceProvider {
 			CommandCustomizeDiffComputeKeys: {
 				Type:        schema.TypeString,
 				Optional:    true,
-				DefaultFunc: defaultEmptyString,
 				Description: "Command printing keys to be forced to recompute. Lines must be prefixed with LinePrefix and keys separated by whitespace characters",
+				Removed: fmt.Sprintf("%s was removed since it was redundant", CommandCustomizeDiffComputeKeys),
 			},
 			CommandDelete: {
 				Type:        schema.TypeString,
@@ -594,7 +594,6 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 				NeedsUpdate:              d.Get(CommandNeedsUpdate).(string),
 				Read:                     d.Get(CommandRead).(string),
 				Update:                   d.Get(CommandUpdate).(string),
-				CustomizeDiffComputeKeys: d.Get(CommandCustomizeDiffComputeKeys).(string),
 			},
 			Output: &OutputConfig{
 				LogLevel:  hclog.LevelFromString(d.Get("logging_output_logging_log_level").(string)),

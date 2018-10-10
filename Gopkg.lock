@@ -374,12 +374,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  name = "github.com/pkg/errors"
-  packages = ["."]
-  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-  version = "v0.8.0"
-
-[[projects]]
   name = "github.com/posener/complete"
   packages = [
     ".",
@@ -525,6 +519,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1bed11aecef5d0d623be41e0436c77160bea9b939788d8977d666297bacee3fd"
+  inputs-digest = "7f919fa0b436044a53998d53f9dffc25659b4a90e1cdbddbce3a752d9f6a7d4f"
   solver-name = "gps-cdcl"
   solver-version = 1

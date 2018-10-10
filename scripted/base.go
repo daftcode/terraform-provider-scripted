@@ -114,7 +114,15 @@ func New(d ResourceInterface, meta interface{}, operation TerraformOperation, ol
 	s.ensureLogging()
 	s.setOld(old)
 	s.log(hclog.Trace, "resource initialized")
-	s.log(hclog.Trace, "initialized state", "old", s.rc.state.Old, "new", s.rc.state.New)
+	var fixedNewState map[string]interface{}
+	if len(s.rc.state.New) == 0 && len(s.rc.state.Old) > 0 {
+		fixedNewState = s.makeStateForUpdate()
+	}
+	s.log(hclog.Trace, "initialized state", "old", s.rc.state.Old, "new", s.rc.state.New, "fixed", fixedNewState)
+	if fixedNewState != nil {
+		s.rc.state.New = fixedNewState
+		s.syncState()
+	}
 	return s, nil
 }
 
@@ -708,7 +716,8 @@ func (s *Scripted) stateSetter() (input chan string, doneCh chan bool, saveCh ch
 
 	go func() {
 		defer s.logging.PushDefer("ctx", "stateSetter")()
-		output := make(map[string]interface{})
+		output := s.makeStateForUpdate()
+		s.log(hclog.Trace, "initialized stateSetter", "output", output)
 		filtered := make(chan string)
 		go s.filterLines(input, s.pc.StateLinePrefix, s.pc.EmptyString, filtered)
 		entries := make(chan KVEntry)
@@ -878,86 +887,14 @@ func (s *Scripted) rollback() error {
 	return nil
 }
 
-func (s *Scripted) getComputeKeysFromCommand() ([]string, error) {
-	var ret []string
-	onEmpty := func(msg string) error {
-		s.log(hclog.Debug, msg)
-		return nil
+func (s *Scripted) makeStateForUpdate() map[string]interface{} {
+	ret := make(map[string]interface{})
+	copyFrom := s.rc.state.New
+	if len(copyFrom) == 0 {
+		copyFrom = s.rc.state.Old
 	}
-	defer s.logging.PushDefer("commands", "customizediff_computekeys")()
-	if !isSet(s.pc.Commands.Templates.CustomizeDiffComputeKeys) {
-		return ret, onEmpty(fmt.Sprintf(`"%s" is empty, exiting.`, CommandCustomizeDiffComputeKeys))
-	}
-	command, jsonCtx, err := s.prefixedTemplate(&TemplateArg{CommandCustomizeDiffComputeKeys, s.pc.Commands.Templates.CustomizeDiffComputeKeys})
-	if err != nil {
-		return ret, err
-	}
-	if !isFilled(command) {
-		return ret, onEmpty(fmt.Sprintf(`"%s" rendered empty, exiting.`, CommandCustomizeDiffComputeKeys))
-	}
-
-	output := make(chan string)
-	tokens := make(chan string)
-
-	go func() {
-		lines := make(chan string)
-		go s.filterLines(output, s.pc.LinePrefix, s.pc.EmptyString, lines)
-		for line := range lines {
-			for _, token := range strings.Fields(line) {
-				tokens <- token
-			}
-		}
-		close(tokens)
-	}()
-
-	s.log(hclog.Info, "getting compute keys", "command", command)
-	err = s.execute(output, jsonCtx, command)
-	for token := range tokens {
-		ret = append(ret, token)
-	}
-	return ret, err
-}
-
-func (s *Scripted) getRecomputeKeys(prefix string) []string {
-	var ret []string
-	entries := map[string]bool{}
-
-	for _, key := range s.d.GetChangedKeysPrefix(prefix) {
-		entries[key] = true
-	}
-	for _, key := range s.pc.OutputComputeKeys {
-		key = fmt.Sprintf("output.%s", key)
-		if strings.HasPrefix(key, prefix) {
-			entries[key] = true
-		}
-	}
-	for _, key := range s.pc.StateComputeKeys {
-		key = fmt.Sprintf("state.%s", key)
-		if strings.HasPrefix(key, prefix) {
-			entries[key] = true
-		}
-	}
-	for key := range entries {
-		ret = append(ret, key)
-	}
-	return ret
-}
-
-func (s *Scripted) getRecomputeKeysExtra(extra []string, prefixes ...string) []string {
-	entries := map[string]bool{}
-	var ret []string
-	for _, prefix := range prefixes {
-		for _, key := range s.getRecomputeKeys(prefix) {
-			entries[key] = true
-		}
-		for _, key := range extra {
-			if strings.HasPrefix(key, prefix) {
-				entries[key] = true
-			}
-		}
-	}
-	for key := range entries {
-		ret = append(ret, key)
+	for k, v := range copyFrom {
+		ret[k] = v
 	}
 	return ret
 }

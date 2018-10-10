@@ -555,8 +555,8 @@ echo -n "{{ .StatePrefix }}value={{ .Cur.value }}"
 EOF
 		commands_update = ""
 		commands_read = <<EOF
-echo old={{ .State.Old.value | quote}}
-echo new={{ .State.New.value | quote}}
+echo old={{ .State.Old.value | quote }}
+echo new={{ .State.New.value | quote }}
 EOF
 	}
 	resource "scripted_resource" "test" {
@@ -570,8 +570,8 @@ EOF
   		commands_create = ""
 		commands_update = ""
 		commands_read = <<EOF
-echo old={{ .State.Old.value | quote}}
-echo new={{ .State.New.value | quote}}
+echo old={{ .State.Old.value | quote }}
+echo new={{ .State.New.value | quote }}
 EOF
 	}
 	resource "scripted_resource" "test" {
@@ -587,8 +587,8 @@ EOF
 echo -n "{{ .StatePrefix }}value={{ .EmptyString }}"
 EOF
 		commands_read = <<EOF
-echo old={{ .State.Old.value | quote}}
-echo new={{ .State.New.value | quote}}
+echo old={{ .State.Old.value | quote }}
+echo new={{ .State.New.value | quote }}
 EOF
 	}
 	resource "scripted_resource" "test" {
@@ -597,11 +597,13 @@ EOF
 		}
 	}
 `
+	printStep, _ := stepPrinter()
 	resource.Test(t, resource.TestCase{
 		Providers: testAccProviders,
 
 		Steps: []resource.TestStep{
 			{
+				PreConfig: printStep,
 				Config: testConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
@@ -610,6 +612,7 @@ EOF
 				),
 			},
 			{
+				PreConfig: printStep,
 				Config: testConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
@@ -618,6 +621,7 @@ EOF
 				),
 			},
 			{
+				PreConfig: printStep,
 				Config: testConfig2,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
@@ -626,6 +630,7 @@ EOF
 				),
 			},
 			{
+				PreConfig: printStep,
 				Config: testConfig3,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceStateMissing("scripted_resource.test", "value"),

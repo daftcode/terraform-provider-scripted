@@ -77,14 +77,14 @@ var description = makeBackticks(`
 | Argument | Type | Description | Default |
 |:---      | ---  | ---         | ---     |
 {{- range $arg, $data := .config }}
-| \'{{ $arg }}\' | 
+| {{ if $data.Removed }}REMOVED{{ else if $data.Deprecated }}DEPRECATED{{ end }} \'{{ $arg }}\' |
 {{- "" }} [{{ $data.Type | replace "Type" "" | lower }}](https://www.terraform.io/docs/extend/schemas/schema-types.html#{{ $data.Type | lower }}) | 
 {{- "" }} {{ $data.Description }} | 
 {{- "" }} {{ if hasKey $data.Default "Value" }}{{ $default := default "" $data.Default.Value -}}
 	{{ if contains "\'" $default | not }}\'{{ end }}
     {{- $default -}}
  	{{ if contains "\'" $default | not }}\'{{ end }}
-{{- else }}not set{{ end }} | 
+{{- else }}not set{{ end }} |
 {{- end }}
 `)
 

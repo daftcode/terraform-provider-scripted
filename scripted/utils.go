@@ -148,6 +148,7 @@ func getGID() uint64 {
 	return n
 }
 
+//noinspection GoUnusedFunction
 func mergeStringSlices(slices ...[]string) []string {
 	entries := map[string]bool{}
 	for _, slice := range slices {
