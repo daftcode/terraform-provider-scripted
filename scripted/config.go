@@ -14,18 +14,18 @@ type EnvironmentConfig struct {
 }
 
 type CommandTemplates struct {
-	Create                   string
-	Delete                   string
-	Dependencies             string
-	Exists                   string
-	Id                       string
-	Interpreter              []string
-	ModifyPrefix             string
-	Prefix                   string
-	PrefixFromEnv            string
-	Read                     string
-	NeedsUpdate              string
-	Update                   string
+	Create        string
+	Delete        string
+	Dependencies  string
+	Exists        string
+	Id            string
+	Interpreter   []string
+	ModifyPrefix  string
+	Prefix        string
+	PrefixFromEnv string
+	Read          string
+	NeedsUpdate   string
+	Update        string
 }
 
 type OutputConfig struct {

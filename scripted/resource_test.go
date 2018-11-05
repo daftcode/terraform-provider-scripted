@@ -604,7 +604,7 @@ EOF
 		Steps: []resource.TestStep{
 			{
 				PreConfig: printStep,
-				Config: testConfig,
+				Config:    testConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "<nil>"),
@@ -613,7 +613,7 @@ EOF
 			},
 			{
 				PreConfig: printStep,
-				Config: testConfig,
+				Config:    testConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
@@ -622,7 +622,7 @@ EOF
 			},
 			{
 				PreConfig: printStep,
-				Config: testConfig2,
+				Config:    testConfig2,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceState("scripted_resource.test", "value", "test"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
@@ -631,7 +631,7 @@ EOF
 			},
 			{
 				PreConfig: printStep,
-				Config: testConfig3,
+				Config:    testConfig3,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckResourceStateMissing("scripted_resource.test", "value"),
 					testAccCheckResourceOutput("scripted_resource.test", "old", "test"),
