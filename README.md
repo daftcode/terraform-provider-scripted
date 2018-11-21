@@ -2,6 +2,11 @@
 
 This is a terraform provider that lets you wrap shell/interpreter based tools to [Terraform](https://terraform.io/) resources in a simple way.
 
+## Is it production ready?
+
+There were a lot of breaking changes and redesigns on the way, versions 3.6+ should not introduce many more incompatibilities.
+Still i would NOT call it production ready yet until more people use it and give feedback.
+
 ## Installing
 
 [Copied from the Terraform documentation](https://www.terraform.io/docs/plugins/basics.html):
