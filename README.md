@@ -73,6 +73,7 @@ make test
 
 ## Known Problems
 
+* Provider cannot handle the case where resource update is scheduled during planning, but is rolled-back in course of apply.
 * The provider will error instead of removing the resource if the delete command fails. However, this is a safe default.
 * Changes in provider do not issue resource rebuilds. Please parametrize all parameters that will change.
 
