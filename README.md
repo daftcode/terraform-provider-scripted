@@ -14,6 +14,15 @@ Still i would NOT call it production ready yet until more people use it and give
 
 Build it from source (instructions below) and move the binary `terraform-provider-scripted` to `bin/` and it should work.
 
+### [intellij-hcl](https://github.com/VladRassokhin/intellij-hcl) completion
+
+To activate completion in JetBrains IDEs copy `*.json` from releases page into `~/.terraform.d/schemas/`:
+
+```bash
+mkdir -p ~/.terraform.d/schemas
+( cd ~/.terraform.d/schemas && curl -LO https://github.com/daftcode/terraform-provider-scripted/releases/download/v3.6.0/terraform-provider-scripted_v3.6.0.json )
+```
+
 ## Using the provider
 
 First, an simple example that is used in tests too
